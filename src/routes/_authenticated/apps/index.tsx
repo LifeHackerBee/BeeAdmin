@@ -7,6 +7,10 @@ const appsSearchSchema = z.object({
     .enum(['all', 'connected', 'notConnected'])
     .optional()
     .catch(undefined),
+  category: z
+    .enum(['all', 'finance', 'investment', 'lifestyle'])
+    .optional()
+    .catch(undefined),
   filter: z.string().optional().catch(''),
   sort: z.enum(['asc', 'desc']).optional().catch(undefined),
 })

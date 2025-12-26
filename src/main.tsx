@@ -1,4 +1,4 @@
-import { StrictMode } from 'react'
+import { StrictMode, useEffect } from 'react'
 import ReactDOM from 'react-dom/client'
 import { AxiosError } from 'axios'
 import {
@@ -13,6 +13,7 @@ import { handleServerError } from '@/lib/handle-server-error'
 import { DirectionProvider } from './context/direction-provider'
 import { FontProvider } from './context/font-provider'
 import { ThemeProvider } from './context/theme-provider'
+import { LanguageProvider } from './context/language-provider'
 // Generated Routes
 import { routeTree } from './routeTree.gen'
 // Styles
@@ -53,9 +54,22 @@ const queryClient = new QueryClient({
       if (error instanceof AxiosError) {
         if (error.response?.status === 401) {
           toast.error('Session expired!')
-          useAuthStore.getState().auth.reset()
-          const redirect = `${router.history.location.href}`
-          router.navigate({ to: '/sign-in', search: { redirect } })
+          useAuthStore.getState().auth.signOut().catch(console.error)
+          // 只传递路径部分，确保是字符串
+          let currentPath = '/'
+          try {
+            const pathname = String(router.history.location.pathname || '')
+            const search = String(router.history.location.search || '')
+            currentPath = pathname + search
+            // 如果结果不是有效的字符串，使用默认值
+            if (!currentPath || currentPath === 'undefinedundefined' || currentPath.includes('[object')) {
+              currentPath = '/'
+            }
+          } catch (error) {
+            // 如果转换失败，使用默认路径
+            currentPath = '/'
+          }
+          router.navigate({ to: '/sign-in', search: { redirect: currentPath } })
         }
         if (error.response?.status === 500) {
           toast.error('Internal Server Error!')
@@ -87,6 +101,19 @@ declare module '@tanstack/react-router' {
   }
 }
 
+// Initialize auth on app start
+function App() {
+  const initializeAuth = useAuthStore((state) => state.auth.initialize)
+
+  useEffect(() => {
+    initializeAuth()
+  }, [initializeAuth])
+
+  return (
+    <RouterProvider router={router} />
+  )
+}
+
 // Render the app
 const rootElement = document.getElementById('root')!
 if (!rootElement.innerHTML) {
@@ -94,13 +121,15 @@ if (!rootElement.innerHTML) {
   root.render(
     <StrictMode>
       <QueryClientProvider client={queryClient}>
-        <ThemeProvider>
-          <FontProvider>
-            <DirectionProvider>
-              <RouterProvider router={router} />
-            </DirectionProvider>
-          </FontProvider>
-        </ThemeProvider>
+        <LanguageProvider>
+          <ThemeProvider>
+            <FontProvider>
+              <DirectionProvider>
+                <App />
+              </DirectionProvider>
+            </FontProvider>
+          </ThemeProvider>
+        </LanguageProvider>
       </QueryClientProvider>
     </StrictMode>
   )

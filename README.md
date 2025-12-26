@@ -1,62 +1,8 @@
-# Shadcn Admin Dashboard
+# BeeAdmin Dashboard
 
 Admin Dashboard UI crafted with Shadcn and Vite. Built with responsiveness and accessibility in mind.
 
-![alt text](public/images/shadcn-admin.png)
 
-[![Sponsored by Clerk](https://img.shields.io/badge/Sponsored%20by-Clerk-5b6ee1?logo=clerk)](https://go.clerk.com/GttUAaK)
-
-I've been creating dashboard UIs at work and for my personal projects. I always wanted to make a reusable collection of dashboard UI for future projects; and here it is now. While I've created a few custom components, some of the code is directly adapted from ShadcnUI examples.
-
-> This is not a starter project (template) though. I'll probably make one in the future.
-
-## Features
-
-- Light/dark mode
-- Responsive
-- Accessible
-- With built-in Sidebar component
-- Global search command
-- 10+ pages
-- Extra custom components
-- RTL support
-
-<details>
-<summary>Customized Components (click to expand)</summary>
-
-This project uses Shadcn UI components, but some have been slightly modified for better RTL (Right-to-Left) support and other improvements. These customized components differ from the original Shadcn UI versions.
-
-If you want to update components using the Shadcn CLI (e.g., `npx shadcn@latest add <component>`), it's generally safe for non-customized components. For the listed customized ones, you may need to manually merge changes to preserve the project's modifications and avoid overwriting RTL support or other updates.
-
-> If you don't require RTL support, you can safely update the 'RTL Updated Components' via the Shadcn CLI, as these changes are primarily for RTL compatibility. The 'Modified Components' may have other customizations to consider.
-
-### Modified Components
-
-- scroll-area
-- sonner
-- separator
-
-### RTL Updated Components
-
-- alert-dialog
-- calendar
-- command
-- dialog
-- dropdown-menu
-- select
-- table
-- sheet
-- sidebar
-- switch
-
-**Notes:**
-
-- **Modified Components**: These have general updates, potentially including RTL adjustments.
-- **RTL Updated Components**: These have specific changes for RTL language support (e.g., layout, positioning).
-- For implementation details, check the source files in `src/components/ui/`.
-- All other Shadcn UI components in the project are standard and can be safely updated via the CLI.
-
-</details>
 
 ## Tech Stack
 
@@ -72,20 +18,39 @@ If you want to update components using the Shadcn CLI (e.g., `npx shadcn@latest 
 
 **Icons:** [Lucide Icons](https://lucide.dev/icons/), [Tabler Icons](https://tabler.io/icons) (Brand icons only)
 
-**Auth (partial):** [Clerk](https://go.clerk.com/GttUAaK)
+**Auth:** [Supabase](https://supabase.com/)
+
+## 环境配置
+
+在项目根目录创建 `.env` 文件，并配置以下 Supabase 环境变量：
+
+```bash
+VITE_SUPABASE_URL=your_supabase_project_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
+
+你可以参考 `.env.example` 文件（如果存在）来了解所需的配置项。
+
+### 获取 Supabase 凭证
+
+1. 登录到 [Supabase Dashboard](https://app.supabase.com/)
+2. 选择你的项目（或创建新项目）
+3. 进入 **Settings** > **API**
+4. 复制 **Project URL** 作为 `VITE_SUPABASE_URL`
+5. 复制 **anon public** key 作为 `VITE_SUPABASE_ANON_KEY`
 
 ## Run Locally
 
 Clone the project
 
 ```bash
-  git clone https://github.com/satnaing/shadcn-admin.git
+  git clone <your-repo-url>
 ```
 
 Go to the project directory
 
 ```bash
-  cd shadcn-admin
+  cd bee-admin
 ```
 
 Install dependencies
@@ -94,11 +59,81 @@ Install dependencies
   pnpm install
 ```
 
+配置环境变量（见上方说明）
+
 Start the server
 
 ```bash
   pnpm run dev
 ```
+
+## Docker 部署
+
+### 使用 Docker Compose 启动
+
+1. 确保已创建 `.env` 文件（参考上方环境配置说明）
+
+2. 构建并启动容器：
+
+```bash
+  docker-compose up -d
+```
+
+3. 访问应用：
+
+打开浏览器访问 `http://localhost:3000`
+
+### Docker Compose 命令
+
+```bash
+# 启动服务（后台运行）
+docker-compose up -d
+
+# 查看日志
+docker-compose logs -f
+
+# 停止服务
+docker-compose down
+
+# 重新构建并启动
+docker-compose up -d --build
+
+# 查看服务状态
+docker-compose ps
+```
+
+### 开发模式（热重载）
+
+使用开发模式的 docker-compose 配置：
+
+```bash
+  docker-compose -f docker-compose.dev.yml up
+```
+
+访问 `http://localhost:5173`，代码修改会自动热重载。
+
+### 单独使用 Docker
+
+```bash
+# 构建镜像（需要先设置环境变量）
+export VITE_SUPABASE_URL=your_supabase_url
+export VITE_SUPABASE_ANON_KEY=your_anon_key
+
+docker build \
+  --build-arg VITE_SUPABASE_URL=$VITE_SUPABASE_URL \
+  --build-arg VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY \
+  -t bee-admin .
+
+# 运行容器
+docker run -d -p 3000:80 --name bee-admin bee-admin
+```
+
+### 注意事项
+
+⚠️ **重要**：Vite 的环境变量是在构建时注入的，不是运行时。如果需要更改环境变量，需要重新构建镜像。
+
+- 生产环境：使用 `docker-compose.yml`（构建后部署）
+- 开发环境：使用 `docker-compose.dev.yml`（支持热重载）
 
 ## Sponsoring this project ❤️
 
@@ -106,13 +141,9 @@ If you find this project helpful or use this in your own work, consider [sponsor
 
 For questions or sponsorship inquiries, feel free to reach out at [satnaingdev@gmail.com](mailto:satnaingdev@gmail.com).
 
-### Current Sponsor
-
-- [Clerk](https://go.clerk.com/GttUAaK) - authentication and user management for the modern web
-
 ## Author
 
-Crafted with 🤍 by [@satnaing](https://github.com/satnaing)
+Crafted with 🤍 by BeeAdmin Team
 
 ## License
 

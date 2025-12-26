@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { type User } from '../data/schema'
 import { useUsers } from './users-provider'
+import { useRBAC } from '@/hooks/use-rbac'
 
 type DataTableRowActionsProps = {
   row: Row<User>
@@ -19,6 +20,16 @@ type DataTableRowActionsProps = {
 
 export function DataTableRowActions({ row }: DataTableRowActionsProps) {
   const { setOpen, setCurrentRow } = useUsers()
+  const { hasPermission } = useRBAC()
+  
+  const canEdit = hasPermission('users.edit')
+  const canDelete = hasPermission('users.delete')
+  
+  // 如果没有任何权限，不显示菜单
+  if (!canEdit && !canDelete) {
+    return null
+  }
+  
   return (
     <>
       <DropdownMenu modal={false}>
@@ -32,6 +43,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align='end' className='w-[160px]'>
+          {canEdit && (
           <DropdownMenuItem
             onClick={() => {
               setCurrentRow(row.original)
@@ -43,7 +55,9 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
               <UserPen size={16} />
             </DropdownMenuShortcut>
           </DropdownMenuItem>
-          <DropdownMenuSeparator />
+          )}
+          {canEdit && canDelete && <DropdownMenuSeparator />}
+          {canDelete && (
           <DropdownMenuItem
             onClick={() => {
               setCurrentRow(row.original)
@@ -56,6 +70,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
               <Trash2 size={16} />
             </DropdownMenuShortcut>
           </DropdownMenuItem>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
     </>

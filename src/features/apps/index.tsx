@@ -1,6 +1,6 @@
 import { type ChangeEvent, useState } from 'react'
 import { getRouteApi } from '@tanstack/react-router'
-import { SlidersHorizontal, ArrowUpAZ, ArrowDownAZ } from 'lucide-react'
+import { SlidersHorizontal, ArrowUpAZ, ArrowDownAZ, Star } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -11,34 +11,45 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
+import { Badge } from '@/components/ui/badge'
 import { ConfigDrawer } from '@/components/config-drawer'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
 import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
-import { apps } from './data/apps'
+import { LanguageSwitch } from '@/components/language-switch'
+import { apps, type AppCategory } from './data/apps'
 
 const route = getRouteApi('/_authenticated/apps/')
 
 type AppType = 'all' | 'connected' | 'notConnected'
 
-const appText = new Map<AppType, string>([
-  ['all', 'All Apps'],
-  ['connected', 'Connected'],
-  ['notConnected', 'Not Connected'],
+const appTypeText = new Map<AppType, string>([
+  ['all', '全部应用'],
+  ['connected', '已连接'],
+  ['notConnected', '未连接'],
+])
+
+const categoryText = new Map<AppCategory, string>([
+  ['all', '全部分类'],
+  ['finance', '理财'],
+  ['investment', '投资'],
+  ['lifestyle', '生活管理'],
 ])
 
 export function Apps() {
   const {
     filter = '',
     type = 'all',
+    category = 'all',
     sort: initSort = 'asc',
   } = route.useSearch()
   const navigate = route.useNavigate()
 
   const [sort, setSort] = useState(initSort)
   const [appType, setAppType] = useState(type)
+  const [appCategory, setAppCategory] = useState<AppCategory>(category as AppCategory || 'all')
   const [searchTerm, setSearchTerm] = useState(filter)
 
   const filteredApps = apps
@@ -53,6 +64,9 @@ export function Apps() {
         : appType === 'notConnected'
           ? !app.connected
           : true
+    )
+    .filter((app) =>
+      appCategory === 'all' ? true : app.category === appCategory
     )
     .filter((app) => app.name.toLowerCase().includes(searchTerm.toLowerCase()))
 
@@ -76,6 +90,16 @@ export function Apps() {
     })
   }
 
+  const handleCategoryChange = (value: AppCategory) => {
+    setAppCategory(value)
+    navigate({
+      search: (prev) => ({
+        ...prev,
+        category: value === 'all' ? undefined : value,
+      }),
+    })
+  }
+
   const handleSortChange = (sort: 'asc' | 'desc') => {
     setSort(sort)
     navigate({ search: (prev) => ({ ...prev, sort }) })
@@ -87,6 +111,7 @@ export function Apps() {
       <Header>
         <Search />
         <div className='ms-auto flex items-center gap-4'>
+          <LanguageSwitch />
           <ThemeSwitch />
           <ConfigDrawer />
           <ProfileDropdown />
@@ -96,35 +121,44 @@ export function Apps() {
       {/* ===== Content ===== */}
       <Main fixed>
         <div>
-          <h1 className='text-2xl font-bold tracking-tight'>
-            App Integrations
-          </h1>
+          <h1 className='text-2xl font-bold tracking-tight'>应用市场</h1>
           <p className='text-muted-foreground'>
-            Here&apos;s a list of your apps for the integration!
+            发现各种理财、投资、生活管理应用，提升您的生活效率
           </p>
         </div>
-        <div className='my-4 flex items-end justify-between sm:my-0 sm:items-center'>
-          <div className='flex flex-col gap-4 sm:my-4 sm:flex-row'>
+        <div className='my-4 flex flex-col gap-4 sm:my-0 sm:flex-row sm:items-center sm:justify-between'>
+          <div className='flex flex-col gap-4 sm:flex-row'>
             <Input
-              placeholder='Filter apps...'
-              className='h-9 w-40 lg:w-[250px]'
+              placeholder='搜索应用...'
+              className='h-9 w-full sm:w-40 lg:w-[250px]'
               value={searchTerm}
               onChange={handleSearch}
             />
-            <Select value={appType} onValueChange={handleTypeChange}>
-              <SelectTrigger className='w-36'>
-                <SelectValue>{appText.get(appType)}</SelectValue>
+            <Select value={appCategory} onValueChange={handleCategoryChange}>
+              <SelectTrigger className='w-full sm:w-36'>
+                <SelectValue>{categoryText.get(appCategory)}</SelectValue>
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value='all'>All Apps</SelectItem>
-                <SelectItem value='connected'>Connected</SelectItem>
-                <SelectItem value='notConnected'>Not Connected</SelectItem>
+                <SelectItem value='all'>全部分类</SelectItem>
+                <SelectItem value='finance'>理财</SelectItem>
+                <SelectItem value='investment'>投资</SelectItem>
+                <SelectItem value='lifestyle'>生活管理</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={appType} onValueChange={handleTypeChange}>
+              <SelectTrigger className='w-full sm:w-36'>
+                <SelectValue>{appTypeText.get(appType)}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value='all'>全部应用</SelectItem>
+                <SelectItem value='connected'>已连接</SelectItem>
+                <SelectItem value='notConnected'>未连接</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
           <Select value={sort} onValueChange={handleSortChange}>
-            <SelectTrigger className='w-16'>
+            <SelectTrigger className='w-full sm:w-16'>
               <SelectValue>
                 <SlidersHorizontal size={18} />
               </SelectValue>
@@ -133,13 +167,13 @@ export function Apps() {
               <SelectItem value='asc'>
                 <div className='flex items-center gap-4'>
                   <ArrowUpAZ size={16} />
-                  <span>Ascending</span>
+                  <span>升序</span>
                 </div>
               </SelectItem>
               <SelectItem value='desc'>
                 <div className='flex items-center gap-4'>
                   <ArrowDownAZ size={16} />
-                  <span>Descending</span>
+                  <span>降序</span>
                 </div>
               </SelectItem>
             </SelectContent>
@@ -150,29 +184,59 @@ export function Apps() {
           {filteredApps.map((app) => (
             <li
               key={app.name}
-              className='rounded-lg border p-4 hover:shadow-md'
+              className='group rounded-lg border p-4 transition-shadow hover:shadow-md'
             >
-              <div className='mb-8 flex items-center justify-between'>
-                <div
-                  className={`flex size-10 items-center justify-center rounded-lg bg-muted p-2`}
-                >
+              <div className='mb-4 flex items-start justify-between'>
+                <div className='flex items-center gap-3'>
+                  <div className='flex size-12 items-center justify-center rounded-lg bg-muted text-2xl p-2'>
                   {app.logo}
+                  </div>
+                  <div className='flex-1 min-w-0'>
+                    <h2 className='font-semibold truncate'>{app.name}</h2>
+                    <div className='flex items-center gap-2 mt-1'>
+                      {app.rating && (
+                        <div className='flex items-center gap-1'>
+                          <Star size={12} className='fill-yellow-400 text-yellow-400' />
+                          <span className='text-xs text-muted-foreground'>
+                            {app.rating}
+                          </span>
+                        </div>
+                      )}
+                      {app.users && (
+                        <span className='text-xs text-muted-foreground'>
+                          {app.users}
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </div>
                 <Button
                   variant='outline'
                   size='sm'
-                  className={`${app.connected ? 'border border-blue-300 bg-blue-50 hover:bg-blue-100 dark:border-blue-700 dark:bg-blue-950 dark:hover:bg-blue-900' : ''}`}
+                  className={`shrink-0 ${app.connected ? 'border border-blue-300 bg-blue-50 hover:bg-blue-100 dark:border-blue-700 dark:bg-blue-950 dark:hover:bg-blue-900' : ''}`}
                 >
-                  {app.connected ? 'Connected' : 'Connect'}
+                  {app.connected ? '已连接' : '连接'}
                 </Button>
               </div>
-              <div>
-                <h2 className='mb-1 font-semibold'>{app.name}</h2>
-                <p className='line-clamp-2 text-gray-500'>{app.desc}</p>
+              <div className='space-y-2'>
+                <p className='line-clamp-2 text-sm text-muted-foreground'>
+                  {app.desc}
+                </p>
+                <Badge variant='secondary' className='text-xs'>
+                  {categoryText.get(app.category)}
+                </Badge>
               </div>
             </li>
           ))}
         </ul>
+        {filteredApps.length === 0 && (
+          <div className='flex flex-col items-center justify-center py-16 text-center'>
+            <p className='text-muted-foreground'>未找到匹配的应用</p>
+            <p className='text-sm text-muted-foreground mt-2'>
+              尝试调整筛选条件
+            </p>
+          </div>
+        )}
       </Main>
     </>
   )

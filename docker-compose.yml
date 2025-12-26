@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  bee-admin:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # 构建时传递环境变量
+        - VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
+        - VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY}
+    container_name: bee-admin
+    ports:
+      - "3000:80"
+    env_file:
+      - .env
+    restart: unless-stopped
+    networks:
+      - bee-admin-network
+
+networks:
+  bee-admin-network:
+    driver: bridge
+

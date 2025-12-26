@@ -3,7 +3,6 @@ import {
   LayoutDashboard,
   Monitor,
   Bug,
-  ListTodo,
   FileX,
   HelpCircle,
   Lock,
@@ -16,13 +15,18 @@ import {
   UserCog,
   UserX,
   Users,
-  MessagesSquare,
+  Sparkles,
   ShieldCheck,
-  AudioWaveform,
   Command,
   GalleryVerticalEnd,
+  TrendingUp,
+  Eye,
+  BookOpen,
+  BarChart3,
+  Clock,
+  Wallet,
+  ArrowLeftRight,
 } from 'lucide-react'
-import { ClerkLogo } from '@/assets/clerk-logo'
 import { type SidebarData } from '../types'
 
 export const sidebarData: SidebarData = {
@@ -33,20 +37,15 @@ export const sidebarData: SidebarData = {
   },
   teams: [
     {
-      name: 'Shadcn Admin',
+      name: 'BeeAdmin',
       logo: Command,
-      plan: 'Vite + ShadcnUI',
+      plan: '黑客蜂的人生管理后台',
     },
     {
-      name: 'Acme Inc',
+      name: 'Dajin Tech',
       logo: GalleryVerticalEnd,
       plan: 'Enterprise',
-    },
-    {
-      name: 'Acme Corp.',
-      logo: AudioWaveform,
-      plan: 'Startup',
-    },
+    }
   ],
   navGroups: [
     {
@@ -58,41 +57,89 @@ export const sidebarData: SidebarData = {
           icon: LayoutDashboard,
         },
         {
-          title: 'Tasks',
-          url: '/tasks',
-          icon: ListTodo,
-        },
-        {
           title: 'Apps',
           url: '/apps',
           icon: Package,
         },
         {
-          title: 'Chats',
-          url: '/chats',
-          badge: '3',
-          icon: MessagesSquare,
+          title: 'BeeAI',
+          url: '/beeai',
+          icon: Sparkles,
         },
         {
           title: 'Users',
           url: '/users',
           icon: Users,
         },
+      ],
+    },
+    {
+      title: 'Trading',
+      items: [
         {
-          title: 'Secured by Clerk',
-          icon: ClerkLogo,
+          title: 'BeeTrader',
+          icon: TrendingUp,
           items: [
             {
-              title: 'Sign In',
-              url: '/clerk/sign-in',
+              title: '巨鲸钱包管理',
+              url: '/beetrader/monitor',
+              icon: Eye,
             },
             {
-              title: 'Sign Up',
-              url: '/clerk/sign-up',
+              title: '巨鲸观察',
+              url: '/beetrader/monitor-observation',
+              icon: Monitor,
             },
             {
-              title: 'User Management',
-              url: '/clerk/user-management',
+              title: '信号模块',
+              url: '/beetrader/signals',
+              icon: TrendingUp,
+            },
+            {
+              title: '交易策略库',
+              url: '/beetrader/strategies',
+              icon: BookOpen,
+            },
+            {
+              title: '回测模块',
+              url: '/beetrader/backtest',
+              icon: BarChart3,
+            },
+          ],
+        },
+      ],
+    },
+    {
+      title: 'Monitoring',
+      items: [
+        {
+          title: '后台任务',
+          url: '/monitoring/tasks',
+          icon: Clock,
+        },
+      ],
+    },
+    {
+      title: 'Finance',
+      items: [
+        {
+          title: '财务管理',
+          icon: Wallet,
+          items: [
+            {
+              title: '支出统计',
+              url: '/finance/statistics',
+              icon: BarChart3,
+            },
+            {
+              title: '记账管理',
+              url: '/finance/expenses',
+              icon: Wallet,
+            },
+            {
+              title: '汇率转换',
+              url: '/finance/exchange-rate',
+              icon: ArrowLeftRight,
             },
           ],
         },

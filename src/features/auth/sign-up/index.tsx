@@ -7,25 +7,28 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import { useTranslation } from '@/lib/i18n/use-translation'
 import { AuthLayout } from '../auth-layout'
 import { SignUpForm } from './components/sign-up-form'
 
 export function SignUp() {
+  const { t } = useTranslation()
+  
   return (
     <AuthLayout>
       <Card className='gap-4'>
         <CardHeader>
           <CardTitle className='text-lg tracking-tight'>
-            Create an account
+            {t('auth.signUpTitle')}
           </CardTitle>
           <CardDescription>
-            Enter your email and password to create an account. <br />
-            Already have an account?{' '}
+            {t('auth.signUpDescription')} <br />
+            {t('auth.alreadyHaveAccount')}{' '}
             <Link
               to='/sign-in'
               className='underline underline-offset-4 hover:text-primary'
             >
-              Sign In
+              {t('common.signIn')}
             </Link>
           </CardDescription>
         </CardHeader>
@@ -34,19 +37,19 @@ export function SignUp() {
         </CardContent>
         <CardFooter>
           <p className='px-8 text-center text-sm text-muted-foreground'>
-            By creating an account, you agree to our{' '}
+            {t('auth.agreeTerms')}{' '}
             <a
               href='/terms'
               className='underline underline-offset-4 hover:text-primary'
             >
-              Terms of Service
+              {t('auth.termsOfService')}
             </a>{' '}
-            and{' '}
+            {t('auth.and')}{' '}
             <a
               href='/privacy'
               className='underline underline-offset-4 hover:text-primary'
             >
-              Privacy Policy
+              {t('auth.privacyPolicy')}
             </a>
             .
           </p>

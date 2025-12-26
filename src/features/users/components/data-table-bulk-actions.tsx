@@ -12,6 +12,7 @@ import {
 import { DataTableBulkActions as BulkActionsToolbar } from '@/components/data-table'
 import { type User } from '../data/schema'
 import { UsersMultiDeleteDialog } from './users-multi-delete-dialog'
+import { useRBAC } from '@/hooks/use-rbac'
 
 type DataTableBulkActionsProps<TData> = {
   table: Table<TData>
@@ -22,6 +23,11 @@ export function DataTableBulkActions<TData>({
 }: DataTableBulkActionsProps<TData>) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const selectedRows = table.getFilteredSelectedRowModel().rows
+  const { hasPermission } = useRBAC()
+  
+  const canCreate = hasPermission('users.create')
+  const canEdit = hasPermission('users.edit')
+  const canDelete = hasPermission('users.delete')
 
   const handleBulkStatusChange = (status: 'active' | 'inactive') => {
     const selectedUsers = selectedRows.map((row) => row.original as User)
@@ -52,6 +58,7 @@ export function DataTableBulkActions<TData>({
   return (
     <>
       <BulkActionsToolbar table={table} entityName='user'>
+        {canCreate && (
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
@@ -70,7 +77,10 @@ export function DataTableBulkActions<TData>({
             <p>Invite selected users</p>
           </TooltipContent>
         </Tooltip>
+        )}
 
+        {canEdit && (
+          <>
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
@@ -108,7 +118,10 @@ export function DataTableBulkActions<TData>({
             <p>Deactivate selected users</p>
           </TooltipContent>
         </Tooltip>
+          </>
+        )}
 
+        {canDelete && (
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
@@ -127,6 +140,7 @@ export function DataTableBulkActions<TData>({
             <p>Delete selected users</p>
           </TooltipContent>
         </Tooltip>
+        )}
       </BulkActionsToolbar>
 
       <UsersMultiDeleteDialog

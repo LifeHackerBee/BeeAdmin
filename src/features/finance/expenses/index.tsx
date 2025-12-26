@@ -1,0 +1,56 @@
+import { ConfigDrawer } from '@/components/config-drawer'
+import { Header } from '@/components/layout/header'
+import { Main } from '@/components/layout/main'
+import { ProfileDropdown } from '@/components/profile-dropdown'
+import { Search } from '@/components/search'
+import { ThemeSwitch } from '@/components/theme-switch'
+import { LanguageSwitch } from '@/components/language-switch'
+import { ExpensesDialogs } from './components/expenses-dialogs'
+import { ExpensesPrimaryButtons } from './components/expenses-primary-buttons'
+import { ExpensesProvider } from './components/expenses-provider'
+import { ExpensesTable } from './components/expenses-table'
+import { useExpenses } from './hooks/use-expenses'
+
+export function Expenses() {
+  const { data: expenses = [], isLoading, error } = useExpenses()
+
+  return (
+    <ExpensesProvider>
+      <Header fixed>
+        <Search />
+        <div className='ms-auto flex items-center space-x-4'>
+          <LanguageSwitch />
+          <ThemeSwitch />
+          <ConfigDrawer />
+          <ProfileDropdown />
+        </div>
+      </Header>
+
+      <Main className='flex flex-1 flex-col gap-4 sm:gap-6'>
+        <div className='flex flex-wrap items-end justify-between gap-2'>
+          <div>
+            <h2 className='text-2xl font-bold tracking-tight'>记账管理</h2>
+            <p className='text-muted-foreground'>
+              管理和查看您的家庭开支记录
+            </p>
+          </div>
+          <ExpensesPrimaryButtons />
+        </div>
+        {isLoading ? (
+          <div className='flex items-center justify-center py-12'>
+            <p className='text-muted-foreground'>加载中...</p>
+          </div>
+        ) : error ? (
+          <div className='flex items-center justify-center py-12'>
+            <p className='text-destructive'>加载失败: {error instanceof Error ? error.message : '未知错误'}</p>
+          </div>
+        ) : (
+          <ExpensesTable data={expenses} />
+        )}
+      </Main>
+
+      <ExpensesDialogs />
+    </ExpensesProvider>
+  )
+}
+
