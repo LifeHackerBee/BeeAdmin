@@ -5,12 +5,18 @@ import { type Wallet } from '../data/schema'
 import { DataTableRowActions } from './data-table-row-actions'
 import { format } from 'date-fns'
 import { zhCN } from 'date-fns/locale'
-import { Copy, Check } from 'lucide-react'
+import { Copy, Check, Loader2, AlertCircle } from 'lucide-react'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
 import { walletTypes, getWalletTypeLabel } from '../data/data'
 import { Badge } from '@/components/ui/badge'
+import { useHyperliquidInfo } from '../hooks/use-hyperliquid-info'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 
 function CopyAddressButton({ address }: { address: string }) {
   const [copied, setCopied] = useState(false)
@@ -69,6 +75,101 @@ function CopyAddressButton({ address }: { address: string }) {
         <Copy className='h-3 w-3' />
       )}
     </Button>
+  )
+}
+
+function HyperliquidInfoCell({ address }: { address: string }) {
+  const { data, isLoading, error } = useHyperliquidInfo(address)
+
+  if (isLoading) {
+    return (
+      <div className='flex items-center gap-2'>
+        <Loader2 className='h-3 w-3 animate-spin text-muted-foreground' />
+        <span className='text-xs text-muted-foreground'>加载中...</span>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className='flex items-center gap-2 cursor-help'>
+            <AlertCircle className='h-3 w-3 text-destructive' />
+            <span className='text-xs text-muted-foreground'>获取失败</span>
+          </div>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p className='text-xs'>{error instanceof Error ? error.message : '未知错误'}</p>
+        </TooltipContent>
+      </Tooltip>
+    )
+  }
+
+  const clearinghouseState = data?.clearinghouseState
+  const marginSummary = clearinghouseState?.marginSummary
+  const accountValue = marginSummary?.accountValue
+  const withdrawable = clearinghouseState?.withdrawable
+  const positions = clearinghouseState?.assetPositions || []
+  const openOrders = clearinghouseState?.openOrders || []
+
+  // 如果没有数据，显示无数据
+  if (!accountValue && !withdrawable && positions.length === 0 && openOrders.length === 0) {
+    return (
+      <span className='text-xs text-muted-foreground'>无数据</span>
+    )
+  }
+
+  // 格式化账户价值
+  const formatValue = (value: string | undefined) => {
+    if (!value) return '-'
+    const num = parseFloat(value)
+    if (isNaN(num)) return value
+    return `$${num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  }
+
+  const tooltipContent = (
+    <div className='space-y-1 text-xs'>
+      {accountValue && (
+        <div>
+          <span className='font-semibold'>账户价值: </span>
+          <span>{formatValue(accountValue)}</span>
+        </div>
+      )}
+      {withdrawable && (
+        <div>
+          <span className='font-semibold'>可提取: </span>
+          <span>{formatValue(withdrawable)}</span>
+        </div>
+      )}
+      {positions.length > 0 && (
+        <div>
+          <span className='font-semibold'>持仓数量: </span>
+          <span>{positions.length}</span>
+        </div>
+      )}
+      {openOrders.length > 0 && (
+        <div>
+          <span className='font-semibold'>挂单数量: </span>
+          <span>{openOrders.length}</span>
+        </div>
+      )}
+    </div>
+  )
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div className='flex items-center gap-2 cursor-help'>
+          <Badge variant='outline' className='text-xs'>
+            {accountValue ? formatValue(accountValue) : '查看详情'}
+          </Badge>
+        </div>
+      </TooltipTrigger>
+      <TooltipContent className='max-w-xs'>
+        {tooltipContent}
+      </TooltipContent>
+    </Tooltip>
   )
 }
 
@@ -203,6 +304,18 @@ export const walletsColumns: ColumnDef<Wallet>[] = [
       const volumeB = (rowB.getValue('volume') as number | null) ?? 0
       return volumeA - volumeB
     },
+  },
+  {
+    id: 'hyperliquid',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title='Hyperliquid' />
+    ),
+    meta: { className: 'ps-1', tdClassName: 'ps-4' },
+    cell: ({ row }) => {
+      const address = row.original.address
+      return <HyperliquidInfoCell address={address} />
+    },
+    enableSorting: false,
   },
   {
     accessorKey: 'createdAt',
