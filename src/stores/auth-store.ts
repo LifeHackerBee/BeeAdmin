@@ -198,14 +198,23 @@ export const useAuthStore = create<AuthState>()((set) => ({
     },
     signOut: async () => {
       try {
-        await supabase.auth.signOut()
+        // 先清除本地状态，避免导航时请求被中止
         set((state) => ({
           ...state,
           auth: { ...state.auth, user: null, session: null },
         }))
+        
+        // 使用 local scope 登出，避免全局登出可能的问题
+        // 如果需要在所有标签页登出，可以使用 { scope: 'global' }
+        await supabase.auth.signOut({ scope: 'local' })
       } catch (error) {
         console.error('Error signing out:', error)
-        throw error
+        // 即使 API 调用失败，也确保本地状态已清除
+        set((state) => ({
+          ...state,
+          auth: { ...state.auth, user: null, session: null },
+        }))
+        // 不抛出错误，允许继续导航
       }
     },
     reset: () =>

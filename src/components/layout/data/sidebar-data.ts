@@ -84,6 +84,11 @@ export const sidebarData: SidebarData = {
               icon: Monitor,
             },
             {
+              title: '宏观市场',
+              url: '/beetrader/macroscopic',
+              icon: BarChart3,
+            },
+            {
               title: '信号模块',
               url: '/beetrader/signals',
               icon: TrendingUp,
