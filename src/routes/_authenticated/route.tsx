@@ -17,15 +17,15 @@ export const Route = createFileRoute('/_authenticated')({
       // 状态丢失，重新初始化
       await auth.initialize()
     }
-    
+
     // 重新获取最新的状态（初始化后）
     const updatedAuth = useAuthStore.getState().auth
     
     // 如果初始化后仍然没有用户或会话，才重定向
     if (!updatedAuth.user || !updatedAuth.session) {
         // 安全地获取重定向路径
-        let redirectPath = '/'
-        try {
+      let redirectPath = '/'
+      try {
           // 优先使用 href，如果不存在则使用 pathname
           if (location.href && typeof location.href === 'string') {
             // 移除协议和域名部分，只保留路径
@@ -52,22 +52,22 @@ export const Route = createFileRoute('/_authenticated')({
           }
           
           // 验证路径有效性
-          if (!redirectPath || redirectPath === 'undefinedundefined' || redirectPath.includes('[object')) {
-            redirectPath = '/'
-          }
-        } catch (error) {
-          // 如果转换失败，使用默认路径
+        if (!redirectPath || redirectPath === 'undefinedundefined' || redirectPath.includes('[object')) {
           redirectPath = '/'
         }
-        
-        throw redirect({
-          to: '/sign-in',
-          search: {
-            redirect: redirectPath,
-          },
-        })
+      } catch (error) {
+        // 如果转换失败，使用默认路径
+        redirectPath = '/'
       }
-    
+      
+      throw redirect({
+        to: '/sign-in',
+        search: {
+          redirect: redirectPath,
+        },
+      })
+    }
+
     // 基于路径的权限检查
     // 此时 updatedAuth.user 一定存在（否则前面已经重定向了）
     if (!updatedAuth.user) {

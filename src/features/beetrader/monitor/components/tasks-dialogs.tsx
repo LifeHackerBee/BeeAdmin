@@ -62,9 +62,9 @@ export function WalletsDialogs() {
             onOpenChange={(isOpen) => {
               if (!isOpen) {
                 setOpen(null)
-                setTimeout(() => {
-                  setCurrentRow(null)
-                }, 500)
+              setTimeout(() => {
+                setCurrentRow(null)
+              }, 500)
               } else {
                 setOpen('update')
               }
@@ -78,10 +78,10 @@ export function WalletsDialogs() {
             open={open === 'delete'}
             onOpenChange={(isOpen) => {
               if (!isOpen) {
-                setOpen(null)
-                setTimeout(() => {
-                  setCurrentRow(null)
-                }, 500)
+              setOpen(null)
+              setTimeout(() => {
+                setCurrentRow(null)
+              }, 500)
               } else {
                 setOpen('delete')
               }

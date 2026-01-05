@@ -41,8 +41,8 @@ export function WalletsMultiDeleteDialog<TData>({
       await deleteWallets(walletIds)
       await refetch()
       
-      setValue('')
-      table.resetRowSelection()
+        setValue('')
+        table.resetRowSelection()
       onOpenChange(false)
       toast.success(`已删除 ${selectedRows.length} 个巨鲸钱包`)
     } catch (error) {

@@ -27,7 +27,7 @@ import { type Wallet } from '../data/schema'
 import { DataTableBulkActions } from './data-table-bulk-actions'
 import { walletsColumns as columns } from './tasks-columns'
 
-const route = getRouteApi('/_authenticated/beetrader/monitor')
+const route = getRouteApi('/_authenticated/beetrader/whale-wallet-manage' as any)
 
 type DataTableProps = {
   data: Wallet[]
@@ -40,6 +40,20 @@ export function WalletsTable({ data }: DataTableProps) {
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
 
   // Synced with URL states
+  const routeNavigate = route.useNavigate()
+  const navigate: (opts: {
+    search:
+      | true
+      | Record<string, unknown>
+      | ((prev: Record<string, unknown>) => Partial<Record<string, unknown>> | Record<string, unknown>)
+    replace?: boolean
+  }) => void = (opts) => {
+    routeNavigate({
+      search: opts.search,
+      replace: opts.replace,
+    } as any)
+  }
+
   const {
     globalFilter,
     onGlobalFilterChange,
@@ -50,7 +64,7 @@ export function WalletsTable({ data }: DataTableProps) {
     ensurePageInRange,
   } = useTableUrlState({
     search: route.useSearch(),
-    navigate: route.useNavigate(),
+    navigate,
     pagination: { defaultPage: 1, defaultPageSize: 10 },
     globalFilter: { enabled: true, key: 'filter' },
     columnFilters: [],

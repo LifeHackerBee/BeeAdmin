@@ -75,7 +75,7 @@ export const sidebarData: SidebarData = {
           items: [
             {
               title: '巨鲸钱包管理',
-              url: '/beetrader/monitor',
+              url: '/beetrader/whale-wallet-manage',
               icon: Eye,
             },
             {
@@ -87,6 +87,11 @@ export const sidebarData: SidebarData = {
               title: '宏观市场',
               url: '/beetrader/macroscopic',
               icon: BarChart3,
+            },
+            {
+              title: 'K线观察',
+              url: '/beetrader/candles',
+              icon: GalleryVerticalEnd,
             },
             {
               title: '信号模块',

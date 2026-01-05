@@ -115,8 +115,8 @@ export function WalletsMutateDrawer({
       await refetch()
       // 触发 Context 中的刷新，确保 Monitor 组件也更新
       triggerRefresh()
-      onOpenChange(false)
-      form.reset()
+    onOpenChange(false)
+    form.reset()
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : '操作失败'
       toast.error(errorMessage)

@@ -1,7 +1,10 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { Monitor } from '@/features/beetrader/monitor'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/_authenticated/beetrader/')({
-  component: Monitor,
+  beforeLoad: () => {
+    throw redirect({
+      to: '/beetrader/whale-wallet-manage' as any,
+    })
+  },
 })
 

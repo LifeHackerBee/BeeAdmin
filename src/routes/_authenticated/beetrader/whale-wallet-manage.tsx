@@ -8,7 +8,7 @@ const monitorSearchSchema = z.object({
   filter: z.string().optional().catch(''),
 })
 
-export const Route = createFileRoute('/_authenticated/beetrader/monitor')({
+export const Route = createFileRoute('/_authenticated/beetrader/whale-wallet-manage' as any)({
   validateSearch: monitorSearchSchema,
   component: Monitor,
 })
