@@ -11,6 +11,7 @@ import { useExpenses } from '../expenses/hooks/use-expenses'
 import { TotalExpenseSummary } from './components/total-expense-summary'
 import { ExpenseDetails } from './components/expense-details'
 import { BudgetProgress } from './components/budget-progress'
+import { CategoryAnalysis } from './components/category-analysis'
 import { format, parseISO } from 'date-fns'
 
 export function Statistics() {
@@ -100,6 +101,8 @@ export function Statistics() {
               categoryData={categoryStats}
               currency={selectedCurrency}
             />
+
+            <CategoryAnalysis currency={selectedCurrency} />
           </>
         )}
       </Main>
