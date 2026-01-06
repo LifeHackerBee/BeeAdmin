@@ -6,6 +6,10 @@ import {
   Heart,
   Gamepad2,
   Dumbbell,
+  Book,
+  Globe,
+  Gift,
+  MoreVertical
 } from 'lucide-react'
 
 // 支出分类（匹配 Supabase 数据库中的分类）
@@ -41,9 +45,29 @@ export const categories = [
     icon: Gamepad2,
   },
   {
+    label: '医疗',
+    value: 'Healthcard' as const,
+    icon: Heart,
+  },
+  {
+    label: '教育',
+    value: 'Education' as const,
+    icon: Book,
+  },
+  {
+    label: '旅行',
+    value: 'Travel' as const,
+    icon: Globe,
+  },
+  {
+    label: '礼物',
+    value: 'Gift' as const,
+    icon: Gift,
+  },
+  {
     label: '其他',
     value: 'Others' as const,
-    icon: Heart,
+    icon: MoreVertical,
   },
 ]
 

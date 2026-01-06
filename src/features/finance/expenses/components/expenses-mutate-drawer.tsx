@@ -1,3 +1,4 @@
+import React from 'react'
 import { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -152,16 +153,18 @@ export function ExpensesMutateDrawer({
               control={form.control}
               name='amount'
               render={({ field }) => {
-                // 格式化显示值：去除前导零，但保留小数点前的单个0
-                const formatDisplayValue = (val: number | string | null | undefined): string => {
-                  if (val === null || val === undefined || val === '') return ''
-                  const str = String(val)
-                  // 如果是以0开头且不是0.xxx格式，去除前导零
-                  if (str.length > 1 && str[0] === '0' && str[1] !== '.') {
-                    return str.replace(/^0+/, '') || '0'
+                // 使用本地状态来保存输入框的显示值（允许用户输入过程中的中间状态）
+                const [displayValue, setDisplayValue] = React.useState<string>(
+                  field.value && field.value !== 0 ? String(field.value) : ''
+                )
+
+                // 当 field.value 从外部改变时（如编辑模式），同步到显示值
+                React.useEffect(() => {
+                  if (field.value !== undefined && field.value !== null) {
+                    const strValue = field.value === 0 ? '' : String(field.value)
+                    setDisplayValue(strValue)
                   }
-                  return str
-                }
+                }, [field.value])
 
                 return (
                   <FormItem>
@@ -170,19 +173,20 @@ export function ExpensesMutateDrawer({
                       <Input
                         type='text'
                         inputMode='decimal'
-                        placeholder='请输入金额'
-                        value={formatDisplayValue(field.value)}
+                        placeholder='请输入金额，支持小数'
+                        value={displayValue}
                         onChange={(e) => {
                           let value = e.target.value
                           
+                          // 允许空值
+                          if (value === '') {
+                            setDisplayValue('')
+                            field.onChange(0)
+                            return
+                          }
+                          
                           // 只允许数字和小数点
                           value = value.replace(/[^\d.]/g, '')
-                          
-                          // 去除前导零（但保留小数点前的单个0，如 0.5）
-                          if (value.length > 1 && value[0] === '0' && value[1] !== '.') {
-                            // 去除前导零
-                            value = value.replace(/^0+/, '') || '0'
-                          }
                           
                           // 限制只能有一个小数点
                           const parts = value.split('.')
@@ -195,25 +199,44 @@ export function ExpensesMutateDrawer({
                             value = parts[0] + '.' + parts[1].substring(0, 2)
                           }
                           
-                          // 更新输入框显示值
-                          e.target.value = value
+                          // 更新显示值
+                          setDisplayValue(value)
                           
-                          // 解析为数字并更新表单值
-                          if (value === '' || value === '.') {
+                          // 解析为数字并更新表单值（允许中间状态如 "0." 或 "."）
+                          if (value === '' || value === '.' || value === '0.') {
                             field.onChange(0)
                           } else {
                             const numValue = parseFloat(value)
                             if (!isNaN(numValue)) {
                               field.onChange(numValue)
+                            } else {
+                              // 如果解析失败，保持当前值（可能是输入过程中的中间状态）
+                              field.onChange(0)
                             }
                           }
                         }}
                         onBlur={(e) => {
-                          // 失焦时，如果值为空或只有小数点，设为0
-                          const value = e.target.value
-                          if (value === '' || value === '.') {
+                          // 失焦时进行最终格式化
+                          const value = e.target.value.trim()
+                          
+                          if (value === '' || value === '.' || value === '0.') {
+                            setDisplayValue('')
                             field.onChange(0)
-                            e.target.value = ''
+                          } else {
+                            const numValue = parseFloat(value)
+                            if (!isNaN(numValue)) {
+                              // 格式化显示：如果是整数显示整数，如果是小数保留最多2位
+                              if (numValue % 1 === 0) {
+                                setDisplayValue(numValue.toString())
+                              } else {
+                                setDisplayValue(numValue.toFixed(2).replace(/\.?0+$/, ''))
+                              }
+                              field.onChange(numValue)
+                            } else {
+                              // 如果无法解析，重置为0
+                              setDisplayValue('')
+                              field.onChange(0)
+                            }
                           }
                           field.onBlur()
                         }}
