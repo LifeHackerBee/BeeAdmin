@@ -35,7 +35,7 @@ export function StatisticsSummary({
                   key={currency}
                   className='flex items-center justify-between rounded-md border p-2 hover:bg-muted/50 transition-colors'
                 >
-                  <span className='font-medium'>{currency}</span>
+                    <span className='font-medium'>{currency}</span>
                   <div className='font-semibold text-red-600'>
                     {symbol}
                     {data.total.toLocaleString('zh-CN', {

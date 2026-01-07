@@ -1,6 +1,7 @@
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { ExpensesImportDialog } from './expenses-import-dialog'
 import { ExpensesMutateDrawer } from './expenses-mutate-drawer'
+import { RecurringRuleDrawer } from './recurring-rule-drawer'
 import { useExpenses } from './expenses-provider'
 import { useDeleteExpense } from '../hooks/use-expense-mutations'
 
@@ -35,6 +36,18 @@ export function ExpensesDialogs() {
         key='expenses-import'
         open={open === 'import'}
         onOpenChange={() => setOpen('import')}
+      />
+
+      <RecurringRuleDrawer
+        key='recurring-rule-create'
+        open={open === 'recurring'}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) {
+            setOpen(null)
+          } else {
+            setOpen('recurring')
+          }
+        }}
       />
 
       {currentRow && (

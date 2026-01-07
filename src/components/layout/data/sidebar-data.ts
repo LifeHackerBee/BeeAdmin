@@ -19,6 +19,7 @@ import {
   Clock,
   Wallet,
   ArrowLeftRight,
+  Tag,
 } from 'lucide-react'
 import { type SidebarData } from '../types'
 
@@ -133,6 +134,11 @@ export const sidebarData: SidebarData = {
               title: '汇率转换',
               url: '/finance/exchange-rate',
               icon: ArrowLeftRight,
+            },
+            {
+              title: '记账类型管理',
+              url: '/finance/categories',
+              icon: Tag,
             },
           ],
         },

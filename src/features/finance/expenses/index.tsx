@@ -5,10 +5,13 @@ import { ProfileDropdown } from '@/components/profile-dropdown'
 import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
 import { LanguageSwitch } from '@/components/language-switch'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ExpensesDialogs } from './components/expenses-dialogs'
 import { ExpensesPrimaryButtons } from './components/expenses-primary-buttons'
 import { ExpensesProvider } from './components/expenses-provider'
 import { ExpensesTable } from './components/expenses-table'
+import { RecurringRulesTable } from './components/recurring-rules-table'
+import { RecurringExecutionsTable } from './components/recurring-executions-table'
 import { useExpenses } from './hooks/use-expenses'
 
 export function Expenses() {
@@ -45,7 +48,21 @@ export function Expenses() {
             <p className='text-destructive'>加载失败: {error instanceof Error ? error.message : '未知错误'}</p>
           </div>
         ) : (
-          <ExpensesTable data={expenses} />
+          <>
+            <ExpensesTable data={expenses} />
+            <Tabs defaultValue='rules' className='w-full'>
+              <TabsList>
+                <TabsTrigger value='rules'>周期性记账规则</TabsTrigger>
+                <TabsTrigger value='executions'>执行记录</TabsTrigger>
+              </TabsList>
+              <TabsContent value='rules' className='mt-4'>
+                <RecurringRulesTable />
+              </TabsContent>
+              <TabsContent value='executions' className='mt-4'>
+                <RecurringExecutionsTable />
+              </TabsContent>
+            </Tabs>
+          </>
         )}
       </Main>
 

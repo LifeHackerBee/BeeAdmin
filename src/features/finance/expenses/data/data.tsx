@@ -46,7 +46,7 @@ export const categories = [
   },
   {
     label: '医疗',
-    value: 'Healthcard' as const,
+    value: 'Healthcare' as const,
     icon: Heart,
   },
   {

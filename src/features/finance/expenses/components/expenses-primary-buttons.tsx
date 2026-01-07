@@ -1,4 +1,4 @@
-import { Download, Plus, FileDown } from 'lucide-react'
+import { Download, Plus, FileDown, Repeat } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useExpenses } from './expenses-provider'
 import { useExpenses as useExpensesData } from '../hooks/use-expenses'
@@ -32,6 +32,13 @@ export function ExpensesPrimaryButtons() {
         disabled={expenses.length === 0}
       >
         <span>导出账单</span> <FileDown size={18} />
+      </Button>
+      <Button
+        variant='outline'
+        className='space-x-1'
+        onClick={() => setOpen('recurring')}
+      >
+        <span>周期性记账</span> <Repeat size={18} />
       </Button>
       <Button className='space-x-1' onClick={() => setOpen('create')}>
         <span>新增记账</span> <Plus size={18} />
