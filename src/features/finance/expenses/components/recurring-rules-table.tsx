@@ -296,16 +296,16 @@ export function RecurringRulesTable() {
       </AlertDialog>
 
       {/* 编辑对话框 */}
-      <RecurringRuleDrawer
-        open={editDialogOpen}
-        onOpenChange={(open) => {
-          setEditDialogOpen(open)
-          if (!open) {
-            setEditTarget(null)
-          }
-        }}
+        <RecurringRuleDrawer
+          open={editDialogOpen}
+          onOpenChange={(open) => {
+            setEditDialogOpen(open)
+            if (!open) {
+              setEditTarget(null)
+            }
+          }}
         currentRule={editTarget}
-      />
+        />
     </>
   )
 }
