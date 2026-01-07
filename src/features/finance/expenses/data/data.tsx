@@ -9,7 +9,8 @@ import {
   Book,
   Globe,
   Gift,
-  MoreVertical
+  MoreVertical,
+  Phone
 } from 'lucide-react'
 
 // 支出分类（匹配 Supabase 数据库中的分类）
@@ -45,6 +46,11 @@ export const categories = [
     icon: Gamepad2,
   },
   {
+    label: '通讯',
+    value: 'Communication' as const,
+    icon: Phone,
+  },
+  {
     label: '医疗',
     value: 'Healthcare' as const,
     icon: Heart,
@@ -68,7 +74,8 @@ export const categories = [
     label: '其他',
     value: 'Others' as const,
     icon: MoreVertical,
-  },
+  }
+  
 ]
 
 // 币种选项
