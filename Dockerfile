@@ -28,7 +28,7 @@ ENV VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY
 RUN pnpm run build
 
 # 生产阶段 - 使用 nginx
-FROM nginx:alpine
+FROM nginx:1.27-alpine
 
 # 复制构建产物到 nginx
 COPY --from=builder /app/dist /usr/share/nginx/html

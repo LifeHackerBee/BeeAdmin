@@ -10,8 +10,6 @@ import {
   UserCog,
   Users,
   Sparkles,
-  Command,
-  GalleryVerticalEnd,
   TrendingUp,
   Eye,
   BookOpen,
@@ -20,6 +18,7 @@ import {
   Wallet,
   ArrowLeftRight,
   Tag,
+  GalleryVerticalEnd,
 } from 'lucide-react'
 import { type SidebarData } from '../types'
 
@@ -29,18 +28,6 @@ export const sidebarData: SidebarData = {
     email: 'satnaingdev@gmail.com',
     avatar: '/avatars/shadcn.jpg',
   },
-  teams: [
-    {
-      name: 'BeeAdmin',
-      logo: Command,
-      plan: '黑客蜂的人生管理后台',
-    },
-    {
-      name: 'Dajin Tech',
-      logo: GalleryVerticalEnd,
-      plan: 'Enterprise',
-    }
-  ],
   navGroups: [
     {
       title: 'General',

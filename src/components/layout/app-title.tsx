@@ -8,25 +8,36 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar'
 import { Button } from '../ui/button'
+import { useTheme } from '@/context/theme-provider'
 
 export function AppTitle() {
   const { setOpenMobile } = useSidebar()
+  const { resolvedTheme } = useTheme()
+  const faviconPath = resolvedTheme === 'dark' ? '/images/favicon_light.svg' : '/images/favicon.svg'
+
   return (
     <SidebarMenu>
       <SidebarMenuItem>
         <SidebarMenuButton
           size='lg'
-          className='gap-0 py-0 hover:bg-transparent active:bg-transparent'
+          className='gap-2 py-2 hover:bg-transparent active:bg-transparent'
           asChild
         >
-          <div>
+          <div className='flex items-center gap-2'>
             <Link
               to='/'
               onClick={() => setOpenMobile(false)}
-              className='grid flex-1 text-start text-sm leading-tight'
+              className='flex items-center gap-2 flex-1 text-start'
             >
-              <span className='truncate font-bold'>BeeAdmin</span>
-              <span className='truncate text-xs'>Vite + ShadcnUI</span>
+              <img
+                src={faviconPath}
+                alt='BeeAdmin Logo'
+                className='size-6 flex-shrink-0'
+              />
+              <div className='grid flex-1 text-sm leading-tight'>
+                <span className='truncate font-bold'>BeeAdmin</span>
+                <span className='truncate text-xs'>人生黑客蜂的管理后台</span>
+              </div>
             </Link>
             <ToggleSidebar />
           </div>
