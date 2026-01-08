@@ -12,17 +12,19 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import { Settings, TrendingUp, Calendar } from 'lucide-react'
+import { Settings, TrendingUp, Calendar, X } from 'lucide-react'
 import { useState, useEffect, useMemo } from 'react'
 import { useBudgetConfig } from '../hooks/use-budget-config'
 import { useYearlyBudgetConfig } from '../hooks/use-yearly-budget-config'
 import { format, parseISO } from 'date-fns'
 import { useExpenseCategories } from '../../expenses/hooks/use-expense-categories'
+import { SelectDropdown } from '@/components/select-dropdown'
+import { categoriesToOptions } from '../../expenses/utils/category-utils'
 
 type BudgetProgressProps = {
   currentMonthTotal: number
   currentMonthByCategory: Record<string, number>
-  allExpenses?: Array<{ spending_time: string | null; amount: number | null; currency: string | null }>
+  allExpenses?: Array<{ spending_time: string | null; amount: number | null; currency: string | null; category: string | null }>
   currency?: string
 }
 
@@ -33,6 +35,7 @@ export function BudgetProgress({
   currency = 'CNY',
 }: BudgetProgressProps) {
   const { data: categories = [] } = useExpenseCategories()
+  const categoryOptions = categoriesToOptions(categories)
   const currentMonth = format(new Date(), 'yyyy-MM')
   const currentYear = format(new Date(), 'yyyy')
   const { config, updateConfig, isUpdating } = useBudgetConfig(currentMonth)
@@ -41,6 +44,12 @@ export function BudgetProgress({
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [totalBudget, setTotalBudget] = useState<string>('')
   const [yearlyBudget, setYearlyBudget] = useState<string>('')
+  
+  // 分类预算状态
+  const [categoryMonthlyBudgets, setCategoryMonthlyBudgets] = useState<Record<string, string>>({})
+  const [categoryYearlyBudgets, setCategoryYearlyBudgets] = useState<Record<string, string>>({})
+  const [newCategoryMonthly, setNewCategoryMonthly] = useState<{ category: string; budget: string } | null>(null)
+  const [newCategoryYearly, setNewCategoryYearly] = useState<{ category: string; budget: string } | null>(null)
 
   // 计算年度支出总额
   const currentYearTotal = useMemo(() => {
@@ -57,17 +66,57 @@ export function BudgetProgress({
       .reduce((sum, exp) => sum + (exp.amount || 0), 0)
   }, [allExpenses, currentYear, currency])
 
+  // 计算各分类的年度支出
+  const currentYearByCategory = useMemo(() => {
+    const byCategory: Record<string, number> = {}
+    allExpenses
+      .filter((expense) => {
+        if (!expense.spending_time || !expense.amount || !expense.category) return false
+        try {
+          const date = parseISO(expense.spending_time)
+          return format(date, 'yyyy') === currentYear && (expense.currency || 'CNY') === currency
+        } catch {
+          return false
+        }
+      })
+      .forEach((expense) => {
+        const category = expense.category
+        if (category) {
+          byCategory[category] = (byCategory[category] || 0) + (expense.amount || 0)
+        }
+      })
+    return byCategory
+  }, [allExpenses, currentYear, currency])
+
   // 同步配置到表单状态
   useEffect(() => {
     if (config) {
       setTotalBudget(config.total_budget?.toString() || '')
+      // 同步分类月度预算
+      const monthlyBudgets: Record<string, string> = {}
+      if (config.category_budgets) {
+        Object.entries(config.category_budgets).forEach(([category, budget]) => {
+          monthlyBudgets[category] = budget.toString()
+        })
+      }
+      setCategoryMonthlyBudgets(monthlyBudgets)
     } else {
       setTotalBudget('')
+      setCategoryMonthlyBudgets({})
     }
     if (yearlyConfig) {
       setYearlyBudget(yearlyConfig.yearly_budget?.toString() || '')
+      // 同步分类年度预算
+      const yearlyBudgets: Record<string, string> = {}
+      if (yearlyConfig.category_yearly_budgets) {
+        Object.entries(yearlyConfig.category_yearly_budgets).forEach(([category, budget]) => {
+          yearlyBudgets[category] = budget.toString()
+        })
+      }
+      setCategoryYearlyBudgets(yearlyBudgets)
     } else {
       setYearlyBudget('')
+      setCategoryYearlyBudgets({})
     }
   }, [config, yearlyConfig])
 
@@ -93,19 +142,80 @@ export function BudgetProgress({
     const total = totalBudget ? parseFloat(totalBudget) : null
     const yearly = yearlyBudget ? parseFloat(yearlyBudget) : null
 
+    // 转换分类预算
+    const categoryMonthlyBudgetsNum: Record<string, number> = {}
+    Object.entries(categoryMonthlyBudgets).forEach(([category, budgetStr]) => {
+      const budget = parseFloat(budgetStr)
+      if (!isNaN(budget) && budget > 0) {
+        categoryMonthlyBudgetsNum[category] = budget
+      }
+    })
+
+    const categoryYearlyBudgetsNum: Record<string, number> = {}
+    Object.entries(categoryYearlyBudgets).forEach(([category, budgetStr]) => {
+      const budget = parseFloat(budgetStr)
+      if (!isNaN(budget) && budget > 0) {
+        categoryYearlyBudgetsNum[category] = budget
+      }
+    })
+
     try {
       await Promise.all([
         updateConfig({
           totalBudget: total,
+          categoryBudgets: Object.keys(categoryMonthlyBudgetsNum).length > 0 ? categoryMonthlyBudgetsNum : undefined,
         }),
         updateYearlyConfig({
           yearlyBudget: yearly,
+          categoryYearlyBudgets: Object.keys(categoryYearlyBudgetsNum).length > 0 ? categoryYearlyBudgetsNum : undefined,
         }),
       ])
       setIsDialogOpen(false)
     } catch (error) {
       console.error('保存预算配置失败:', error)
     }
+  }
+
+  // 添加分类月度预算
+  const handleAddCategoryMonthly = () => {
+    if (newCategoryMonthly?.category && newCategoryMonthly.budget) {
+      const budget = parseFloat(newCategoryMonthly.budget)
+      if (!isNaN(budget) && budget > 0) {
+        setCategoryMonthlyBudgets({
+          ...categoryMonthlyBudgets,
+          [newCategoryMonthly.category]: newCategoryMonthly.budget,
+        })
+        setNewCategoryMonthly(null)
+      }
+    }
+  }
+
+  // 移除分类月度预算
+  const handleRemoveCategoryMonthly = (category: string) => {
+    const newBudgets = { ...categoryMonthlyBudgets }
+    delete newBudgets[category]
+    setCategoryMonthlyBudgets(newBudgets)
+  }
+
+  // 添加分类年度预算
+  const handleAddCategoryYearly = () => {
+    if (newCategoryYearly?.category && newCategoryYearly.budget) {
+      const budget = parseFloat(newCategoryYearly.budget)
+      if (!isNaN(budget) && budget > 0) {
+        setCategoryYearlyBudgets({
+          ...categoryYearlyBudgets,
+          [newCategoryYearly.category]: newCategoryYearly.budget,
+        })
+        setNewCategoryYearly(null)
+      }
+    }
+  }
+
+  // 移除分类年度预算
+  const handleRemoveCategoryYearly = (category: string) => {
+    const newBudgets = { ...categoryYearlyBudgets }
+    delete newBudgets[category]
+    setCategoryYearlyBudgets(newBudgets)
   }
 
   // 当对话框打开时，同步最新配置
@@ -128,33 +238,198 @@ export function BudgetProgress({
                 设置预算
               </Button>
             </DialogTrigger>
-            <DialogContent className='max-w-md'>
+            <DialogContent className='max-w-2xl max-h-[90vh] overflow-y-auto'>
               <DialogHeader>
                 <DialogTitle>设置预算</DialogTitle>
                 <DialogDescription>
                   设置 {format(new Date(), 'yyyy年MM月')} 的月度预算和 {format(new Date(), 'yyyy年')} 的年度预算
                 </DialogDescription>
               </DialogHeader>
-              <div className='space-y-4 py-4'>
-                <div className='space-y-2'>
-                  <Label htmlFor='total-budget'>月度总预算 ({currency})</Label>
-                  <Input
-                    id='total-budget'
-                    type='number'
-                    placeholder='请输入月度总预算'
-                    value={totalBudget}
-                    onChange={(e) => setTotalBudget(e.target.value)}
-                  />
+              <div className='space-y-6 py-4'>
+                {/* 总预算 */}
+                <div className='space-y-4'>
+                  <div className='space-y-2'>
+                    <Label htmlFor='total-budget'>月度总预算 ({currency})</Label>
+                    <Input
+                      id='total-budget'
+                      type='number'
+                      placeholder='请输入月度总预算'
+                      value={totalBudget}
+                      onChange={(e) => setTotalBudget(e.target.value)}
+                    />
+                  </div>
+                  <div className='space-y-2'>
+                    <Label htmlFor='yearly-budget'>年度总预算 ({currency})</Label>
+                    <Input
+                      id='yearly-budget'
+                      type='number'
+                      placeholder='请输入年度总预算'
+                      value={yearlyBudget}
+                      onChange={(e) => setYearlyBudget(e.target.value)}
+                    />
+                  </div>
                 </div>
+
+                {/* 分类月度预算 */}
                 <div className='space-y-2'>
-                  <Label htmlFor='yearly-budget'>年度总预算 ({currency})</Label>
-                  <Input
-                    id='yearly-budget'
-                    type='number'
-                    placeholder='请输入年度总预算'
-                    value={yearlyBudget}
-                    onChange={(e) => setYearlyBudget(e.target.value)}
-                  />
+                  <Label>分类月度预算 ({currency})</Label>
+                  <div className='space-y-2'>
+                    {Object.entries(categoryMonthlyBudgets).map(([category, budget]) => {
+                      const categoryInfo = categories.find((c) => c.value === category)
+                      const categoryLabel = categoryInfo?.label || category
+                      return (
+                        <div key={category} className='flex items-center gap-2'>
+                          <div className='flex-1'>
+                            <div className='text-sm font-medium'>{categoryLabel}</div>
+                            <Input
+                              type='number'
+                              placeholder='预算金额'
+                              value={budget}
+                              onChange={(e) => {
+                                setCategoryMonthlyBudgets({
+                                  ...categoryMonthlyBudgets,
+                                  [category]: e.target.value,
+                                })
+                              }}
+                              className='mt-1'
+                            />
+                          </div>
+                          <Button
+                            variant='ghost'
+                            size='sm'
+                            onClick={() => handleRemoveCategoryMonthly(category)}
+                          >
+                            <X className='h-4 w-4' />
+                          </Button>
+                        </div>
+                      )
+                    })}
+                    {newCategoryMonthly ? (
+                      <div className='flex items-end gap-2 p-2 border rounded-md'>
+                        <div className='flex-1 space-y-2'>
+                          <SelectDropdown
+                            items={categoryOptions.filter(
+                              (opt) => !categoryMonthlyBudgets[opt.value]
+                            )}
+                            defaultValue={newCategoryMonthly.category}
+                            onValueChange={(value) =>
+                              setNewCategoryMonthly({ ...newCategoryMonthly, category: value || '' })
+                            }
+                            placeholder='选择分类'
+                            isControlled={true}
+                          />
+                          <Input
+                            type='number'
+                            placeholder='预算金额'
+                            value={newCategoryMonthly.budget}
+                            onChange={(e) =>
+                              setNewCategoryMonthly({ ...newCategoryMonthly, budget: e.target.value })
+                            }
+                          />
+                        </div>
+                        <Button variant='outline' size='sm' onClick={handleAddCategoryMonthly}>
+                          添加
+                        </Button>
+                        <Button
+                          variant='ghost'
+                          size='sm'
+                          onClick={() => setNewCategoryMonthly(null)}
+                        >
+                          取消
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button
+                        variant='outline'
+                        size='sm'
+                        onClick={() => setNewCategoryMonthly({ category: '', budget: '' })}
+                        className='w-full'
+                      >
+                        + 添加分类月度预算
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                {/* 分类年度预算 */}
+                <div className='space-y-2'>
+                  <Label>分类年度预算 ({currency})</Label>
+                  <div className='space-y-2'>
+                    {Object.entries(categoryYearlyBudgets).map(([category, budget]) => {
+                      const categoryInfo = categories.find((c) => c.value === category)
+                      const categoryLabel = categoryInfo?.label || category
+                      return (
+                        <div key={category} className='flex items-center gap-2'>
+                          <div className='flex-1'>
+                            <div className='text-sm font-medium'>{categoryLabel}</div>
+                            <Input
+                              type='number'
+                              placeholder='预算金额'
+                              value={budget}
+                              onChange={(e) => {
+                                setCategoryYearlyBudgets({
+                                  ...categoryYearlyBudgets,
+                                  [category]: e.target.value,
+                                })
+                              }}
+                              className='mt-1'
+                            />
+                          </div>
+                          <Button
+                            variant='ghost'
+                            size='sm'
+                            onClick={() => handleRemoveCategoryYearly(category)}
+                          >
+                            <X className='h-4 w-4' />
+                          </Button>
+                        </div>
+                      )
+                    })}
+                    {newCategoryYearly ? (
+                      <div className='flex items-end gap-2 p-2 border rounded-md'>
+                        <div className='flex-1 space-y-2'>
+                          <SelectDropdown
+                            items={categoryOptions.filter(
+                              (opt) => !categoryYearlyBudgets[opt.value]
+                            )}
+                            defaultValue={newCategoryYearly.category}
+                            onValueChange={(value) =>
+                              setNewCategoryYearly({ ...newCategoryYearly, category: value || '' })
+                            }
+                            placeholder='选择分类'
+                            isControlled={true}
+                          />
+                          <Input
+                            type='number'
+                            placeholder='预算金额'
+                            value={newCategoryYearly.budget}
+                            onChange={(e) =>
+                              setNewCategoryYearly({ ...newCategoryYearly, budget: e.target.value })
+                            }
+                          />
+                        </div>
+                        <Button variant='outline' size='sm' onClick={handleAddCategoryYearly}>
+                          添加
+                        </Button>
+                        <Button
+                          variant='ghost'
+                          size='sm'
+                          onClick={() => setNewCategoryYearly(null)}
+                        >
+                          取消
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button
+                        variant='outline'
+                        size='sm'
+                        onClick={() => setNewCategoryYearly({ category: '', budget: '' })}
+                        className='w-full'
+                      >
+                        + 添加分类年度预算
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </div>
               <DialogFooter>
@@ -254,12 +529,12 @@ export function BudgetProgress({
           </div>
         )}
 
-        {/* 分类预算进度 */}
+        {/* 分类月度预算进度 */}
         {config?.category_budgets && Object.keys(config.category_budgets).length > 0 && (
           <div className='space-y-4'>
             <div className='flex items-center gap-2 text-sm font-medium'>
               <TrendingUp className='h-4 w-4' />
-              <span>分类预算</span>
+              <span>分类月度预算</span>
             </div>
             <div className='space-y-3'>
               {Object.entries(config.category_budgets).map(([category, budget]) => {
@@ -289,6 +564,61 @@ export function BudgetProgress({
                       value={Math.min(progress, 100)}
                       className={isOver ? 'h-2' : 'h-2'}
                     />
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* 分类年度预算进度 */}
+        {yearlyConfig?.category_yearly_budgets && Object.keys(yearlyConfig.category_yearly_budgets).length > 0 && (
+          <div className='space-y-4'>
+            <div className='flex items-center gap-2 text-sm font-medium'>
+              <TrendingUp className='h-4 w-4' />
+              <span>分类年度预算</span>
+            </div>
+            <div className='space-y-3'>
+              {Object.entries(yearlyConfig.category_yearly_budgets).map(([category, budget]) => {
+                const spent = currentYearByCategory[category] || 0
+                const progress = budget > 0 ? (spent / budget) * 100 : 0
+                const isOver = progress > 100
+                const categoryLabel = categories.find((c) => c.value === category)?.label || category
+
+                return (
+                  <div key={category} className='space-y-2'>
+                    <div className='flex items-center justify-between text-sm'>
+                      <span className='font-medium'>{categoryLabel}</span>
+                      <span className={isOver ? 'text-destructive font-semibold' : 'text-muted-foreground'}>
+                        {symbol}
+                        {spent.toLocaleString('zh-CN', {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}{' '}
+                        / {symbol}
+                        {budget.toLocaleString('zh-CN', {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                        {isOver && ` (超支 ${((progress - 100) * budget / 100).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`}
+                      </span>
+                    </div>
+                    <Progress
+                      value={Math.min(progress, 100)}
+                      className={isOver ? 'h-2' : 'h-2'}
+                    />
+                    <div className='flex items-center justify-between text-xs text-muted-foreground'>
+                      <span>使用率: {progress.toFixed(1)}%</span>
+                      {budget > spent && (
+                        <span>
+                          剩余: {symbol}
+                          {(budget - spent).toLocaleString('zh-CN', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 )
               })}

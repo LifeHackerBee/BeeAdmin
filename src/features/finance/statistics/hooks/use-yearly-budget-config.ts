@@ -7,6 +7,7 @@ export type YearlyBudgetConfig = {
   user_id: string
   year: string // YYYY
   yearly_budget: number | null
+  category_yearly_budgets: Record<string, number> | null
   created_at?: string
   updated_at?: string
 }
@@ -42,13 +43,20 @@ export function useYearlyBudgetConfig(year?: string) {
       return {
         ...configData,
         yearly_budget: configData.yearly_budget || null,
+        category_yearly_budgets: configData.category_yearly_budgets || {},
       } as YearlyBudgetConfig
     },
   })
 
   // 更新或创建年度预算配置
   const updateMutation = useMutation({
-    mutationFn: async ({ yearlyBudget }: { yearlyBudget?: number | null }) => {
+    mutationFn: async ({
+      yearlyBudget,
+      categoryYearlyBudgets,
+    }: {
+      yearlyBudget?: number | null
+      categoryYearlyBudgets?: Record<string, number>
+    }) => {
       const { data: sessionData } = await supabase.auth.getSession()
       if (!sessionData.session?.user) {
         throw new Error('未登录')
@@ -57,8 +65,14 @@ export function useYearlyBudgetConfig(year?: string) {
       const updateData: any = {
         year: currentYear,
         user_id: sessionData.session.user.id,
-        yearly_budget: yearlyBudget,
         month: null, // 年度配置不需要 month 字段
+      }
+
+      if (yearlyBudget !== undefined) {
+        updateData.yearly_budget = yearlyBudget
+      }
+      if (categoryYearlyBudgets !== undefined) {
+        updateData.category_yearly_budgets = categoryYearlyBudgets
       }
 
       // 先尝试更新

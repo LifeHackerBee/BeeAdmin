@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -44,6 +44,40 @@ const formSchema = z.object({
 })
 type ExpenseForm = z.infer<typeof formSchema>
 
+// 将日期时间字符串转换为本地时间的 24 小时制格式 (YYYY-MM-DDTHH:mm)
+function formatToLocalDatetime(datetimeString: string | null | undefined): string {
+  if (!datetimeString) {
+    // 如果没有提供时间，返回当前时间的本地时间格式
+    const now = new Date()
+    const year = now.getFullYear()
+    const month = String(now.getMonth() + 1).padStart(2, '0')
+    const day = String(now.getDate()).padStart(2, '0')
+    const hours = String(now.getHours()).padStart(2, '0')
+    const minutes = String(now.getMinutes()).padStart(2, '0')
+    return `${year}-${month}-${day}T${hours}:${minutes}`
+  }
+
+  try {
+    const date = new Date(datetimeString)
+    // 使用本地时间，而不是 UTC 时间
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    const hours = String(date.getHours()).padStart(2, '0') // 24小时制
+    const minutes = String(date.getMinutes()).padStart(2, '0')
+    return `${year}-${month}-${day}T${hours}:${minutes}`
+  } catch {
+    // 如果解析失败，返回当前时间
+    const now = new Date()
+    const year = now.getFullYear()
+    const month = String(now.getMonth() + 1).padStart(2, '0')
+    const day = String(now.getDate()).padStart(2, '0')
+    const hours = String(now.getHours()).padStart(2, '0')
+    const minutes = String(now.getMinutes()).padStart(2, '0')
+    return `${year}-${month}-${day}T${hours}:${minutes}`
+  }
+}
+
 export function ExpensesMutateDrawer({
   open,
   onOpenChange,
@@ -57,16 +91,8 @@ export function ExpensesMutateDrawer({
     resolver: zodResolver(formSchema),
     defaultValues: (() => {
       if (currentRow) {
-        let spendingTime = new Date().toISOString().slice(0, 16)
-        if (currentRow.spending_time) {
-          try {
-            spendingTime = new Date(currentRow.spending_time).toISOString().slice(0, 16)
-          } catch {
-            // 如果日期解析失败，使用当前时间
-          }
-        }
         return {
-          spending_time: spendingTime,
+          spending_time: formatToLocalDatetime(currentRow.spending_time),
           amount: currentRow.amount ?? 0,
           category: currentRow.category ?? '',
           currency: currentRow.currency ?? 'CNY',
@@ -75,7 +101,7 @@ export function ExpensesMutateDrawer({
         }
       }
       return {
-        spending_time: new Date().toISOString().slice(0, 16),
+        spending_time: formatToLocalDatetime(null), // 使用当前本地时间
         amount: 0,
         category: '',
         currency: 'CNY',
@@ -87,6 +113,31 @@ export function ExpensesMutateDrawer({
 
   const createMutation = useCreateExpense()
   const updateMutation = useUpdateExpense()
+
+  // 当 currentRow 变化时，重置表单以使用原始值（特别是日期时间）
+  useEffect(() => {
+    if (open && currentRow) {
+      // 编辑模式：使用原始日期时间（本地时间格式，24小时制）
+      form.reset({
+        spending_time: formatToLocalDatetime(currentRow.spending_time),
+        amount: currentRow.amount ?? 0,
+        category: currentRow.category ?? '',
+        currency: currentRow.currency ?? 'CNY',
+        note: currentRow.note ?? '',
+        device_name: currentRow.device_name ?? '',
+      })
+    } else if (open && !currentRow) {
+      // 新建模式：使用当前时间（本地时间格式，24小时制）
+      form.reset({
+        spending_time: formatToLocalDatetime(null),
+        amount: 0,
+        category: '',
+        currency: 'CNY',
+        note: '',
+        device_name: '',
+      })
+    }
+  }, [open, currentRow, form])
 
   const onSubmit = async (data: ExpenseForm) => {
     try {
