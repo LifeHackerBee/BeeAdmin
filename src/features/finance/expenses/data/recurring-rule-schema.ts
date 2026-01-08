@@ -3,7 +3,8 @@ import { z } from 'zod'
 // 周期性记账规则的数据模型（匹配 Supabase recurring_rules 表）
 export const recurringRuleSchema = z.object({
   id: z.number(),
-  user_id: z.string().uuid(),
+  user_id: z.string().uuid().nullable().optional(), // 保留用于记录创建者，但不再用于权限控制
+  device_name: z.string().nullable().optional(), // 设备名称，用于标识
   
   // 模板字段
   amount: z.number(),
@@ -43,6 +44,7 @@ export const createRecurringRuleSchema = z.object({
   category: z.string().nullable(),
   currency: z.string().nullable(),
   note: z.string().nullable(),
+  device_name: z.string().nullable().optional(), // 设备名称
   frequency_type: z.enum(['daily', 'weekly', 'monthly', 'yearly']),
   interval_value: z.number().int().positive(),
   weekly_day_of_week: z.number().int().min(1).max(7).nullable().optional(),

@@ -58,6 +58,7 @@ export function RecurringRuleDrawer({ open, onOpenChange, currentRule }: Recurri
           category: currentRule.category,
           currency: currentRule.currency,
           note: currentRule.note,
+          device_name: currentRule.device_name || null,
           frequency_type: currentRule.frequency_type,
           interval_value: currentRule.interval_value || 1,
           weekly_day_of_week: currentRule.weekly_day_of_week,
@@ -75,6 +76,7 @@ export function RecurringRuleDrawer({ open, onOpenChange, currentRule }: Recurri
         category: null,
         currency: null,
         note: null,
+        device_name: null,
         frequency_type: 'monthly',
         interval_value: 1,
         weekly_day_of_week: null,
@@ -128,6 +130,7 @@ export function RecurringRuleDrawer({ open, onOpenChange, currentRule }: Recurri
         category: currentRule.category,
         currency: currentRule.currency,
         note: currentRule.note,
+        device_name: currentRule.device_name || null,
         frequency_type: currentRule.frequency_type,
         interval_value: currentRule.interval_value || 1,
         weekly_day_of_week: currentRule.weekly_day_of_week,
@@ -146,6 +149,7 @@ export function RecurringRuleDrawer({ open, onOpenChange, currentRule }: Recurri
         category: null,
         currency: null,
         note: null,
+        device_name: null,
         frequency_type: 'monthly',
         interval_value: 1,
         weekly_day_of_week: null,
@@ -282,6 +286,25 @@ export function RecurringRuleDrawer({ open, onOpenChange, currentRule }: Recurri
                     <FormControl>
                       <Input
                         placeholder='请输入备注（可选）'
+                        {...field}
+                        value={field.value || ''}
+                        onChange={(e) => field.onChange(e.target.value || null)}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='device_name'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>设备名称</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder='请输入设备名称（可选）'
                         {...field}
                         value={field.value || ''}
                         onChange={(e) => field.onChange(e.target.value || null)}

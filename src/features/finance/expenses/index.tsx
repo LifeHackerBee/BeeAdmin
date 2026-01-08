@@ -37,31 +37,32 @@ export function Expenses() {
           </div>
           <ExpensesPrimaryButtons />
         </div>
-        {isLoading ? (
-          <div className='flex items-center justify-center py-12'>
-            <p className='text-muted-foreground'>加载中...</p>
-          </div>
-        ) : error ? (
-          <div className='flex items-center justify-center py-12'>
-            <p className='text-destructive'>加载失败: {error instanceof Error ? error.message : '未知错误'}</p>
-          </div>
-        ) : (
-          <>
-            <ExpensesTable data={expenses} />
-            <Tabs defaultValue='rules' className='w-full'>
-              <TabsList>
-                <TabsTrigger value='rules'>周期性记账规则</TabsTrigger>
-                <TabsTrigger value='executions'>执行记录</TabsTrigger>
-              </TabsList>
-              <TabsContent value='rules' className='mt-4'>
-                <RecurringRulesTable />
-              </TabsContent>
-              <TabsContent value='executions' className='mt-4'>
-                <RecurringExecutionsTable />
-              </TabsContent>
-            </Tabs>
-          </>
-        )}
+        <Tabs defaultValue='overview' className='w-full'>
+          <TabsList>
+            <TabsTrigger value='overview'>账单清单总览</TabsTrigger>
+            <TabsTrigger value='rules'>周期性记账规则</TabsTrigger>
+            <TabsTrigger value='executions'>周期性机制执行记录</TabsTrigger>
+          </TabsList>
+          <TabsContent value='overview' className='mt-4'>
+            {isLoading ? (
+              <div className='flex items-center justify-center py-12'>
+                <p className='text-muted-foreground'>加载中...</p>
+              </div>
+            ) : error ? (
+              <div className='flex items-center justify-center py-12'>
+                <p className='text-destructive'>加载失败: {error instanceof Error ? error.message : '未知错误'}</p>
+              </div>
+            ) : (
+              <ExpensesTable data={expenses} />
+            )}
+          </TabsContent>
+          <TabsContent value='rules' className='mt-4'>
+            <RecurringRulesTable />
+          </TabsContent>
+          <TabsContent value='executions' className='mt-4'>
+            <RecurringExecutionsTable />
+          </TabsContent>
+        </Tabs>
       </Main>
 
       <ExpensesDialogs />

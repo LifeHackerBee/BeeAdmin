@@ -30,7 +30,8 @@ export function useRecurringRules() {
 
         return {
           id: row.id,
-          user_id: row.user_id,
+          user_id: row.user_id || undefined,
+          device_name: row.device_name || undefined,
           amount,
           category: row.category,
           currency: row.currency || 'CNY',
@@ -94,7 +95,8 @@ export function usePendingRecurringRules() {
 
         return {
           id: row.id,
-          user_id: row.user_id,
+          user_id: row.user_id || undefined,
+          device_name: row.device_name || undefined,
           amount,
           category: row.category,
           currency: row.currency || 'CNY',
@@ -126,7 +128,7 @@ export function useCreateRecurringRule() {
 
   return useMutation({
     mutationFn: async (data: CreateRecurringRuleInput) => {
-      // 获取当前用户 ID
+      // 获取当前用户 ID（用于记录创建者，但不再用于权限控制）
       const { data: sessionData } = await supabase.auth.getSession()
       if (!sessionData.session?.user) {
         throw new Error('未登录')
@@ -137,7 +139,7 @@ export function useCreateRecurringRule() {
         .insert([
           {
             ...data,
-            user_id: sessionData.session.user.id,
+            user_id: sessionData.session.user.id, // 保留用于记录创建者
           },
         ])
         .select()
@@ -245,6 +247,7 @@ export function useExecuteRecurringRule() {
             category: rule.category,
             currency: rule.currency || 'CNY',
             note: rule.note,
+            device_name: rule.device_name || null,
           },
         ])
 

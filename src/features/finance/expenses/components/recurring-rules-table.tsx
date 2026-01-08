@@ -156,6 +156,7 @@ export function RecurringRulesTable() {
                   <TableHead>分类</TableHead>
                   <TableHead>金额</TableHead>
                   <TableHead>周期</TableHead>
+                  <TableHead>设备</TableHead>
                   <TableHead>下次执行</TableHead>
                   <TableHead>上次执行</TableHead>
                   <TableHead>状态</TableHead>
@@ -194,6 +195,11 @@ export function RecurringRulesTable() {
                           <Repeat className='h-3 w-3 text-muted-foreground' />
                           <span className='text-sm'>{frequencyLabel}</span>
                         </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant='secondary' className='text-xs'>
+                          {rule.device_name || '-'}
+                        </Badge>
                       </TableCell>
                       <TableCell>
                         <div className='flex items-center gap-1'>
