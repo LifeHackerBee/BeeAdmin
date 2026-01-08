@@ -2,12 +2,15 @@ import { type ColumnDef } from '@tanstack/react-table'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import { DataTableColumnHeader } from '@/components/data-table'
-import { categories, currencies } from '../data/data'
+import { currencies } from '../data/data'
 import { type Expense } from '../data/schema'
+import { type ExpenseCategory } from '../data/category-schema'
 import { DataTableRowActions } from './data-table-row-actions'
 import { format } from 'date-fns'
+import { getIconComponent } from '../utils/category-utils'
 
-export const expensesColumns: ColumnDef<Expense>[] = [
+export function createExpensesColumns(categories: ExpenseCategory[]): ColumnDef<Expense>[] {
+  return [
   {
     id: 'select',
     header: ({ table }) => (
@@ -125,11 +128,10 @@ export const expensesColumns: ColumnDef<Expense>[] = [
         return <span>{categoryValue}</span>
       }
 
+      const CategoryIcon = getIconComponent(category.icon_name)
       return (
         <div className='flex w-[120px] items-center gap-2'>
-          {category.icon && (
-            <category.icon className='size-4 text-muted-foreground' />
-          )}
+          <CategoryIcon className='size-4 text-muted-foreground' />
           <span>{category.label}</span>
         </div>
       )
@@ -177,5 +179,9 @@ export const expensesColumns: ColumnDef<Expense>[] = [
     id: 'actions',
     cell: ({ row }) => <DataTableRowActions row={row} />,
   },
-]
+  ]
+}
+
+// 向后兼容：导出一个使用空数组的默认列定义（将在使用时被替换）
+export const expensesColumns = createExpensesColumns([])
 

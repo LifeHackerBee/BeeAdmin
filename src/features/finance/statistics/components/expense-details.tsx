@@ -21,7 +21,7 @@ import {
 } from 'recharts'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { type MonthlyStatistic, type CategoryStatistic } from '../hooks/use-expense-statistics'
-import { categories } from '../../expenses/data/data'
+import { useExpenseCategories } from '../../expenses/hooks/use-expense-categories'
 
 type ExpenseDetailsProps = {
   monthlyData: MonthlyStatistic[]
@@ -45,6 +45,7 @@ export function ExpenseDetails({
   categoryData,
   currency = 'CNY',
 }: ExpenseDetailsProps) {
+  const { data: categories = [] } = useExpenseCategories()
   // 过滤指定币种的月度数据
   const filteredMonthlyData = monthlyData.filter((item) => item.currency === currency)
 

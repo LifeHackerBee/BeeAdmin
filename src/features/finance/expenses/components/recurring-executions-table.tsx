@@ -9,9 +9,10 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { useRecurringRules } from '../hooks/use-recurring-rules'
-import { categories } from '../data/data'
 import { format } from 'date-fns'
 import { Calendar, Repeat, TrendingDown } from 'lucide-react'
+import { useExpenseCategories } from '../hooks/use-expense-categories'
+import { getIconComponent } from '../utils/category-utils'
 
 const currencySymbols: Record<string, string> = {
   CNY: '¥',
@@ -42,6 +43,7 @@ function getFrequencyLabel(rule: { frequency_type: string; interval_value?: numb
 
 export function RecurringExecutionsTable() {
   const { data: rules = [], isLoading, error } = useRecurringRules()
+  const { data: categories = [] } = useExpenseCategories()
 
   // 过滤出有执行记录的规则（last_run_at 不为空）
   const executions = rules
@@ -135,6 +137,7 @@ export function RecurringExecutionsTable() {
                 const rule = execution.rule
                 const category = categories.find((cat) => cat.value === rule.category)
                 const categoryLabel = category?.label || rule.category || '未分类'
+                const CategoryIcon = getIconComponent(category?.icon_name)
                 const symbol = currencySymbols[rule.currency || 'CNY'] || rule.currency || 'CNY'
                 const frequencyLabel = getFrequencyLabel(rule)
 
@@ -158,7 +161,7 @@ export function RecurringExecutionsTable() {
                     </TableCell>
                     <TableCell className='font-medium'>
                       <div className='flex items-center gap-2'>
-                        {category?.icon && <category.icon className='h-4 w-4' />}
+                        <CategoryIcon className='h-4 w-4' />
                         {categoryLabel}
                       </div>
                     </TableCell>

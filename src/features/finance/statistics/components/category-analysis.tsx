@@ -24,9 +24,9 @@ import {
   Legend,
 } from 'recharts'
 import { useExpenses } from '../../expenses/hooks/use-expenses'
-import { categories } from '../../expenses/data/data'
 import { format, parseISO } from 'date-fns'
 import { Calendar } from 'lucide-react'
+import { useExpenseCategories } from '../../expenses/hooks/use-expense-categories'
 
 type CategoryAnalysisProps = {
   currency?: string
@@ -48,6 +48,7 @@ const COLORS = [
 
 export function CategoryAnalysis({ currency = 'CNY' }: CategoryAnalysisProps) {
   const { data: expenses = [] } = useExpenses()
+  const { data: categories = [] } = useExpenseCategories()
   const [selectedYear, setSelectedYear] = useState<string>(format(new Date(), 'yyyy'))
   const [selectedMonth, setSelectedMonth] = useState<string>(format(new Date(), 'MM'))
   const [analysisType, setAnalysisType] = useState<'month' | 'year'>('month')
@@ -137,7 +138,7 @@ export function CategoryAnalysis({ currency = 'CNY' }: CategoryAnalysisProps) {
       .sort((a, b) => b.total - a.total)
 
     return { stats, total }
-  }, [expenses, selectedYear, selectedMonth, analysisType, currency])
+  }, [expenses, selectedYear, selectedMonth, analysisType, currency, categories])
 
   const currencySymbols: Record<string, string> = {
     CNY: '¥',

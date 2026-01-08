@@ -23,10 +23,12 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { DataTablePagination, DataTableToolbar } from '@/components/data-table'
-import { categories, currencies } from '../data/data'
+import { currencies } from '../data/data'
 import { type Expense } from '../data/schema'
 import { DataTableBulkActions } from './data-table-bulk-actions'
-import { expensesColumns as columns } from './expenses-columns'
+import { createExpensesColumns } from './expenses-columns'
+import { useExpenseCategories } from '../hooks/use-expense-categories'
+import { categoriesToOptions } from '../utils/category-utils'
 
 const route = getRouteApi('/_authenticated/finance/expenses/' as any)
 
@@ -39,6 +41,11 @@ export function ExpensesTable({ data }: DataTableProps) {
   const [rowSelection, setRowSelection] = useState({})
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
+  
+  // Fetch categories from database
+  const { data: categories = [], isLoading: categoriesLoading } = useExpenseCategories()
+  const categoryOptions = categoriesToOptions(categories)
+  const columns = createExpensesColumns(categories)
 
   // Synced with URL states
   const {
@@ -114,7 +121,7 @@ export function ExpensesTable({ data }: DataTableProps) {
           {
             columnId: 'category',
             title: '分类',
-            options: categories,
+            options: categoryOptions,
           },
           {
             columnId: 'currency',
@@ -176,10 +183,10 @@ export function ExpensesTable({ data }: DataTableProps) {
             ) : (
               <TableRow>
                 <TableCell
-                  colSpan={columns.length}
+                  colSpan={columns?.length || 0}
                   className='h-24 text-center'
                 >
-                  暂无数据
+                  {categoriesLoading ? '加载中...' : '暂无数据'}
                 </TableCell>
               </TableRow>
             )}

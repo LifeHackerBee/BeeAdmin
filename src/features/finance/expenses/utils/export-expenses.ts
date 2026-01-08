@@ -1,11 +1,12 @@
 import { type Expense } from '../data/schema'
-import { categories, currencies } from '../data/data'
+import { currencies } from '../data/data'
+import { type ExpenseCategory } from '../data/category-schema'
 import { format } from 'date-fns'
 
 /**
  * 导出支出记录为 CSV 格式
  */
-export function exportExpensesToCSV(expenses: Expense[]): void {
+export function exportExpensesToCSV(expenses: Expense[], categories: ExpenseCategory[]): void {
   // CSV 表头
   const headers = [
     'ID',

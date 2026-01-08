@@ -22,9 +22,11 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { SelectDropdown } from '@/components/select-dropdown'
-import { categories, currencies } from '../data/data'
+import { currencies } from '../data/data'
 import { type Expense } from '../data/schema'
 import { useCreateExpense, useUpdateExpense } from '../hooks/use-expense-mutations'
+import { useExpenseCategories } from '../hooks/use-expense-categories'
+import { categoriesToOptions } from '../utils/category-utils'
 
 type ExpensesMutateDrawerProps = {
   open: boolean
@@ -48,6 +50,8 @@ export function ExpensesMutateDrawer({
   currentRow,
 }: ExpensesMutateDrawerProps) {
   const isUpdate = !!currentRow
+  const { data: categories = [], isLoading: categoriesLoading } = useExpenseCategories()
+  const categoryOptions = categoriesToOptions(categories)
 
   const form = useForm<ExpenseForm>({
     resolver: zodResolver(formSchema),
@@ -253,19 +257,20 @@ export function ExpensesMutateDrawer({
               control={form.control}
               name='category'
               render={({ field }) => (
-                <FormItem>
-                  <FormLabel>分类</FormLabel>
-                  <SelectDropdown
-                    defaultValue={field.value}
-                    onValueChange={field.onChange}
-                    placeholder='选择分类'
-                    items={categories.map((cat) => ({
-                      label: cat.label,
-                      value: cat.value,
-                    }))}
-                  />
-                  <FormMessage />
-                </FormItem>
+                  <FormItem>
+                    <FormLabel>分类</FormLabel>
+                    <SelectDropdown
+                      defaultValue={field.value}
+                      onValueChange={field.onChange}
+                      placeholder={categoriesLoading ? '加载中...' : '选择分类'}
+                      items={categoryOptions.map((cat) => ({
+                        label: cat.label,
+                        value: cat.value,
+                      }))}
+                      disabled={categoriesLoading}
+                    />
+                    <FormMessage />
+                  </FormItem>
               )}
             />
             <FormField

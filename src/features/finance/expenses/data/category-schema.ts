@@ -1,9 +1,10 @@
 import { z } from 'zod'
 
 // 记账类型的数据模型（匹配 Supabase expense_categories 表）
+// 注意：分类现在是共享的，所有用户看到相同的分类，user_id 仅用于记录创建者信息
 export const expenseCategorySchema = z.object({
   id: z.number(),
-  user_id: z.string().uuid(),
+  user_id: z.string().uuid().nullable().optional(), // 可选：仅用于记录创建者
   label: z.string().min(1, '标签不能为空').max(100, '标签长度不能超过100个字符'),
   value: z.string().min(1, '值不能为空').max(50, '值长度不能超过50个字符'),
   icon_name: z.string().nullable().optional(),

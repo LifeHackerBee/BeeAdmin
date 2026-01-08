@@ -3,17 +3,19 @@ import { Button } from '@/components/ui/button'
 import { useExpenses } from './expenses-provider'
 import { useExpenses as useExpensesData } from '../hooks/use-expenses'
 import { exportExpensesToCSV } from '../utils/export-expenses'
+import { useExpenseCategories } from '../hooks/use-expense-categories'
 
 export function ExpensesPrimaryButtons() {
   const { setOpen } = useExpenses()
   const { data: expenses = [] } = useExpensesData()
+  const { data: categories = [] } = useExpenseCategories()
 
   const handleExport = () => {
     if (expenses.length === 0) {
       // 可以显示一个提示，告知没有数据可导出
       return
     }
-    exportExpensesToCSV(expenses)
+    exportExpensesToCSV(expenses, categories)
   }
 
   return (

@@ -12,9 +12,10 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useRecurringRules, useDeleteRecurringRule, useUpdateRecurringRule } from '../hooks/use-recurring-rules'
 import { type RecurringRule } from '../data/recurring-rule-schema'
-import { categories } from '../data/data'
 import { format } from 'date-fns'
 import { Edit, Trash2, Play, Pause, Calendar, Repeat } from 'lucide-react'
+import { useExpenseCategories } from '../hooks/use-expense-categories'
+import { getIconComponent } from '../utils/category-utils'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -56,6 +57,7 @@ function getFrequencyLabel(rule: RecurringRule): string {
 
 export function RecurringRulesTable() {
   const { data: rules = [], isLoading, error } = useRecurringRules()
+  const { data: categories = [] } = useExpenseCategories()
   const deleteMutation = useDeleteRecurringRule()
   const updateMutation = useUpdateRecurringRule()
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -167,6 +169,7 @@ export function RecurringRulesTable() {
                 {rules.map((rule) => {
                   const category = categories.find((cat) => cat.value === rule.category)
                   const categoryLabel = category?.label || rule.category || '未分类'
+                  const CategoryIcon = getIconComponent(category?.icon_name)
                   const symbol = currencySymbols[rule.currency || 'CNY'] || rule.currency || 'CNY'
                   const frequencyLabel = getFrequencyLabel(rule)
 
@@ -174,7 +177,7 @@ export function RecurringRulesTable() {
                     <TableRow key={rule.id}>
                       <TableCell className='font-medium'>
                         <div className='flex items-center gap-2'>
-                          {category?.icon && <category.icon className='h-4 w-4' />}
+                          <CategoryIcon className='h-4 w-4' />
                           {categoryLabel}
                         </div>
                       </TableCell>

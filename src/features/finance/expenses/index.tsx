@@ -44,16 +44,16 @@ export function Expenses() {
             <TabsTrigger value='executions'>周期性机制执行记录</TabsTrigger>
           </TabsList>
           <TabsContent value='overview' className='mt-4'>
-            {isLoading ? (
-              <div className='flex items-center justify-center py-12'>
-                <p className='text-muted-foreground'>加载中...</p>
-              </div>
-            ) : error ? (
-              <div className='flex items-center justify-center py-12'>
-                <p className='text-destructive'>加载失败: {error instanceof Error ? error.message : '未知错误'}</p>
-              </div>
-            ) : (
-              <ExpensesTable data={expenses} />
+        {isLoading ? (
+          <div className='flex items-center justify-center py-12'>
+            <p className='text-muted-foreground'>加载中...</p>
+          </div>
+        ) : error ? (
+          <div className='flex items-center justify-center py-12'>
+            <p className='text-destructive'>加载失败: {error instanceof Error ? error.message : '未知错误'}</p>
+          </div>
+        ) : (
+            <ExpensesTable data={expenses} />
             )}
           </TabsContent>
           <TabsContent value='rules' className='mt-4'>

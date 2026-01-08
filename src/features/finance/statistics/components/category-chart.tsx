@@ -1,7 +1,7 @@
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { type CategoryStatistic } from '../hooks/use-expense-statistics'
-import { categories } from '../../expenses/data/data'
+import { useExpenseCategories } from '../../expenses/hooks/use-expense-categories'
 
 type CategoryChartProps = {
   data: CategoryStatistic[]
@@ -19,6 +19,7 @@ const COLORS = [
 ]
 
 export function CategoryChart({ data }: CategoryChartProps) {
+  const { data: categories = [] } = useExpenseCategories()
   // 如果没有数据，显示空状态
   if (data.length === 0) {
     return (

@@ -24,11 +24,13 @@ import {
 } from '@/components/ui/sheet'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { SelectDropdown } from '@/components/select-dropdown'
-import { categories, currencies } from '../data/data'
+import { currencies } from '../data/data'
 import { createRecurringRuleSchema, type CreateRecurringRuleInput } from '../data/recurring-rule-schema'
 import type { RecurringRule } from '../data/recurring-rule-schema'
 import { useCreateRecurringRule, useUpdateRecurringRule } from '../hooks/use-recurring-rules'
 import { calculateNextRunAt } from '../hooks/use-recurring-rules'
+import { useExpenseCategories } from '../hooks/use-expense-categories'
+import { categoriesToOptions } from '../utils/category-utils'
 
 type RecurringRuleDrawerProps = {
   open: boolean
@@ -48,6 +50,8 @@ const weekDays = [
 
 export function RecurringRuleDrawer({ open, onOpenChange, currentRule }: RecurringRuleDrawerProps) {
   const isUpdate = !!currentRule
+  const { data: categories = [], isLoading: categoriesLoading } = useExpenseCategories()
+  const categoryOptions = categoriesToOptions(categories)
 
   const form = useForm<CreateRecurringRuleInput>({
     resolver: zodResolver(createRecurringRuleSchema),
@@ -166,18 +170,21 @@ export function RecurringRuleDrawer({ open, onOpenChange, currentRule }: Recurri
 
   const onSubmit = async (data: CreateRecurringRuleInput) => {
     try {
+      // 创建或更新规则时，将 next_run_at 设置为当前时间，立即触发执行询问
+      const now = new Date().toISOString()
+      
       if (isUpdate && currentRule) {
         await updateMutation.mutateAsync({
           id: currentRule.id,
           data: {
             ...data,
-            next_run_at: nextRunAt,
+            next_run_at: now, // 设置为当前时间，立即触发询问
           },
         })
       } else {
         await createMutation.mutateAsync({
           ...data,
-          next_run_at: nextRunAt,
+          next_run_at: now, // 设置为当前时间，立即触发询问
         })
       }
       form.reset()
@@ -242,14 +249,15 @@ export function RecurringRuleDrawer({ open, onOpenChange, currentRule }: Recurri
                     <FormLabel>分类</FormLabel>
                     <FormControl>
                       <SelectDropdown
-                        items={categories.map((cat) => ({
+                        items={categoryOptions.map((cat) => ({
                           label: cat.label,
                           value: cat.value,
                         }))}
                         defaultValue={field.value || ''}
                         onValueChange={(value) => field.onChange(value || null)}
-                        placeholder='请选择分类'
+                        placeholder={categoriesLoading ? '加载中...' : '请选择分类'}
                         isControlled={true}
+                        disabled={categoriesLoading}
                       />
                     </FormControl>
                     <FormMessage />

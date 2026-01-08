@@ -13,7 +13,7 @@ export function Categories() {
   const { data: categories = [], isLoading } = useExpenseCategories()
   const initMutation = useInitDefaultCategories()
 
-  // 如果用户没有分类，自动初始化默认分类
+  // 如果全局没有分类（共享分类），自动初始化默认分类
   useEffect(() => {
     if (!isLoading && categories.length === 0 && !initMutation.isPending && !initMutation.isSuccess) {
       initMutation.mutate()

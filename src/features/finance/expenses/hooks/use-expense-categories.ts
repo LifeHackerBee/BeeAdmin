@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
 import { type ExpenseCategory, expenseCategorySchema, type CreateExpenseCategoryInput } from '../data/category-schema'
 
-// 查询所有记账类型
+// 查询所有记账类型（共享分类，所有用户看到的都一样）
 export function useExpenseCategories() {
   return useQuery({
     queryKey: ['expense-categories'],
@@ -23,7 +23,7 @@ export function useExpenseCategories() {
       const categories: ExpenseCategory[] = (data || []).map((row) => {
         return {
           id: row.id,
-          user_id: row.user_id,
+          user_id: row.user_id || undefined,
           label: row.label,
           value: row.value,
           icon_name: row.icon_name,
@@ -66,7 +66,7 @@ export function useAllExpenseCategories() {
       const categories: ExpenseCategory[] = (data || []).map((row) => {
         return {
           id: row.id,
-          user_id: row.user_id,
+          user_id: row.user_id || undefined,
           label: row.label,
           value: row.value,
           icon_name: row.icon_name,
@@ -97,7 +97,7 @@ export function useCreateExpenseCategory() {
 
   return useMutation({
     mutationFn: async (data: CreateExpenseCategoryInput) => {
-      // 获取当前用户 ID
+      // 获取当前用户 ID（用于记录创建者，但分类是共享的）
       const { data: sessionData } = await supabase.auth.getSession()
       if (!sessionData.session?.user) {
         throw new Error('未登录')
@@ -108,7 +108,7 @@ export function useCreateExpenseCategory() {
         .insert([
           {
             ...data,
-            user_id: sessionData.session.user.id,
+            user_id: sessionData.session.user.id, // 记录创建者，但分类对所有用户可见
             sort_order: data.sort_order ?? 0,
             is_active: data.is_active ?? true,
           },

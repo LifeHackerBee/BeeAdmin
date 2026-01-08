@@ -17,7 +17,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useBudgetConfig } from '../hooks/use-budget-config'
 import { useYearlyBudgetConfig } from '../hooks/use-yearly-budget-config'
 import { format, parseISO } from 'date-fns'
-import { categories } from '../../expenses/data/data'
+import { useExpenseCategories } from '../../expenses/hooks/use-expense-categories'
 
 type BudgetProgressProps = {
   currentMonthTotal: number
@@ -32,6 +32,7 @@ export function BudgetProgress({
   allExpenses = [],
   currency = 'CNY',
 }: BudgetProgressProps) {
+  const { data: categories = [] } = useExpenseCategories()
   const currentMonth = format(new Date(), 'yyyy-MM')
   const currentYear = format(new Date(), 'yyyy')
   const { config, updateConfig, isUpdating } = useBudgetConfig(currentMonth)
