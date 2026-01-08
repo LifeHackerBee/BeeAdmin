@@ -19,6 +19,7 @@ import {
   ArrowLeftRight,
   Tag,
   GalleryVerticalEnd,
+  Target,
 } from 'lucide-react'
 import { type SidebarData } from '../types'
 
@@ -107,6 +108,11 @@ export const sidebarData: SidebarData = {
           title: '财务管理',
           icon: Wallet,
           items: [
+            {
+              title: 'FIRE 计算器',
+              url: '/fire',
+              icon: Target,
+            },
             {
               title: '支出统计',
               url: '/finance/statistics',
