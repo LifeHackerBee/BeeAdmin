@@ -244,25 +244,46 @@ export function RecurringRuleDrawer({ open, onOpenChange, currentRule }: Recurri
               <FormField
                 control={form.control}
                 name='category'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>分类</FormLabel>
-                    <FormControl>
-                      <SelectDropdown
-                        items={categoryOptions.map((cat) => ({
-                          label: cat.label,
-                          value: cat.value,
-                        }))}
-                        defaultValue={field.value || ''}
-                        onValueChange={(value) => field.onChange(value || null)}
-                        placeholder={categoriesLoading ? '加载中...' : '请选择分类'}
-                        isControlled={true}
-                        disabled={categoriesLoading}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
+                render={({ field }) => {
+                  const selectedCategory = categoryOptions.find((cat) => cat.value === field.value)
+                  
+                  return (
+                    <FormItem>
+                      <FormLabel>分类</FormLabel>
+                      <FormControl>
+                        <Select
+                          value={field.value || ''}
+                          onValueChange={(value) => field.onChange(value || null)}
+                          disabled={categoriesLoading}
+                        >
+                          <SelectTrigger className='w-full'>
+                            <div className='flex items-center gap-2 flex-1'>
+                              {selectedCategory && (() => {
+                                const IconComponent = selectedCategory.icon
+                                return <IconComponent className='h-4 w-4 shrink-0' />
+                              })()}
+                              <SelectValue placeholder={categoriesLoading ? '加载中...' : '请选择分类'} />
+                            </div>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {categoryOptions.map((cat) => {
+                              const IconComponent = cat.icon
+                              return (
+                                <SelectItem key={cat.value} value={cat.value}>
+                                  <div className='flex items-center gap-2'>
+                                    <IconComponent className='h-4 w-4' />
+                                    <span>{cat.label}</span>
+                                  </div>
+                                </SelectItem>
+                              )
+                            })}
+                          </SelectContent>
+                        </Select>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )
+                }}
               />
 
               <FormField

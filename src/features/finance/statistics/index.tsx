@@ -14,7 +14,7 @@ import { CategoryAnalysis } from './components/category-analysis'
 import { format, parseISO } from 'date-fns'
 
 export function Statistics() {
-  const { monthlyStats, categoryStats, totalStats, isLoading, error } =
+  const { monthlyStats, totalStats, isLoading, error } =
     useExpenseStatistics()
   const { data: expenses = [] } = useExpenses()
   const selectedCurrency = 'CNY' // 默认使用人民币
@@ -96,7 +96,6 @@ export function Statistics() {
 
             <ExpenseDetails
               monthlyData={monthlyStats}
-              categoryData={categoryStats}
               currency={selectedCurrency}
             />
 

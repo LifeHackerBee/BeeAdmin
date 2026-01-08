@@ -22,6 +22,13 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { SelectDropdown } from '@/components/select-dropdown'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { currencies } from '../data/data'
 import { type Expense } from '../data/schema'
 import { useCreateExpense, useUpdateExpense } from '../hooks/use-expense-mutations'
@@ -307,22 +314,46 @@ export function ExpensesMutateDrawer({
             <FormField
               control={form.control}
               name='category'
-              render={({ field }) => (
+              render={({ field }) => {
+                const selectedCategory = categoryOptions.find((cat) => cat.value === field.value)
+                
+                return (
                   <FormItem>
                     <FormLabel>分类</FormLabel>
-                    <SelectDropdown
-                      defaultValue={field.value}
-                      onValueChange={field.onChange}
-                      placeholder={categoriesLoading ? '加载中...' : '选择分类'}
-                      items={categoryOptions.map((cat) => ({
-                        label: cat.label,
-                        value: cat.value,
-                      }))}
-                      disabled={categoriesLoading}
-                    />
+                    <FormControl>
+                      <Select
+                        value={field.value || ''}
+                        onValueChange={field.onChange}
+                        disabled={categoriesLoading}
+                      >
+                        <SelectTrigger className='w-full'>
+                          <div className='flex items-center gap-2 flex-1'>
+                            {selectedCategory && (() => {
+                              const IconComponent = selectedCategory.icon
+                              return <IconComponent className='h-4 w-4 shrink-0' />
+                            })()}
+                            <SelectValue placeholder={categoriesLoading ? '加载中...' : '选择分类'} />
+                          </div>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {categoryOptions.map((cat) => {
+                            const IconComponent = cat.icon
+                            return (
+                              <SelectItem key={cat.value} value={cat.value}>
+                                <div className='flex items-center gap-2'>
+                                  <IconComponent className='h-4 w-4' />
+                                  <span>{cat.label}</span>
+                                </div>
+                              </SelectItem>
+                            )
+                          })}
+                        </SelectContent>
+                      </Select>
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
-              )}
+                )
+              }}
             />
             <FormField
               control={form.control}

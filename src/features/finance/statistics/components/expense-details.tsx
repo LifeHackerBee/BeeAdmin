@@ -10,9 +10,6 @@ import {
 import {
   Bar,
   BarChart,
-  PieChart,
-  Pie,
-  Cell,
   ResponsiveContainer,
   XAxis,
   YAxis,
@@ -20,32 +17,17 @@ import {
   Legend,
 } from 'recharts'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { type MonthlyStatistic, type CategoryStatistic } from '../hooks/use-expense-statistics'
-import { useExpenseCategories } from '../../expenses/hooks/use-expense-categories'
+import { type MonthlyStatistic } from '../hooks/use-expense-statistics'
 
 type ExpenseDetailsProps = {
   monthlyData: MonthlyStatistic[]
-  categoryData: CategoryStatistic[]
   currency?: string
 }
 
-const COLORS = [
-  '#0088FE',
-  '#00C49F',
-  '#FFBB28',
-  '#FF8042',
-  '#8884D8',
-  '#82CA9D',
-  '#FFC658',
-  '#FF7C7C',
-]
-
 export function ExpenseDetails({
   monthlyData,
-  categoryData,
   currency = 'CNY',
 }: ExpenseDetailsProps) {
-  const { data: categories = [] } = useExpenseCategories()
   // 过滤指定币种的月度数据
   const filteredMonthlyData = monthlyData.filter((item) => item.currency === currency)
 
@@ -62,20 +44,6 @@ export function ExpenseDetails({
   // 表格数据（按时间倒序，最新的在前）
   const tableData = [...filteredMonthlyData].sort((a, b) => b.month.localeCompare(a.month))
 
-  // 格式化分类数据
-  const categoryChartData =
-    categoryData.length > 0
-      ? categoryData.map((item) => {
-          const category = categories.find((cat) => cat.value === item.category)
-          return {
-            name: category?.label || item.category,
-            value: item.total,
-            percentage: item.percentage,
-            count: item.count,
-          }
-        })
-      : []
-
   const currencySymbols: Record<string, string> = {
     CNY: '¥',
     HKD: 'HK$',
@@ -84,14 +52,13 @@ export function ExpenseDetails({
   const symbol = currencySymbols[currency] || currency
 
   const hasMonthlyData = filteredMonthlyData.length > 0
-  const hasCategoryData = categoryData.length > 0
 
-  if (!hasMonthlyData && !hasCategoryData) {
+  if (!hasMonthlyData) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>支出明细与分类统计</CardTitle>
-          <CardDescription>查看月度支出明细和分类统计（{currency}）</CardDescription>
+          <CardTitle>支出明细</CardTitle>
+          <CardDescription>查看月度支出明细（{currency}）</CardDescription>
         </CardHeader>
         <CardContent>
           <div className='flex h-[300px] items-center justify-center text-muted-foreground'>
@@ -105,15 +72,14 @@ export function ExpenseDetails({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>支出明细与分类统计</CardTitle>
-        <CardDescription>查看月度支出明细和分类统计（{currency}）</CardDescription>
+        <CardTitle>支出明细</CardTitle>
+        <CardDescription>查看月度支出明细（{currency}）</CardDescription>
       </CardHeader>
       <CardContent>
         <Tabs defaultValue='monthly-table' className='space-y-4'>
-          <TabsList className='grid w-full grid-cols-3'>
+          <TabsList className='grid w-full grid-cols-2'>
             <TabsTrigger value='monthly-table'>月度明细</TabsTrigger>
             <TabsTrigger value='monthly-chart'>月度趋势</TabsTrigger>
-            <TabsTrigger value='category'>分类统计</TabsTrigger>
           </TabsList>
 
           {/* 月度明细表格 */}
@@ -219,91 +185,6 @@ export function ExpenseDetails({
             ) : (
               <div className='flex h-[300px] items-center justify-center text-muted-foreground'>
                 暂无月度数据
-              </div>
-            )}
-          </TabsContent>
-
-          {/* 分类统计饼图 */}
-          <TabsContent value='category' className='space-y-4'>
-            {hasCategoryData ? (
-              <div className='space-y-4'>
-                <ResponsiveContainer width='100%' height={300}>
-                  <PieChart>
-                    <Pie
-                      data={categoryChartData}
-                      cx='50%'
-                      cy='50%'
-                      labelLine={false}
-                      label={(entry: any) => {
-                        const data = categoryChartData.find((d) => d.name === entry.name)
-                        return data ? `${entry.name}: ${data.percentage.toFixed(1)}%` : entry.name
-                      }}
-                      outerRadius={80}
-                      fill='#8884d8'
-                      dataKey='value'
-                    >
-                      {categoryChartData.map((_entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      formatter={(value: number | undefined) => {
-                        if (value === undefined) return ''
-                        return `${symbol}${value.toLocaleString('zh-CN', {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })}`
-                      }}
-                    />
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
-
-                {/* 分类明细表格 */}
-                <div className='rounded-md border'>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>分类</TableHead>
-                        <TableHead className='text-right'>支出金额</TableHead>
-                        <TableHead className='text-right'>笔数</TableHead>
-                        <TableHead className='text-right'>占比</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {categoryChartData.map((item, index) => (
-                        <TableRow key={item.name}>
-                          <TableCell className='font-medium'>
-                            <div className='flex items-center gap-2'>
-                              <div
-                                className='h-3 w-3 rounded-full'
-                                style={{ backgroundColor: COLORS[index % COLORS.length] }}
-                              />
-                              {item.name}
-                            </div>
-                          </TableCell>
-                          <TableCell className='text-right font-semibold text-red-600'>
-                            {symbol}
-                            {item.value.toLocaleString('zh-CN', {
-                              minimumFractionDigits: 2,
-                              maximumFractionDigits: 2,
-                            })}
-                          </TableCell>
-                          <TableCell className='text-right text-muted-foreground'>
-                            {item.count}
-                          </TableCell>
-                          <TableCell className='text-right text-muted-foreground'>
-                            {item.percentage.toFixed(1)}%
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </div>
-            ) : (
-              <div className='flex h-[300px] items-center justify-center text-muted-foreground'>
-                暂无分类数据
               </div>
             )}
           </TabsContent>

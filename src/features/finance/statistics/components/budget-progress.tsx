@@ -18,8 +18,14 @@ import { useBudgetConfig } from '../hooks/use-budget-config'
 import { useYearlyBudgetConfig } from '../hooks/use-yearly-budget-config'
 import { format, parseISO } from 'date-fns'
 import { useExpenseCategories } from '../../expenses/hooks/use-expense-categories'
-import { SelectDropdown } from '@/components/select-dropdown'
 import { categoriesToOptions } from '../../expenses/utils/category-utils'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
 type BudgetProgressProps = {
   currentMonthTotal: number
@@ -224,28 +230,17 @@ export function BudgetProgress({
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <div className='flex items-center justify-between'>
-          <div>
-            <CardTitle>预算进度</CardTitle>
-            <CardDescription>{format(new Date(), 'yyyy年MM月')} 预算使用情况</CardDescription>
-          </div>
-          <Dialog open={isDialogOpen} onOpenChange={handleOpenChange}>
-            <DialogTrigger asChild>
-              <Button variant='outline' size='sm'>
-                <Settings className='h-4 w-4 mr-2' />
-                设置预算
-              </Button>
-            </DialogTrigger>
-            <DialogContent className='max-w-2xl max-h-[90vh] overflow-y-auto'>
-              <DialogHeader>
-                <DialogTitle>设置预算</DialogTitle>
-                <DialogDescription>
-                  设置 {format(new Date(), 'yyyy年MM月')} 的月度预算和 {format(new Date(), 'yyyy年')} 的年度预算
-                </DialogDescription>
-              </DialogHeader>
-              <div className='space-y-6 py-4'>
+    <Dialog open={isDialogOpen} onOpenChange={handleOpenChange}>
+      <div className='space-y-4'>
+        {/* 设置预算对话框内容 */}
+        <DialogContent className='max-w-2xl max-h-[90vh] overflow-y-auto'>
+          <DialogHeader>
+            <DialogTitle>设置预算</DialogTitle>
+            <DialogDescription>
+              设置 {format(new Date(), 'yyyy年MM月')} 的月度预算和 {format(new Date(), 'yyyy年')} 的年度预算
+            </DialogDescription>
+          </DialogHeader>
+          <div className='space-y-6 py-4'>
                 {/* 总预算 */}
                 <div className='space-y-4'>
                   <div className='space-y-2'>
@@ -307,17 +302,25 @@ export function BudgetProgress({
                     {newCategoryMonthly ? (
                       <div className='flex items-end gap-2 p-2 border rounded-md'>
                         <div className='flex-1 space-y-2'>
-                          <SelectDropdown
-                            items={categoryOptions.filter(
-                              (opt) => !categoryMonthlyBudgets[opt.value]
-                            )}
-                            defaultValue={newCategoryMonthly.category}
+                          <Select
+                            value={newCategoryMonthly.category || ''}
                             onValueChange={(value) =>
                               setNewCategoryMonthly({ ...newCategoryMonthly, category: value || '' })
                             }
-                            placeholder='选择分类'
-                            isControlled={true}
-                          />
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder='选择分类' />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {categoryOptions
+                                .filter((opt) => !categoryMonthlyBudgets[opt.value])
+                                .map((opt) => (
+                                  <SelectItem key={opt.value} value={opt.value}>
+                                    {opt.label}
+                                  </SelectItem>
+                                ))}
+                            </SelectContent>
+                          </Select>
                           <Input
                             type='number'
                             placeholder='预算金额'
@@ -388,17 +391,25 @@ export function BudgetProgress({
                     {newCategoryYearly ? (
                       <div className='flex items-end gap-2 p-2 border rounded-md'>
                         <div className='flex-1 space-y-2'>
-                          <SelectDropdown
-                            items={categoryOptions.filter(
-                              (opt) => !categoryYearlyBudgets[opt.value]
-                            )}
-                            defaultValue={newCategoryYearly.category}
+                          <Select
+                            value={newCategoryYearly.category || ''}
                             onValueChange={(value) =>
                               setNewCategoryYearly({ ...newCategoryYearly, category: value || '' })
                             }
-                            placeholder='选择分类'
-                            isControlled={true}
-                          />
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder='选择分类' />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {categoryOptions
+                                .filter((opt) => !categoryYearlyBudgets[opt.value])
+                                .map((opt) => (
+                                  <SelectItem key={opt.value} value={opt.value}>
+                                    {opt.label}
+                                  </SelectItem>
+                                ))}
+                            </SelectContent>
+                          </Select>
                           <Input
                             type='number'
                             placeholder='预算金额'
@@ -441,200 +452,259 @@ export function BudgetProgress({
                 </Button>
               </DialogFooter>
             </DialogContent>
-          </Dialog>
-        </div>
-      </CardHeader>
-      <CardContent className='space-y-6'>
-        {/* 月度预算进度 */}
-        {totalBudgetValue > 0 && (
-          <div className='space-y-2'>
-            <div className='flex items-center gap-2 text-sm font-medium'>
-              <Calendar className='h-4 w-4' />
-              <span>月度预算</span>
+
+      {/* 预算进度区域 */}
+      <div className='grid grid-cols-1 lg:grid-cols-2 gap-4'>
+        {/* 月度预算 Card */}
+        <Card>
+        <CardHeader>
+          <div className='flex items-center justify-between'>
+            <div>
+              <CardTitle>月度预算</CardTitle>
+              <CardDescription>{format(new Date(), 'yyyy年MM月')} 预算使用情况</CardDescription>
             </div>
-            <div className='flex items-center justify-between text-sm'>
-              <span className='text-muted-foreground'>{format(new Date(), 'yyyy年MM月')}</span>
-              <span className={isOverBudget ? 'text-destructive font-semibold' : 'text-muted-foreground'}>
-                {symbol}
-                {currentMonthTotal.toLocaleString('zh-CN', {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}{' '}
-                / {symbol}
-                {totalBudgetValue.toLocaleString('zh-CN', {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}
-                {isOverBudget && ` (超支 ${((totalProgress - 100) * totalBudgetValue / 100).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`}
-              </span>
-            </div>
-            <Progress
-              value={Math.min(totalProgress, 100)}
-              className={isOverBudget ? 'h-3' : 'h-3'}
-            />
-            <div className='flex items-center justify-between text-xs text-muted-foreground'>
-              <span>使用率: {totalProgress.toFixed(1)}%</span>
-              {totalBudgetValue > currentMonthTotal && (
-                <span>
-                  剩余: {symbol}
-                  {(totalBudgetValue - currentMonthTotal).toLocaleString('zh-CN', {
+            <DialogTrigger asChild>
+              <Button variant='outline' size='sm'>
+                <Settings className='h-4 w-4 mr-2' />
+                设置预算
+              </Button>
+            </DialogTrigger>
+          </div>
+        </CardHeader>
+        <CardContent className='space-y-6'>
+          {/* 月度总预算进度 */}
+          {totalBudgetValue > 0 && (
+            <div className='space-y-2'>
+              <div className='flex items-center gap-2 text-sm font-medium'>
+                <Calendar className='h-4 w-4' />
+                <span>总预算</span>
+              </div>
+              <div className='flex items-center justify-between text-sm'>
+                <span className='text-muted-foreground'>{format(new Date(), 'yyyy年MM月')}</span>
+                <span className={isOverBudget ? 'text-destructive font-semibold' : 'text-muted-foreground'}>
+                  {symbol}
+                  {currentMonthTotal.toLocaleString('zh-CN', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}{' '}
+                  / {symbol}
+                  {totalBudgetValue.toLocaleString('zh-CN', {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2,
                   })}
+                  {isOverBudget && ` (超支 ${((totalProgress - 100) * totalBudgetValue / 100).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`}
                 </span>
-              )}
+              </div>
+              <Progress
+                value={Math.min(totalProgress, 100)}
+                className={isOverBudget ? 'h-3' : 'h-3'}
+              />
+              <div className='flex items-center justify-between text-xs text-muted-foreground'>
+                <span>使用率: {totalProgress.toFixed(1)}%</span>
+                {totalBudgetValue > currentMonthTotal && (
+                  <span>
+                    剩余: {symbol}
+                    {(totalBudgetValue - currentMonthTotal).toLocaleString('zh-CN', {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </span>
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* 年度预算进度 */}
-        {yearlyBudgetValue > 0 && (
-          <div className='space-y-2'>
-            <div className='flex items-center gap-2 text-sm font-medium'>
-              <TrendingUp className='h-4 w-4' />
-              <span>年度预算</span>
-            </div>
-            <div className='flex items-center justify-between text-sm'>
-              <span className='text-muted-foreground'>{format(new Date(), 'yyyy年')}</span>
-              <span className={isOverYearlyBudget ? 'text-destructive font-semibold' : 'text-muted-foreground'}>
-                {symbol}
-                {currentYearTotal.toLocaleString('zh-CN', {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}{' '}
-                / {symbol}
-                {yearlyBudgetValue.toLocaleString('zh-CN', {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}
-                {isOverYearlyBudget && ` (超支 ${((yearlyProgress - 100) * yearlyBudgetValue / 100).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`}
-              </span>
-            </div>
-            <Progress
-              value={Math.min(yearlyProgress, 100)}
-              className={isOverYearlyBudget ? 'h-3' : 'h-3'}
-            />
-            <div className='flex items-center justify-between text-xs text-muted-foreground'>
-              <span>使用率: {yearlyProgress.toFixed(1)}%</span>
-              {yearlyBudgetValue > currentYearTotal && (
-                <span>
-                  剩余: {symbol}
-                  {(yearlyBudgetValue - currentYearTotal).toLocaleString('zh-CN', {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
-                </span>
-              )}
-            </div>
-          </div>
-        )}
+          {/* 分类月度预算进度 */}
+          {config?.category_budgets && Object.keys(config.category_budgets).length > 0 && (
+            <div className='space-y-4'>
+              <div className='flex items-center gap-2 text-sm font-medium'>
+                <TrendingUp className='h-4 w-4' />
+                <span>分类预算</span>
+              </div>
+              <div className='space-y-3'>
+                {Object.entries(config.category_budgets).map(([category, budget]) => {
+                  const spent = currentMonthByCategory[category] || 0
+                  const progress = budget > 0 ? (spent / budget) * 100 : 0
+                  const isOver = progress > 100
+                  const categoryLabel = categories.find((c) => c.value === category)?.label || category
 
-        {/* 分类月度预算进度 */}
-        {config?.category_budgets && Object.keys(config.category_budgets).length > 0 && (
-          <div className='space-y-4'>
-            <div className='flex items-center gap-2 text-sm font-medium'>
-              <TrendingUp className='h-4 w-4' />
-              <span>分类月度预算</span>
-            </div>
-            <div className='space-y-3'>
-              {Object.entries(config.category_budgets).map(([category, budget]) => {
-                const spent = currentMonthByCategory[category] || 0
-                const progress = budget > 0 ? (spent / budget) * 100 : 0
-                const isOver = progress > 100
-                const categoryLabel = categories.find((c) => c.value === category)?.label || category
-
-                return (
-                  <div key={category} className='space-y-2'>
-                    <div className='flex items-center justify-between text-sm'>
-                      <span className='font-medium'>{categoryLabel}</span>
-                      <span className={isOver ? 'text-destructive font-semibold' : 'text-muted-foreground'}>
-                        {symbol}
-                        {spent.toLocaleString('zh-CN', {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })}{' '}
-                        / {symbol}
-                        {budget.toLocaleString('zh-CN', {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })}
-                      </span>
-                    </div>
-                    <Progress
-                      value={Math.min(progress, 100)}
-                      className={isOver ? 'h-2' : 'h-2'}
-                    />
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* 分类年度预算进度 */}
-        {yearlyConfig?.category_yearly_budgets && Object.keys(yearlyConfig.category_yearly_budgets).length > 0 && (
-          <div className='space-y-4'>
-            <div className='flex items-center gap-2 text-sm font-medium'>
-              <TrendingUp className='h-4 w-4' />
-              <span>分类年度预算</span>
-            </div>
-            <div className='space-y-3'>
-              {Object.entries(yearlyConfig.category_yearly_budgets).map(([category, budget]) => {
-                const spent = currentYearByCategory[category] || 0
-                const progress = budget > 0 ? (spent / budget) * 100 : 0
-                const isOver = progress > 100
-                const categoryLabel = categories.find((c) => c.value === category)?.label || category
-
-                return (
-                  <div key={category} className='space-y-2'>
-                    <div className='flex items-center justify-between text-sm'>
-                      <span className='font-medium'>{categoryLabel}</span>
-                      <span className={isOver ? 'text-destructive font-semibold' : 'text-muted-foreground'}>
-                        {symbol}
-                        {spent.toLocaleString('zh-CN', {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })}{' '}
-                        / {symbol}
-                        {budget.toLocaleString('zh-CN', {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })}
-                        {isOver && ` (超支 ${((progress - 100) * budget / 100).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`}
-                      </span>
-                    </div>
-                    <Progress
-                      value={Math.min(progress, 100)}
-                      className={isOver ? 'h-2' : 'h-2'}
-                    />
-                    <div className='flex items-center justify-between text-xs text-muted-foreground'>
-                      <span>使用率: {progress.toFixed(1)}%</span>
-                      {budget > spent && (
-                        <span>
-                          剩余: {symbol}
-                          {(budget - spent).toLocaleString('zh-CN', {
+                  return (
+                    <div key={category} className='space-y-2'>
+                      <div className='flex items-center justify-between text-sm'>
+                        <span className='font-medium'>{categoryLabel}</span>
+                        <span className={isOver ? 'text-destructive font-semibold' : 'text-muted-foreground'}>
+                          {symbol}
+                          {spent.toLocaleString('zh-CN', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}{' '}
+                          / {symbol}
+                          {budget.toLocaleString('zh-CN', {
                             minimumFractionDigits: 2,
                             maximumFractionDigits: 2,
                           })}
+                          {isOver && ` (超支 ${((progress - 100) * budget / 100).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`}
                         </span>
-                      )}
+                      </div>
+                      <Progress
+                        value={Math.min(progress, 100)}
+                        className={isOver ? 'h-2' : 'h-2'}
+                      />
+                      <div className='flex items-center justify-between text-xs text-muted-foreground'>
+                        <span>使用率: {progress.toFixed(1)}%</span>
+                        {budget > spent && (
+                          <span>
+                            剩余: {symbol}
+                            {(budget - spent).toLocaleString('zh-CN', {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                )
-              })}
+                  )
+                })}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* 如果没有设置预算，显示提示 */}
-        {!totalBudgetValue && !yearlyBudgetValue && (!config?.category_budgets || Object.keys(config.category_budgets).length === 0) && (
-          <div className='text-center py-8 text-muted-foreground'>
-            <p className='text-sm'>尚未设置预算</p>
-            <p className='text-xs mt-1'>点击右上角"设置预算"按钮来配置月度预算和年度预算</p>
+          {/* 如果没有设置月度预算，显示提示 */}
+          {!totalBudgetValue && (!config?.category_budgets || Object.keys(config.category_budgets).length === 0) && (
+            <div className='text-center py-8 text-muted-foreground'>
+              <p className='text-sm'>尚未设置月度预算</p>
+              <p className='text-xs mt-1'>点击右上角"设置预算"按钮来配置月度预算</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+        {/* 年度预算 Card */}
+        <Card>
+        <CardHeader>
+          <div className='flex items-center justify-between'>
+            <div>
+              <CardTitle>年度预算</CardTitle>
+              <CardDescription>{format(new Date(), 'yyyy年')} 预算使用情况</CardDescription>
+            </div>
+            <DialogTrigger asChild>
+              <Button variant='outline' size='sm'>
+                <Settings className='h-4 w-4 mr-2' />
+                设置预算
+              </Button>
+            </DialogTrigger>
           </div>
-        )}
-      </CardContent>
-    </Card>
+        </CardHeader>
+        <CardContent className='space-y-6'>
+          {/* 年度总预算进度 */}
+          {yearlyBudgetValue > 0 && (
+            <div className='space-y-2'>
+              <div className='flex items-center gap-2 text-sm font-medium'>
+                <TrendingUp className='h-4 w-4' />
+                <span>总预算</span>
+              </div>
+              <div className='flex items-center justify-between text-sm'>
+                <span className='text-muted-foreground'>{format(new Date(), 'yyyy年')}</span>
+                <span className={isOverYearlyBudget ? 'text-destructive font-semibold' : 'text-muted-foreground'}>
+                  {symbol}
+                  {currentYearTotal.toLocaleString('zh-CN', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}{' '}
+                  / {symbol}
+                  {yearlyBudgetValue.toLocaleString('zh-CN', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
+                  {isOverYearlyBudget && ` (超支 ${((yearlyProgress - 100) * yearlyBudgetValue / 100).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`}
+                </span>
+              </div>
+              <Progress
+                value={Math.min(yearlyProgress, 100)}
+                className={isOverYearlyBudget ? 'h-3' : 'h-3'}
+              />
+              <div className='flex items-center justify-between text-xs text-muted-foreground'>
+                <span>使用率: {yearlyProgress.toFixed(1)}%</span>
+                {yearlyBudgetValue > currentYearTotal && (
+                  <span>
+                    剩余: {symbol}
+                    {(yearlyBudgetValue - currentYearTotal).toLocaleString('zh-CN', {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* 分类年度预算进度 */}
+          {yearlyConfig?.category_yearly_budgets && Object.keys(yearlyConfig.category_yearly_budgets).length > 0 && (
+            <div className='space-y-4'>
+              <div className='flex items-center gap-2 text-sm font-medium'>
+                <TrendingUp className='h-4 w-4' />
+                <span>分类预算</span>
+              </div>
+              <div className='space-y-3'>
+                {Object.entries(yearlyConfig.category_yearly_budgets).map(([category, budget]) => {
+                  const spent = currentYearByCategory[category] || 0
+                  const progress = budget > 0 ? (spent / budget) * 100 : 0
+                  const isOver = progress > 100
+                  const categoryLabel = categories.find((c) => c.value === category)?.label || category
+
+                  return (
+                    <div key={category} className='space-y-2'>
+                      <div className='flex items-center justify-between text-sm'>
+                        <span className='font-medium'>{categoryLabel}</span>
+                        <span className={isOver ? 'text-destructive font-semibold' : 'text-muted-foreground'}>
+                          {symbol}
+                          {spent.toLocaleString('zh-CN', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}{' '}
+                          / {symbol}
+                          {budget.toLocaleString('zh-CN', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}
+                          {isOver && ` (超支 ${((progress - 100) * budget / 100).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`}
+                        </span>
+                      </div>
+                      <Progress
+                        value={Math.min(progress, 100)}
+                        className={isOver ? 'h-2' : 'h-2'}
+                      />
+                      <div className='flex items-center justify-between text-xs text-muted-foreground'>
+                        <span>使用率: {progress.toFixed(1)}%</span>
+                        {budget > spent && (
+                          <span>
+                            剩余: {symbol}
+                            {(budget - spent).toLocaleString('zh-CN', {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* 如果没有设置年度预算，显示提示 */}
+          {!yearlyBudgetValue && (!yearlyConfig?.category_yearly_budgets || Object.keys(yearlyConfig.category_yearly_budgets).length === 0) && (
+            <div className='text-center py-8 text-muted-foreground'>
+              <p className='text-sm'>尚未设置年度预算</p>
+              <p className='text-xs mt-1'>点击右上角"设置预算"按钮来配置年度预算</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+      </div>
+      </div>
+    </Dialog>
   )
 }
 
