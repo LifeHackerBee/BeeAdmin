@@ -20,9 +20,8 @@ export function checkSupabaseConfig(): {
   }
 
   const isValid = missingVars.length === 0 && 
-                  supabaseUrl?.startsWith('http') && 
-                  supabaseAnonKey && 
-                  supabaseAnonKey.length > 20
+                  Boolean(supabaseUrl?.startsWith('http')) && 
+                  Boolean(supabaseAnonKey && supabaseAnonKey.length > 20)
 
   const message = isValid
     ? ''

@@ -9,6 +9,8 @@ services:
         # 构建时传递环境变量
         - VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
         - VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY}
+        - VITE_IBKR_API_URL=${VITE_IBKR_API_URL}
+        - VITE_IBKR_API_KEY=${VITE_IBKR_API_KEY}
     container_name: bee-admin
     ports:
       - "3000:80"

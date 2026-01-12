@@ -16,10 +16,10 @@ import {
   BarChart3,
   Clock,
   Wallet,
-  ArrowLeftRight,
   Tag,
   GalleryVerticalEnd,
   Target,
+  DollarSign,
 } from 'lucide-react'
 import { type SidebarData } from '../types'
 
@@ -102,17 +102,22 @@ export const sidebarData: SidebarData = {
       ],
     },
     {
+      title: 'Target',
+      items: [
+        {
+          title: 'FIRE 计算器',
+          url: '/fire',
+          icon: Target,
+        },
+      ],
+    },
+    {
       title: 'Finance',
       items: [
         {
           title: '财务管理',
           icon: Wallet,
           items: [
-            {
-              title: 'FIRE 计算器',
-              url: '/fire',
-              icon: Target,
-            },
             {
               title: '支出统计',
               url: '/finance/statistics',
@@ -124,14 +129,24 @@ export const sidebarData: SidebarData = {
               icon: Wallet,
             },
             {
-              title: '汇率转换',
-              url: '/finance/exchange-rate',
-              icon: ArrowLeftRight,
-            },
-            {
               title: '记账类型管理',
               url: '/finance/categories',
               icon: Tag,
+            },
+            {
+              title: '负债管理',
+              url: '/finance/liabilities',
+              icon: Wallet,
+            },
+            {
+              title: '资产管理',
+              url: '/finance/assets',
+              icon: DollarSign,
+            },
+            {
+              title: '投资账户',
+              url: '/finance/investment',
+              icon: DollarSign,
             },
           ],
         },

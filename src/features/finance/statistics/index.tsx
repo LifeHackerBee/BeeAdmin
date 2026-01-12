@@ -1,16 +1,19 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { ConfigDrawer } from '@/components/config-drawer'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
 import { LanguageSwitch } from '@/components/language-switch'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useExpenseStatistics } from './hooks/use-expense-statistics'
 import { useExpenses } from '../expenses/hooks/use-expenses'
 import { TotalExpenseSummary } from './components/total-expense-summary'
 import { ExpenseDetails } from './components/expense-details'
 import { BudgetProgress } from './components/budget-progress'
 import { CategoryAnalysis } from './components/category-analysis'
+import { ExchangeRateConverter } from '../exchange-rate/components/exchange-rate-converter'
+import { MultiCurrencySummary } from '../exchange-rate/components/multi-currency-summary'
 import { format, parseISO } from 'date-fns'
 
 export function Statistics() {
@@ -18,6 +21,7 @@ export function Statistics() {
     useExpenseStatistics()
   const { data: expenses = [] } = useExpenses()
   const selectedCurrency = 'CNY' // 默认使用人民币
+  const [baseCurrency, setBaseCurrency] = useState<string>('CNY')
 
   // 计算当前月份的支出数据
   const currentMonthData = useMemo(() => {
@@ -65,43 +69,62 @@ export function Statistics() {
         <div>
           <h2 className='text-2xl font-bold tracking-tight'>支出统计</h2>
           <p className='text-muted-foreground'>
-            按月份查看您的支出统计和预算进度
+            按月份查看您的支出统计和预算进度，支持多币种汇率转换
           </p>
         </div>
 
-        {isLoading ? (
-          <div className='flex items-center justify-center py-12'>
-            <p className='text-muted-foreground'>加载中...</p>
-          </div>
-        ) : error ? (
-          <div className='flex items-center justify-center py-12'>
-            <p className='text-destructive'>
-              加载失败: {error instanceof Error ? error.message : '未知错误'}
-            </p>
-          </div>
-        ) : (
-          <>
-            <TotalExpenseSummary
-              avgMonthly={totalStats.avgMonthly}
-              monthCount={totalStats.monthCount}
-              byCurrency={totalStats.byCurrency}
-            />
+        <Tabs defaultValue='statistics' className='w-full'>
+          <TabsList>
+            <TabsTrigger value='statistics'>支出统计</TabsTrigger>
+            <TabsTrigger value='exchange'>汇率转换</TabsTrigger>
+          </TabsList>
 
-            <BudgetProgress
-              currentMonthTotal={currentMonthData.total}
-              currentMonthByCategory={currentMonthData.byCategory}
-              allExpenses={expenses}
-              currency={selectedCurrency}
-            />
+          <TabsContent value='statistics' className='space-y-4 sm:space-y-6'>
+            {isLoading ? (
+              <div className='flex items-center justify-center py-12'>
+                <p className='text-muted-foreground'>加载中...</p>
+              </div>
+            ) : error ? (
+              <div className='flex items-center justify-center py-12'>
+                <p className='text-destructive'>
+                  加载失败: {error instanceof Error ? error.message : '未知错误'}
+                </p>
+              </div>
+            ) : (
+              <>
+                <TotalExpenseSummary
+                  avgMonthly={totalStats.avgMonthly}
+                  monthCount={totalStats.monthCount}
+                  byCurrency={totalStats.byCurrency}
+                />
 
-            <ExpenseDetails
-              monthlyData={monthlyStats}
-              currency={selectedCurrency}
-            />
+                <BudgetProgress
+                  currentMonthTotal={currentMonthData.total}
+                  currentMonthByCategory={currentMonthData.byCategory}
+                  allExpenses={expenses}
+                  currency={selectedCurrency}
+                />
 
-            <CategoryAnalysis currency={selectedCurrency} />
-          </>
-        )}
+                <ExpenseDetails
+                  monthlyData={monthlyStats}
+                  currency={selectedCurrency}
+                />
+
+                <CategoryAnalysis currency={selectedCurrency} />
+              </>
+            )}
+          </TabsContent>
+
+          <TabsContent value='exchange' className='space-y-4 sm:space-y-6'>
+            <div className='grid gap-4 lg:grid-cols-2'>
+              <ExchangeRateConverter />
+              <MultiCurrencySummary
+                baseCurrency={baseCurrency}
+                onBaseCurrencyChange={setBaseCurrency}
+              />
+            </div>
+          </TabsContent>
+        </Tabs>
       </Main>
     </>
   )
