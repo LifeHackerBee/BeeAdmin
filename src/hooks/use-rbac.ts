@@ -13,16 +13,22 @@ import {
   isAdmin,
   isAdminOrManager,
   getAccessiblePages,
+  hasModuleAccess,
+  getAccessibleModules,
   type UserRole,
+  type BeeAdminModule,
 } from '@/lib/rbac'
 
 export function useRBAC() {
   const { auth } = useAuthStore()
   const userRoles = auth.user?.role || []
+  const allowedModules = auth.user?.allowedModules || []
 
   return {
     // 用户角色
     roles: userRoles,
+    // 用户允许的模块
+    allowedModules,
     // 检查权限
     hasPermission: (permission: string) => hasPermission(userRoles, permission),
     hasAnyPermission: (permissions: string[]) => hasAnyPermission(userRoles, permissions),
@@ -35,6 +41,11 @@ export function useRBAC() {
     isAdminOrManager: () => isAdminOrManager(userRoles),
     // 获取可访问的页面
     getAccessiblePages: () => getAccessiblePages(userRoles),
+    // 检查模块权限
+    hasModuleAccess: (moduleName: BeeAdminModule | string) => 
+      hasModuleAccess(userRoles, allowedModules, moduleName),
+    // 获取可访问的模块列表
+    getAccessibleModules: () => getAccessibleModules(userRoles, allowedModules),
   }
 }
 

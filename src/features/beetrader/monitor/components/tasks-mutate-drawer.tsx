@@ -111,12 +111,19 @@ export function WalletsMutateDrawer({
         toast.success('钱包添加成功')
       }
       
-      // 刷新数据
-      await refetch()
-      // 触发 Context 中的刷新，确保 Monitor 组件也更新
+      // 关闭对话框（先关闭，避免阻塞 UI）
+      onOpenChange(false)
+      form.reset()
+      
+      // 触发刷新：createWallet 已经调用了 fetchWallets，这里只需要触发 Context 刷新
+      // 让合并组件知道钱包列表已经更新，需要刷新持仓数据
       triggerRefresh()
-    onOpenChange(false)
-    form.reset()
+      
+      // 再调用一次 refetch 确保数据同步（虽然 createWallet 已经刷新了）
+      // 使用 setTimeout 确保状态更新完成
+      setTimeout(() => {
+        refetch()
+      }, 50)
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : '操作失败'
       toast.error(errorMessage)

@@ -2,7 +2,7 @@ import React, { useState, useCallback } from 'react'
 import useDialogState from '@/hooks/use-dialog-state'
 import { type Wallet } from '../data/schema'
 
-type WalletsDialogType = 'create' | 'update' | 'delete' | 'import'
+type WalletsDialogType = 'create' | 'update' | 'delete' | 'import' | 'batch-create-tracker'
 
 type WalletsContextType = {
   open: WalletsDialogType | null

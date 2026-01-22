@@ -16,22 +16,7 @@ import { AlertCircle } from 'lucide-react'
 const COINS = ['BTC', 'ETH', 'SOL'] as const
 type Coin = (typeof COINS)[number]
 
-const INTERVALS: CandleInterval[] = [
-  '1m',
-  '3m',
-  '5m',
-  '15m',
-  '30m',
-  '1h',
-  '2h',
-  '4h',
-  '8h',
-  '12h',
-  '1d',
-  '3d',
-  '1w',
-  '1M',
-]
+const INTERVALS: CandleInterval[] = ['15m', '1h', '4h', '1d']
 
 export function Candles() {
   const [selectedCoin, setSelectedCoin] = useState<Coin>('BTC')
@@ -61,13 +46,43 @@ export function Candles() {
   }
 
   return (
-    <div className='flex h-full flex-col space-y-6 overflow-hidden'>
+    <div className='flex flex-col space-y-4 h-full'>
       <div className='flex items-center justify-between flex-shrink-0'>
-        <div>
-          <h2 className='text-xl font-semibold'>K线观察</h2>
-          <p className='text-sm text-muted-foreground'>
-            观察 BTC、ETH、SOL 的实时K线图，数据来自 Hyperliquid
-          </p>
+        <div className='flex items-center gap-4'>
+          <div className='flex items-center gap-2'>
+            <span className='text-sm text-muted-foreground'>币种:</span>
+            <Select value={selectedCoin} onValueChange={(value) => setSelectedCoin(value as Coin)}>
+              <SelectTrigger className='w-[120px]'>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {COINS.map((coin) => (
+                  <SelectItem key={coin} value={coin}>
+                    {coin}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className='flex items-center gap-2'>
+            <span className='text-sm text-muted-foreground'>间隔:</span>
+            <Select
+              value={selectedInterval}
+              onValueChange={(value) => setSelectedInterval(value as CandleInterval)}
+            >
+              <SelectTrigger className='w-[100px]'>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {INTERVALS.map((interval) => (
+                  <SelectItem key={interval} value={interval}>
+                    {interval}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
         <Button
           variant='outline'
@@ -80,44 +95,7 @@ export function Candles() {
         </Button>
       </div>
 
-      <div className='flex-shrink-0 flex items-center gap-4'>
-        <div className='flex items-center gap-2'>
-          <span className='text-sm text-muted-foreground'>币种:</span>
-          <Select value={selectedCoin} onValueChange={(value) => setSelectedCoin(value as Coin)}>
-            <SelectTrigger className='w-[120px]'>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {COINS.map((coin) => (
-                <SelectItem key={coin} value={coin}>
-                  {coin}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className='flex items-center gap-2'>
-          <span className='text-sm text-muted-foreground'>时间间隔:</span>
-          <Select
-            value={selectedInterval}
-            onValueChange={(value) => setSelectedInterval(value as CandleInterval)}
-          >
-            <SelectTrigger className='w-[120px]'>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {INTERVALS.map((interval) => (
-                <SelectItem key={interval} value={interval}>
-                  {interval}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      <div className='flex-1 overflow-auto'>
+      <div className='flex-1 overflow-hidden min-h-0 bg-background rounded-md border'>
         {error ? (
           <Alert variant='destructive'>
             <AlertCircle className='h-4 w-4' />

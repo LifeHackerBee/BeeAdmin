@@ -1,7 +1,10 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { Macroscopic } from '@/features/beetrader/macroscopic'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/_authenticated/beetrader/macroscopic' as any)({
-  component: Macroscopic,
+  beforeLoad: () => {
+    throw redirect({
+      to: '/beetrader/market' as any,
+    })
+  },
 })
 

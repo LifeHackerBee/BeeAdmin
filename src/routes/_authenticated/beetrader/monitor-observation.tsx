@@ -1,7 +1,10 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { WhaleObservation } from '@/features/beetrader/monitor/observation'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/_authenticated/beetrader/monitor-observation' as any)({
-  component: WhaleObservation,
+  beforeLoad: () => {
+    throw redirect({
+      to: '/beetrader/whale-wallet-manage' as any,
+    })
+  },
 })
 

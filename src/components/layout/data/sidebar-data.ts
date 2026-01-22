@@ -17,9 +17,9 @@ import {
   Clock,
   Wallet,
   Tag,
-  GalleryVerticalEnd,
   Target,
   DollarSign,
+  ScanLine,
 } from 'lucide-react'
 import { type SidebarData } from '../types'
 
@@ -63,24 +63,14 @@ export const sidebarData: SidebarData = {
           icon: TrendingUp,
           items: [
             {
-              title: '巨鲸钱包管理',
+              title: '巨鲸监控中心',
               url: '/beetrader/whale-wallet-manage',
               icon: Eye,
             },
             {
-              title: '巨鲸观察',
-              url: '/beetrader/monitor-observation',
-              icon: Monitor,
-            },
-            {
-              title: '宏观市场',
-              url: '/beetrader/macroscopic',
+              title: '市场观察',
+              url: '/beetrader/market',
               icon: BarChart3,
-            },
-            {
-              title: 'K线观察',
-              url: '/beetrader/candles',
-              icon: GalleryVerticalEnd,
             },
             {
               title: '信号模块',
@@ -96,6 +86,11 @@ export const sidebarData: SidebarData = {
               title: '回测模块',
               url: '/beetrader/backtest',
               icon: BarChart3,
+            },
+            {
+              title: 'Trader 分析',
+              url: '/beetrader/analyzer',
+              icon: ScanLine,
             },
           ],
         },

@@ -20,6 +20,35 @@ Admin Dashboard UI crafted with Shadcn and Vite. Built with responsiveness and a
 
 **Auth:** [Supabase](https://supabase.com/)
 
+**权限管理:** 基于角色的访问控制 (RBAC) + 模块级权限
+
+## 功能特性
+
+### 🔐 权限管理系统
+
+BeeAdmin 内置了完整的权限管理系统，支持：
+
+- **角色管理**: admin（管理员）、manager（经理）、user（普通用户）、guest（访客）
+- **模块权限**: 细粒度的模块级访问控制
+- **灵活配置**: 通过 Supabase profiles 表管理用户权限
+- **安全性**: RLS（行级安全）保护，用户无法修改自己的权限
+
+详细文档：
+- [完整权限管理指南](./RBAC_GUIDE.md)
+- [快速入门指南](./RBAC_QUICKSTART.md)
+
+### 快速配置管理员
+
+在 Supabase SQL Editor 中运行：
+
+```sql
+UPDATE public.profiles
+SET roles = ARRAY['admin', 'user']::TEXT[]
+WHERE id = (SELECT id FROM auth.users WHERE email = '你的邮箱');
+```
+
+查看更多配置选项：`../supabase/scripts/setup_admin_user.sql`
+
 ## 环境配置
 
 在项目根目录创建 `.env` 文件，并配置以下 Supabase 环境变量：

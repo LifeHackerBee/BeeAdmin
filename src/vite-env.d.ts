@@ -8,6 +8,7 @@ interface ImportMetaEnv {
   readonly VITE_IBKR_API_URL?: string
   readonly VITE_IBKR_API_KEY?: string
   readonly VITE_IBKR_ACCOUNT_ID?: string
+  readonly VITE_HYPERLIQUID_TRADER_API_URL?: string
 }
 
 interface ImportMeta {

@@ -8,6 +8,12 @@ interface AuthUser {
   name?: string
   avatar?: string
   role?: string[]
+  // 从 profiles 表读取的额外字段
+  customPermissions?: string[]
+  allowedModules?: string[]
+  isActive?: boolean
+  isVerified?: boolean
+  bio?: string
 }
 
 interface AuthState {
@@ -21,6 +27,36 @@ interface AuthState {
     initialize: () => Promise<void>
     signOut: () => Promise<void>
     reset: () => void
+  }
+}
+
+// 从 Supabase profiles 表获取用户详细信息
+async function fetchUserProfile(userId: string): Promise<Partial<AuthUser> | null> {
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('full_name, avatar_url, bio, roles, custom_permissions, allowed_modules, is_active, is_verified')
+      .eq('id', userId)
+      .single()
+    
+    if (error) {
+      console.error('Error fetching user profile:', error)
+      return null
+    }
+    
+    return {
+      name: data.full_name,
+      avatar: data.avatar_url,
+      bio: data.bio,
+      role: data.roles,
+      customPermissions: data.custom_permissions,
+      allowedModules: data.allowed_modules,
+      isActive: data.is_active,
+      isVerified: data.is_verified,
+    }
+  } catch (error) {
+    console.error('Error fetching user profile:', error)
+    return null
   }
 }
 
@@ -89,26 +125,24 @@ export const useAuthStore = create<AuthState>()((set) => ({
             // 使用刷新后的 session
             const refreshedSession = refreshData.session
             if (refreshedSession?.user) {
-              // 处理角色数据
-              let role = refreshedSession.user.user_metadata?.role || ['user']
-              if (typeof role === 'string') {
-                try {
-                  role = JSON.parse(role)
-                } catch {
-                  role = [role]
-                }
-              }
-              if (!Array.isArray(role)) {
-                role = [role]
-              }
-
+              // 从 profiles 表获取完整的用户信息
+              const profile = await fetchUserProfile(refreshedSession.user.id)
+              
               const user: AuthUser = {
                 id: refreshedSession.user.id,
                 email: refreshedSession.user.email || '',
-                name: refreshedSession.user.user_metadata?.name || refreshedSession.user.user_metadata?.full_name,
-                avatar: refreshedSession.user.user_metadata?.avatar_url,
-                role: role as string[],
+                ...(profile || {}),
+                // 如果 profile 不存在，回退到 user_metadata
+                name: profile?.name || refreshedSession.user.user_metadata?.name || refreshedSession.user.user_metadata?.full_name,
+                avatar: profile?.avatar || refreshedSession.user.user_metadata?.avatar_url,
+                role: profile?.role || ['user'],
               }
+              
+              // 更新最后登录时间（不等待结果，忽略错误）
+              if (profile) {
+                void supabase.rpc('update_last_login', { user_id: refreshedSession.user.id })
+              }
+              
               set((state) => ({
                 ...state,
                 auth: { ...state.auth, user, session: refreshedSession, loading: false },
@@ -117,26 +151,24 @@ export const useAuthStore = create<AuthState>()((set) => ({
             }
           } else {
             // Token 未过期，使用现有 session
-            // 处理角色数据
-            let role = session.user.user_metadata?.role || ['user']
-            if (typeof role === 'string') {
-              try {
-                role = JSON.parse(role)
-              } catch {
-                role = [role]
-              }
-            }
-            if (!Array.isArray(role)) {
-              role = [role]
-            }
-
+            // 从 profiles 表获取完整的用户信息
+            const profile = await fetchUserProfile(session.user.id)
+            
             const user: AuthUser = {
               id: session.user.id,
               email: session.user.email || '',
-              name: session.user.user_metadata?.name || session.user.user_metadata?.full_name,
-              avatar: session.user.user_metadata?.avatar_url,
-              role: role as string[],
+              ...(profile || {}),
+              // 如果 profile 不存在，回退到 user_metadata
+              name: profile?.name || session.user.user_metadata?.name || session.user.user_metadata?.full_name,
+              avatar: profile?.avatar || session.user.user_metadata?.avatar_url,
+              role: profile?.role || ['user'],
             }
+            
+            // 更新最后登录时间（不等待结果，忽略错误）
+            if (profile) {
+              void supabase.rpc('update_last_login', { user_id: session.user.id })
+            }
+            
             set((state) => ({
               ...state,
               auth: { ...state.auth, user, session, loading: false },
@@ -152,31 +184,21 @@ export const useAuthStore = create<AuthState>()((set) => ({
         }))
 
         // Listen for auth changes
-        supabase.auth.onAuthStateChange((_event, session) => {
+        supabase.auth.onAuthStateChange(async (_event, session) => {
           if (session?.user) {
-            // 处理角色数据：可能是数组、JSON字符串或单个字符串
-            let role = session.user.user_metadata?.role || ['user']
-            if (typeof role === 'string') {
-              try {
-                // 尝试解析 JSON 字符串
-                role = JSON.parse(role)
-              } catch {
-                // 如果不是 JSON，当作单个角色处理
-                role = [role]
-              }
-            }
-            // 确保是数组
-            if (!Array.isArray(role)) {
-              role = [role]
-            }
-
+            // 从 profiles 表获取完整的用户信息
+            const profile = await fetchUserProfile(session.user.id)
+            
             const user: AuthUser = {
               id: session.user.id,
               email: session.user.email || '',
-              name: session.user.user_metadata?.name || session.user.user_metadata?.full_name,
-              avatar: session.user.user_metadata?.avatar_url,
-              role: role as string[],
+              ...(profile || {}),
+              // 如果 profile 不存在，回退到 user_metadata
+              name: profile?.name || session.user.user_metadata?.name || session.user.user_metadata?.full_name,
+              avatar: profile?.avatar || session.user.user_metadata?.avatar_url,
+              role: profile?.role || ['user'],
             }
+            
             set((state) => ({
               ...state,
               auth: { ...state.auth, user, session },

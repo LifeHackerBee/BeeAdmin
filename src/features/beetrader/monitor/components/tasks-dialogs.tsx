@@ -2,6 +2,7 @@ import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { TasksImportDialog } from './tasks-import-dialog'
 import { WalletsMutateDrawer } from './tasks-mutate-drawer'
+import { BatchCreateTrackerDialog } from './batch-create-tracker-dialog'
 import { useWallets as useWalletsContext } from './tasks-provider'
 import { useWallets } from '../hooks/use-wallets'
 
@@ -53,6 +54,8 @@ export function WalletsDialogs() {
           }
         }}
       />
+
+      <BatchCreateTrackerDialog />
 
       {currentRow && (
         <>

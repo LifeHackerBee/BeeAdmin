@@ -12,6 +12,43 @@ export interface RolePermissions {
 }
 
 /**
+ * BeeAdmin 模块列表
+ */
+export const BeeAdminModules = {
+  BEETRADER: 'beetrader',
+  BEETRADER_TRACKER: 'beetrader.tracker',
+  BEETRADER_BACKTEST: 'beetrader.backtest',
+  BEETRADER_ANALYZER: 'beetrader.analyzer',
+  BEETRADER_EVENTS: 'beetrader.events',
+  BEETRADER_MARKET: 'beetrader.market',
+  BEETRADER_CANDLES: 'beetrader.candles',
+  BEETRADER_SIGNALS: 'beetrader.signals',
+  BEETRADER_STRATEGIES: 'beetrader.strategies',
+  BEETRADER_MACROSCOPIC: 'beetrader.macroscopic',
+  BEETRADER_WHALE_WALLET: 'beetrader.whale-wallet-manage',
+  BEETRADER_MONITOR_OBSERVATION: 'beetrader.monitor-observation',
+  BEEAI: 'beeai',
+  FINANCE: 'finance',
+  FINANCE_EXPENSES: 'finance.expenses',
+  FINANCE_ASSETS: 'finance.assets',
+  FINANCE_LIABILITIES: 'finance.liabilities',
+  FINANCE_CATEGORIES: 'finance.categories',
+  FINANCE_INVESTMENT: 'finance.investment',
+  FINANCE_STATISTICS: 'finance.statistics',
+  FINANCE_EXCHANGE_RATE: 'finance.exchange-rate',
+  FIRE: 'fire',
+  MONITORING: 'monitoring',
+  MONITORING_TASKS: 'monitoring.tasks',
+  TASKS: 'tasks',
+  APPS: 'apps',
+  USERS: 'users',
+  SETTINGS: 'settings',
+  HELP_CENTER: 'help-center',
+} as const
+
+export type BeeAdminModule = typeof BeeAdminModules[keyof typeof BeeAdminModules]
+
+/**
  * 默认权限配置
  * 可以根据需要扩展
  */
@@ -126,5 +163,61 @@ export function getAccessiblePages(userRoles: string[] | undefined | null): stri
   return Object.keys(defaultPermissions).filter((permission) =>
     hasPermission(userRoles, permission)
   )
+}
+
+/**
+ * 检查用户是否有权限访问指定模块
+ * @param userRoles 用户角色列表
+ * @param allowedModules 用户允许访问的模块列表（来自 profiles.allowed_modules）
+ * @param moduleName 要检查的模块名
+ */
+export function hasModuleAccess(
+  userRoles: string[] | undefined | null,
+  allowedModules: string[] | undefined | null,
+  moduleName: string
+): boolean {
+  if (!userRoles || userRoles.length === 0) {
+    return false
+  }
+
+  // 管理员有所有权限
+  if (isAdmin(userRoles)) {
+    return true
+  }
+
+  // 如果 allowedModules 为空或未定义，默认允许访问所有模块
+  if (!allowedModules || allowedModules.length === 0) {
+    return true
+  }
+
+  // 检查模块名是否在允许列表中
+  // 支持父模块匹配，例如：如果允许 "beetrader"，则也允许 "beetrader.tracker"
+  return allowedModules.some((allowedModule) => {
+    return moduleName === allowedModule || moduleName.startsWith(`${allowedModule}.`)
+  })
+}
+
+/**
+ * 获取用户可访问的模块列表
+ */
+export function getAccessibleModules(
+  userRoles: string[] | undefined | null,
+  allowedModules: string[] | undefined | null
+): string[] {
+  if (!userRoles || userRoles.length === 0) {
+    return []
+  }
+
+  // 管理员有所有权限
+  if (isAdmin(userRoles)) {
+    return Object.values(BeeAdminModules)
+  }
+
+  // 如果 allowedModules 为空或未定义，返回所有模块
+  if (!allowedModules || allowedModules.length === 0) {
+    return Object.values(BeeAdminModules)
+  }
+
+  return allowedModules
 }
 

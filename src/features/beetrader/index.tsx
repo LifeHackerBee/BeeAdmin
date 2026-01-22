@@ -21,8 +21,8 @@ export function BeeTrader() {
       </Header>
 
       {/* ===== Content ===== */}
-      <Main fixed>
-        <div className='flex h-full flex-col space-y-6 overflow-hidden'>
+      <Main>
+        <div className='flex flex-col space-y-6'>
           <div className='flex-shrink-0'>
             <h1 className='text-2xl font-bold tracking-tight'>BeeTrader</h1>
             <p className='text-muted-foreground'>
@@ -30,7 +30,7 @@ export function BeeTrader() {
             </p>
           </div>
           <Separator className='flex-shrink-0' />
-          <div className='flex-1 min-h-0 overflow-hidden'>
+          <div>
             <Outlet />
           </div>
         </div>

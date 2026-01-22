@@ -47,6 +47,21 @@ export function useWallets() {
 
   const createWallet = async (wallet: { address: string; note?: string; type?: Wallet['type']; volume?: number | null }) => {
     try {
+      // 先检查地址是否已存在
+      const { data: existingWallet, error: checkError } = await supabase
+        .from('wallets')
+        .select('id, address')
+        .eq('address', wallet.address)
+        .maybeSingle()
+
+      if (checkError && checkError.code !== 'PGRST116') {
+        throw checkError
+      }
+
+      if (existingWallet) {
+        throw new Error(`钱包地址 ${wallet.address} 已存在，无法重复添加`)
+      }
+
       const { data, error: createError } = await supabase
         .from('wallets')
         .insert({
@@ -59,6 +74,10 @@ export function useWallets() {
         .single()
 
       if (createError) {
+        // 处理唯一约束冲突
+        if (createError.code === '23505') {
+          throw new Error(`钱包地址 ${wallet.address} 已存在，无法重复添加`)
+        }
         throw createError
       }
 

@@ -1,6 +1,8 @@
 import z from 'zod'
 import { createFileRoute } from '@tanstack/react-router'
 import { Apps } from '@/features/apps'
+import { withPageGuard } from '@/components/rbac/page-guard'
+import { BeeAdminModules } from '@/lib/rbac'
 
 const appsSearchSchema = z.object({
   type: z
@@ -15,7 +17,9 @@ const appsSearchSchema = z.object({
   sort: z.enum(['asc', 'desc']).optional().catch(undefined),
 })
 
+const ProtectedApps = withPageGuard(Apps, BeeAdminModules.APPS)
+
 export const Route = createFileRoute('/_authenticated/apps/')({
   validateSearch: appsSearchSchema,
-  component: Apps,
+  component: ProtectedApps,
 })

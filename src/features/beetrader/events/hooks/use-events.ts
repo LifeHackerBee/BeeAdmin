@@ -1,0 +1,109 @@
+import { useState, useCallback, useEffect } from 'react'
+
+const API_BASE_URL = import.meta.env.VITE_HYPERLIQUID_TRADER_API_URL || 'http://localhost:8000'
+
+export interface PositionEvent {
+  id: number
+  wallet_address: string
+  coin: string
+  event_type: string
+  prev_szi?: number | null
+  prev_side?: string | null  // LONG, SHORT, NONE
+  prev_leverage?: number | null
+  prev_position_value?: number | null
+  prev_entry_px?: number | null
+  prev_margin_used?: number | null
+  prev_liquidation_px?: number | null
+  now_szi: number
+  now_side?: string | null  // LONG, SHORT, NONE
+  now_leverage?: number | null
+  now_position_value?: number | null
+  now_entry_px?: number | null
+  now_margin_used?: number | null
+  now_liquidation_px?: number | null
+  szi_change?: number | null
+  position_value_change?: number | null
+  event_time_ms?: number | null
+  event_time?: string | null
+  created_at: string
+  metadata?: Record<string, unknown> | null
+}
+
+export interface EventListResponse {
+  success: boolean
+  count: number
+  total?: number | null
+  events: PositionEvent[]
+}
+
+export function useEvents() {
+  const [events, setEvents] = useState<PositionEvent[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<Error | null>(null)
+  const [total, setTotal] = useState<number | null>(null)
+  const [walletAddress, setWalletAddress] = useState<string | undefined>()
+  const [eventType, setEventType] = useState<string | undefined>()
+  const [coin, setCoin] = useState<string | undefined>()
+
+  const fetchEvents = useCallback(async () => {
+    try {
+      setLoading(true)
+      setError(null)
+
+      const params = new URLSearchParams()
+      if (walletAddress) {
+        params.append('wallet_address', walletAddress)
+      }
+      if (eventType) {
+        params.append('event_type', eventType)
+      }
+      if (coin) {
+        params.append('coin', coin)
+      }
+      params.append('limit', '100')
+      params.append('offset', '0')
+
+      const response = await fetch(`${API_BASE_URL}/api/events?${params.toString()}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`API 请求失败: ${response.status} - ${errorText}`)
+      }
+
+      const result: EventListResponse = await response.json()
+      setEvents(result.events || [])
+      setTotal(result.total || null)
+      return result
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error('获取事件列表失败')
+      setError(error)
+      console.error('Error fetching events:', err)
+      return { success: false, count: 0, total: null, events: [] }
+    } finally {
+      setLoading(false)
+    }
+  }, [walletAddress, eventType, coin])
+
+  useEffect(() => {
+    fetchEvents()
+  }, [fetchEvents])
+
+  return {
+    events,
+    loading,
+    error,
+    total,
+    walletAddress,
+    setWalletAddress,
+    eventType,
+    setEventType,
+    coin,
+    setCoin,
+    refetch: fetchEvents,
+  }
+}
