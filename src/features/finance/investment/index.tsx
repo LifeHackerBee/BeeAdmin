@@ -67,99 +67,42 @@ export function Investment() {
           )}
         </div>
 
-        {/* 账户选择器 */}
+        {/* 账户选择器 - 紧凑显示 */}
         {!isLoading && !error && accounts.length > 0 && (
-          <Card>
-            <CardContent className='pt-6'>
-              <div className='flex items-center justify-between flex-wrap gap-4'>
-                <div className='flex items-center gap-4 flex-1'>
-                  <label className='text-sm font-medium text-muted-foreground'>选择账户:</label>
-                  <Select value={selectedAccountId} onValueChange={setSelectedAccountId}>
-                    <SelectTrigger className='w-[300px]'>
-                      <SelectValue placeholder='选择账户' />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {accounts.map((account) => (
-                        <SelectItem key={account.id} value={account.id}>
-                          <div className='flex items-center gap-2'>
-                            <span>{account.displayName || account.accountId}</span>
-                            <Badge variant={account.brokerageAccess ? 'default' : 'secondary'} className='text-xs'>
-                              {account.brokerageAccess ? '活跃' : '非活跃'}
-                            </Badge>
-                            <span className='text-xs text-muted-foreground'>({account.accountId})</span>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                {accounts.find((acc) => acc.id === selectedAccountId) && (
-                  <div className='flex items-center gap-2 text-sm text-muted-foreground'>
-                    <span>账户类型:</span>
-                    <span className='font-medium'>
-                      {accounts.find((acc) => acc.id === selectedAccountId)?.type}
-                    </span>
-                    <span className='mx-2'>|</span>
-                    <span>币种:</span>
-                    <span className='font-medium'>
-                      {accounts.find((acc) => acc.id === selectedAccountId)?.currency}
-                    </span>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* 账户列表 - 紧凑显示 */}
-        {!isLoading && !error && accounts.length > 0 && (
-          <Card>
-            <CardContent className='pt-6'>
-              <div className='grid gap-4 md:grid-cols-2 lg:grid-cols-3'>
+          <div className='flex items-center gap-4 flex-wrap p-4 rounded-lg border bg-muted/30'>
+            <label className='text-sm font-medium text-muted-foreground whitespace-nowrap'>选择账户:</label>
+            <Select value={selectedAccountId} onValueChange={setSelectedAccountId}>
+              <SelectTrigger className='w-[300px]'>
+                <SelectValue placeholder='选择账户' />
+              </SelectTrigger>
+              <SelectContent>
                 {accounts.map((account) => (
-                  <Card
-                    key={account.id}
-                    className={`cursor-pointer transition-all ${
-                      account.id === selectedAccountId
-                        ? 'ring-2 ring-primary'
-                        : 'hover:bg-muted/50'
-                    }`}
-                    onClick={() => setSelectedAccountId(account.id)}
-                  >
-                    <CardContent className='pt-6'>
-                      <div className='flex items-start justify-between mb-2'>
-                        <div className='flex-1'>
-                          <h3 className='font-semibold text-lg'>{account.displayName || account.accountId}</h3>
-                          <p className='text-sm text-muted-foreground mt-1'>{account.accountId}</p>
-                        </div>
-                        <Badge variant={account.brokerageAccess ? 'default' : 'secondary'}>
-                          {account.brokerageAccess ? '活跃' : '非活跃'}
-                        </Badge>
-                      </div>
-                      <div className='grid grid-cols-2 gap-2 text-sm mt-3'>
-                        <div>
-                          <span className='text-muted-foreground'>类型:</span>
-                          <p className='font-medium'>{account.type}</p>
-                        </div>
-                        <div>
-                          <span className='text-muted-foreground'>币种:</span>
-                          <p className='font-medium'>{account.currency}</p>
-                        </div>
-                        <div>
-                          <span className='text-muted-foreground'>交易类型:</span>
-                          <p className='font-medium'>{account.tradingType}</p>
-                        </div>
-                        <div>
-                          <span className='text-muted-foreground'>业务类型:</span>
-                          <p className='font-medium'>{account.businessType}</p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+                  <SelectItem key={account.id} value={account.id}>
+                    <div className='flex items-center gap-2'>
+                      <span>{account.displayName || account.accountId}</span>
+                      <Badge variant={account.brokerageAccess ? 'default' : 'secondary'} className='text-xs'>
+                        {account.brokerageAccess ? '活跃' : '非活跃'}
+                      </Badge>
+                      <span className='text-xs text-muted-foreground'>({account.accountId})</span>
+                    </div>
+                  </SelectItem>
                 ))}
+              </SelectContent>
+            </Select>
+            {accounts.find((acc) => acc.id === selectedAccountId) && (
+              <div className='flex items-center gap-2 text-sm text-muted-foreground'>
+                <span>账户类型:</span>
+                <span className='font-medium'>
+                  {accounts.find((acc) => acc.id === selectedAccountId)?.type}
+                </span>
+                <span className='mx-2'>|</span>
+                <span>币种:</span>
+                <span className='font-medium'>
+                  {accounts.find((acc) => acc.id === selectedAccountId)?.currency}
+                </span>
               </div>
-            </CardContent>
-          </Card>
+            )}
+          </div>
         )}
 
         {/* 加载状态 */}

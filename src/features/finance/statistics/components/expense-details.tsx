@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Table,
@@ -18,6 +19,8 @@ import {
 } from 'recharts'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { type MonthlyStatistic } from '../hooks/use-expense-statistics'
+import { useExchangeRates } from '../../exchange-rate/hooks/use-exchange-rates'
+import { Loader2 } from 'lucide-react'
 
 type ExpenseDetailsProps = {
   monthlyData: MonthlyStatistic[]
@@ -28,11 +31,51 @@ export function ExpenseDetails({
   monthlyData,
   currency = 'CNY',
 }: ExpenseDetailsProps) {
-  // 过滤指定币种的月度数据
-  const filteredMonthlyData = monthlyData.filter((item) => item.currency === currency)
+  const { data: exchangeRates, isLoading: isLoadingRates } = useExchangeRates(currency)
 
-  // 格式化月度数据供图表使用（按时间正序排列）
-  const monthlyChartData = [...filteredMonthlyData]
+  // 转换金额到目标币种
+  const convertAmount = (amount: number, fromCurrency: string, toCurrency: string): number => {
+    if (fromCurrency === toCurrency || !exchangeRates) return amount
+    
+    if (exchangeRates.base === toCurrency) {
+      const rate = exchangeRates.rates[fromCurrency]
+      if (rate) {
+        return amount / rate
+      }
+    }
+    
+    return amount
+  }
+
+  // 将所有币种的月度数据转换为统一币种并合并
+  const unifiedMonthlyData = useMemo(() => {
+    if (!monthlyData.length) return []
+
+    // 按月份分组，合并所有币种
+    const monthMap = new Map<string, { total: number; count: number; month: string; monthLabel: string }>()
+
+    monthlyData.forEach((item) => {
+      const convertedTotal = convertAmount(item.total, item.currency, currency)
+      const existing = monthMap.get(item.month) || {
+        total: 0,
+        count: 0,
+        month: item.month,
+        monthLabel: item.monthLabel,
+      }
+
+      monthMap.set(item.month, {
+        total: existing.total + convertedTotal,
+        count: existing.count + item.count,
+        month: item.month,
+        monthLabel: item.monthLabel,
+      })
+    })
+
+    return Array.from(monthMap.values()).sort((a, b) => b.month.localeCompare(a.month))
+  }, [monthlyData, currency, exchangeRates])
+
+  // 格式化月度数据供图表使用（按时间正序排列）- 使用统一币种数据
+  const monthlyChartData = [...unifiedMonthlyData]
     .sort((a, b) => a.month.localeCompare(b.month)) // 按月份正序排列
     .map((item) => ({
       name: item.monthLabel,
@@ -41,8 +84,8 @@ export function ExpenseDetails({
       笔数: item.count,
     }))
 
-  // 表格数据（按时间倒序，最新的在前）
-  const tableData = [...filteredMonthlyData].sort((a, b) => b.month.localeCompare(a.month))
+  // 表格数据（按时间倒序，最新的在前）- 使用统一币种数据
+  const tableData = [...unifiedMonthlyData].sort((a, b) => b.month.localeCompare(a.month))
 
   const currencySymbols: Record<string, string> = {
     CNY: '¥',
@@ -51,14 +94,31 @@ export function ExpenseDetails({
   }
   const symbol = currencySymbols[currency] || currency
 
-  const hasMonthlyData = filteredMonthlyData.length > 0
+  const hasMonthlyData = unifiedMonthlyData.length > 0
+
+  if (isLoadingRates) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>支出明细</CardTitle>
+          <CardDescription>查看月度支出明细（{currency}，已转换为统一币种）</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className='flex h-[300px] items-center justify-center text-muted-foreground'>
+            <Loader2 className='h-6 w-6 animate-spin mr-2' />
+            加载汇率中...
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
 
   if (!hasMonthlyData) {
     return (
       <Card>
         <CardHeader>
           <CardTitle>支出明细</CardTitle>
-          <CardDescription>查看月度支出明细（{currency}）</CardDescription>
+          <CardDescription>查看月度支出明细（{currency}，已转换为统一币种）</CardDescription>
         </CardHeader>
         <CardContent>
           <div className='flex h-[300px] items-center justify-center text-muted-foreground'>
@@ -73,7 +133,7 @@ export function ExpenseDetails({
     <Card>
       <CardHeader>
         <CardTitle>支出明细</CardTitle>
-        <CardDescription>查看月度支出明细（{currency}）</CardDescription>
+        <CardDescription>查看月度支出明细（{currency}，已转换为统一币种）</CardDescription>
       </CardHeader>
       <CardContent>
         <Tabs defaultValue='monthly-table' className='space-y-4'>

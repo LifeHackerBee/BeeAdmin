@@ -19,6 +19,7 @@ import { useYearlyBudgetConfig } from '../hooks/use-yearly-budget-config'
 import { format, parseISO } from 'date-fns'
 import { useExpenseCategories } from '../../expenses/hooks/use-expense-categories'
 import { categoriesToOptions } from '../../expenses/utils/category-utils'
+import { useExchangeRates } from '../../exchange-rate/hooks/use-exchange-rates'
 import {
   Select,
   SelectContent,
@@ -47,6 +48,7 @@ export function BudgetProgress({
   const { config, updateConfig, isUpdating } = useBudgetConfig(currentMonth)
   const { config: yearlyConfig, updateConfig: updateYearlyConfig, isUpdating: isUpdatingYearly } =
     useYearlyBudgetConfig(currentYear)
+  const { data: exchangeRates } = useExchangeRates(currency)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [totalBudget, setTotalBudget] = useState<string>('')
   const [yearlyBudget, setYearlyBudget] = useState<string>('')
@@ -57,22 +59,40 @@ export function BudgetProgress({
   const [newCategoryMonthly, setNewCategoryMonthly] = useState<{ category: string; budget: string } | null>(null)
   const [newCategoryYearly, setNewCategoryYearly] = useState<{ category: string; budget: string } | null>(null)
 
-  // 计算年度支出总额
+  // 转换金额到目标币种
+  const convertAmount = (amount: number, fromCurrency: string, toCurrency: string): number => {
+    if (fromCurrency === toCurrency || !exchangeRates) return amount
+    
+    if (exchangeRates.base === toCurrency) {
+      const rate = exchangeRates.rates[fromCurrency]
+      if (rate) {
+        return amount / rate
+      }
+    }
+    
+    return amount
+  }
+
+  // 计算年度支出总额（转换为统一币种）
   const currentYearTotal = useMemo(() => {
     return allExpenses
       .filter((expense) => {
         if (!expense.spending_time || !expense.amount) return false
         try {
           const date = parseISO(expense.spending_time)
-          return format(date, 'yyyy') === currentYear && (expense.currency || 'CNY') === currency
+          return format(date, 'yyyy') === currentYear
         } catch {
           return false
         }
       })
-      .reduce((sum, exp) => sum + (exp.amount || 0), 0)
-  }, [allExpenses, currentYear, currency])
+      .reduce((sum, exp) => {
+        const expenseCurrency = exp.currency || 'CNY'
+        const convertedAmount = convertAmount(exp.amount || 0, expenseCurrency, currency)
+        return sum + convertedAmount
+      }, 0)
+  }, [allExpenses, currentYear, currency, exchangeRates])
 
-  // 计算各分类的年度支出
+  // 计算各分类的年度支出（转换为统一币种）
   const currentYearByCategory = useMemo(() => {
     const byCategory: Record<string, number> = {}
     allExpenses
@@ -80,7 +100,7 @@ export function BudgetProgress({
         if (!expense.spending_time || !expense.amount || !expense.category) return false
         try {
           const date = parseISO(expense.spending_time)
-          return format(date, 'yyyy') === currentYear && (expense.currency || 'CNY') === currency
+          return format(date, 'yyyy') === currentYear
         } catch {
           return false
         }
@@ -88,11 +108,13 @@ export function BudgetProgress({
       .forEach((expense) => {
         const category = expense.category
         if (category) {
-          byCategory[category] = (byCategory[category] || 0) + (expense.amount || 0)
+          const expenseCurrency = expense.currency || 'CNY'
+          const convertedAmount = convertAmount(expense.amount || 0, expenseCurrency, currency)
+          byCategory[category] = (byCategory[category] || 0) + convertedAmount
         }
       })
     return byCategory
-  }, [allExpenses, currentYear, currency])
+  }, [allExpenses, currentYear, currency, exchangeRates])
 
   // 同步配置到表单状态
   useEffect(() => {

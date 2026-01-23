@@ -14,6 +14,7 @@ import { BudgetProgress } from './components/budget-progress'
 import { CategoryAnalysis } from './components/category-analysis'
 import { ExchangeRateConverter } from '../exchange-rate/components/exchange-rate-converter'
 import { MultiCurrencySummary } from '../exchange-rate/components/multi-currency-summary'
+import { useExchangeRates } from '../exchange-rate/hooks/use-exchange-rates'
 import { format, parseISO } from 'date-fns'
 
 export function Statistics() {
@@ -22,8 +23,23 @@ export function Statistics() {
   const { data: expenses = [] } = useExpenses()
   const selectedCurrency = 'CNY' // 默认使用人民币
   const [baseCurrency, setBaseCurrency] = useState<string>('CNY')
+  const { data: exchangeRates } = useExchangeRates(selectedCurrency)
 
-  // 计算当前月份的支出数据
+  // 转换金额到目标币种
+  const convertAmount = (amount: number, fromCurrency: string, toCurrency: string): number => {
+    if (fromCurrency === toCurrency || !exchangeRates) return amount
+    
+    if (exchangeRates.base === toCurrency) {
+      const rate = exchangeRates.rates[fromCurrency]
+      if (rate) {
+        return amount / rate
+      }
+    }
+    
+    return amount
+  }
+
+  // 计算当前月份的支出数据（统一转换为 CNY）
   const currentMonthData = useMemo(() => {
     const currentMonth = format(new Date(), 'yyyy-MM')
     const currentMonthExpenses = expenses.filter((expense) => {
@@ -36,23 +52,26 @@ export function Statistics() {
       }
     })
 
-    // 计算总额（只计算CNY）
-    const total = currentMonthExpenses
-      .filter((exp) => (exp.currency || 'CNY') === 'CNY')
-      .reduce((sum, exp) => sum + (exp.amount || 0), 0)
+    // 计算总额（转换为 CNY）
+    const total = currentMonthExpenses.reduce((sum, exp) => {
+      if (!exp.amount) return sum
+      const expenseCurrency = exp.currency || 'CNY'
+      const convertedAmount = convertAmount(exp.amount, expenseCurrency, selectedCurrency)
+      return sum + convertedAmount
+    }, 0)
 
-    // 按分类计算（只计算CNY）
+    // 按分类计算（转换为 CNY）
     const byCategory: Record<string, number> = {}
-    currentMonthExpenses
-      .filter((exp) => (exp.currency || 'CNY') === 'CNY')
-      .forEach((expense) => {
-        if (!expense.category || !expense.amount) return
-        const category = expense.category
-        byCategory[category] = (byCategory[category] || 0) + (expense.amount || 0)
-      })
+    currentMonthExpenses.forEach((expense) => {
+      if (!expense.category || !expense.amount) return
+      const expenseCurrency = expense.currency || 'CNY'
+      const convertedAmount = convertAmount(expense.amount, expenseCurrency, selectedCurrency)
+      const category = expense.category
+      byCategory[category] = (byCategory[category] || 0) + convertedAmount
+    })
 
     return { total, byCategory }
-  }, [expenses])
+  }, [expenses, selectedCurrency, exchangeRates])
 
   return (
     <>
