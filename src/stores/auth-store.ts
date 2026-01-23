@@ -17,22 +17,22 @@ interface AuthUser {
 }
 
 interface AuthState {
-  auth: {
-    user: AuthUser | null
-    session: Session | null
-    loading: boolean
-    setUser: (user: AuthUser | null) => void
-    setSession: (session: Session | null) => void
-    setLoading: (loading: boolean) => void
-    initialize: () => Promise<void>
-    signOut: () => Promise<void>
-    reset: () => void
-  }
+  user: AuthUser | null
+  session: Session | null
+  loading: boolean
+  setUser: (user: AuthUser | null) => void
+  setSession: (session: Session | null) => void
+  setLoading: (loading: boolean) => void
+  initialize: () => Promise<void>
+  signOut: () => Promise<void>
+  reset: () => void
 }
 
 // 从 Supabase profiles 表获取用户详细信息
 async function fetchUserProfile(userId: string): Promise<Partial<AuthUser> | null> {
   try {
+    console.log('🔍 开始获取用户 profile:', userId)
+    
     const { data, error } = await supabase
       .from('profiles')
       .select('full_name, avatar_url, bio, roles, custom_permissions, allowed_modules, is_active, is_verified')
@@ -40,209 +40,165 @@ async function fetchUserProfile(userId: string): Promise<Partial<AuthUser> | nul
       .single()
     
     if (error) {
-      console.error('Error fetching user profile:', error)
+      console.error('❌ Error fetching user profile:', error)
       return null
     }
     
-    return {
+    console.log('✅ Profile 数据获取成功:', {
+      roles: data.roles,
+      allowed_modules: data.allowed_modules,
+      is_active: data.is_active,
+    })
+    
+    // 确保 allowedModules 始终是数组（不是 undefined）
+    const profile = {
       name: data.full_name,
       avatar: data.avatar_url,
       bio: data.bio,
-      role: data.roles,
-      customPermissions: data.custom_permissions,
-      allowedModules: data.allowed_modules,
+      role: data.roles || ['user'],
+      customPermissions: data.custom_permissions || [],
+      allowedModules: data.allowed_modules || [], // 关键：确保不是 undefined
       isActive: data.is_active,
       isVerified: data.is_verified,
     }
+    
+    console.log('📦 返回的 profile 对象:', profile)
+    return profile
   } catch (error) {
-    console.error('Error fetching user profile:', error)
+    console.error('❌ Exception fetching user profile:', error)
     return null
   }
 }
 
 export const useAuthStore = create<AuthState>()((set) => ({
-    auth: {
-      user: null,
-    session: null,
-    loading: true,
-      setUser: (user) =>
-        set((state) => ({ ...state, auth: { ...state.auth, user } })),
-    setSession: (session) =>
-      set((state) => ({ ...state, auth: { ...state.auth, session } })),
-    setLoading: (loading) =>
-      set((state) => ({ ...state, auth: { ...state.auth, loading } })),
-    initialize: async () => {
-      try {
-        // 设置 loading 为 true，防止并发初始化
-        set((state) => ({
-          ...state,
-          auth: { ...state.auth, loading: true },
-        }))
+  user: null,
+  session: null,
+  loading: true,
+  
+  setUser: (user) => {
+    console.log('📝 setUser 被调用:', user?.email)
+    set({ user, loading: false })
+  },
+  
+  setSession: (session) => {
+    console.log('📝 setSession 被调用:', session?.user?.email)
+    set({ session, loading: false })
+  },
+  
+  setLoading: (loading) => {
+    console.log('📝 setLoading 被调用:', loading)
+    set({ loading })
+  },
+  
+  initialize: async () => {
+    try {
+      console.log('🚀 开始初始化 auth store')
+      
+      // 设置 loading 为 true
+      set({ loading: true })
 
-        // 先尝试从存储中获取 session
-        const {
-          data: { session },
-          error: sessionError,
-        } = await supabase.auth.getSession()
+      // 先尝试从存储中获取 session
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession()
 
-        if (sessionError) {
-          console.error('Error getting session:', sessionError)
-          set((state) => ({
-            ...state,
-            auth: { ...state.auth, user: null, session: null, loading: false },
-          }))
+      if (sessionError) {
+        console.error('Error getting session:', sessionError)
+        set({ user: null, session: null, loading: false })
+        return
+      }
+
+      // 检查 session 是否存在
+      if (session?.user) {
+        // 从 profiles 表获取完整的用户信息
+        const profile = await fetchUserProfile(session.user.id)
+        
+        const user: AuthUser = {
+          id: session.user.id,
+          email: session.user.email || '',
+          name: profile?.name || session.user.user_metadata?.name || session.user.user_metadata?.full_name,
+          avatar: profile?.avatar || session.user.user_metadata?.avatar_url,
+          role: profile?.role || ['user'],
+          customPermissions: profile?.customPermissions || [],
+          allowedModules: profile?.allowedModules || [],
+          isActive: profile?.isActive,
+          isVerified: profile?.isVerified,
+          bio: profile?.bio,
+        }
+        
+        console.log('👤 初始化 - 创建用户对象:', {
+          email: user.email,
+          role: user.role,
+          allowedModules: user.allowedModules,
+          hasProfile: !!profile,
+        })
+        
+        // 更新最后登录时间
+        if (profile) {
+          void supabase.rpc('update_last_login', { user_id: session.user.id })
+        }
+        
+        set({ user, session, loading: false })
+      } else {
+        set({ user: null, session: null, loading: false })
+      }
+
+      // 注册监听器（忽略 INITIAL_SESSION）
+      supabase.auth.onAuthStateChange(async (event, session) => {
+        console.log('🔄 Auth state changed:', event, session?.user?.email)
+        
+        if (event === 'INITIAL_SESSION') {
+          console.log('⏭️  跳过 INITIAL_SESSION 事件')
           return
         }
-
-        // 检查 session 是否存在
+        
         if (session?.user) {
-          // 检查 token 是否过期（如果 expires_at 存在）
-          let shouldRefresh = false
-          if (session.expires_at) {
-            const expiresAt = session.expires_at * 1000 // 转换为毫秒
-            const now = Date.now()
-            // 如果 token 已过期或即将过期（5分钟内），尝试刷新
-            if (expiresAt < now || expiresAt < now + 5 * 60 * 1000) {
-              shouldRefresh = true
-            }
+          const profile = await fetchUserProfile(session.user.id)
+          
+          const user: AuthUser = {
+            id: session.user.id,
+            email: session.user.email || '',
+            name: profile?.name || session.user.user_metadata?.name || session.user.user_metadata?.full_name,
+            avatar: profile?.avatar || session.user.user_metadata?.avatar_url,
+            role: profile?.role || ['user'],
+            customPermissions: profile?.customPermissions || [],
+            allowedModules: profile?.allowedModules || [],
+            isActive: profile?.isActive,
+            isVerified: profile?.isVerified,
+            bio: profile?.bio,
           }
-
-          // 如果需要刷新，尝试刷新 session
-          if (shouldRefresh) {
-            console.log('Session expired or expiring soon, attempting to refresh...')
-            const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession()
-            
-            if (refreshError || !refreshData.session) {
-              console.log('Failed to refresh session:', refreshError)
-              // 刷新失败，清除状态
-              set((state) => ({
-                ...state,
-                auth: { ...state.auth, user: null, session: null, loading: false },
-              }))
-              return
-            }
-            
-            // 使用刷新后的 session
-            const refreshedSession = refreshData.session
-            if (refreshedSession?.user) {
-              // 从 profiles 表获取完整的用户信息
-              const profile = await fetchUserProfile(refreshedSession.user.id)
-              
-              const user: AuthUser = {
-                id: refreshedSession.user.id,
-                email: refreshedSession.user.email || '',
-                ...(profile || {}),
-                // 如果 profile 不存在，回退到 user_metadata
-                name: profile?.name || refreshedSession.user.user_metadata?.name || refreshedSession.user.user_metadata?.full_name,
-                avatar: profile?.avatar || refreshedSession.user.user_metadata?.avatar_url,
-                role: profile?.role || ['user'],
-              }
-              
-              // 更新最后登录时间（不等待结果，忽略错误）
-              if (profile) {
-                void supabase.rpc('update_last_login', { user_id: refreshedSession.user.id })
-              }
-              
-              set((state) => ({
-                ...state,
-                auth: { ...state.auth, user, session: refreshedSession, loading: false },
-              }))
-              return
-            }
-          } else {
-            // Token 未过期，使用现有 session
-            // 从 profiles 表获取完整的用户信息
-            const profile = await fetchUserProfile(session.user.id)
-            
-            const user: AuthUser = {
-              id: session.user.id,
-              email: session.user.email || '',
-              ...(profile || {}),
-              // 如果 profile 不存在，回退到 user_metadata
-              name: profile?.name || session.user.user_metadata?.name || session.user.user_metadata?.full_name,
-              avatar: profile?.avatar || session.user.user_metadata?.avatar_url,
-              role: profile?.role || ['user'],
-            }
-            
-            // 更新最后登录时间（不等待结果，忽略错误）
-            if (profile) {
-              void supabase.rpc('update_last_login', { user_id: session.user.id })
-            }
-            
-            set((state) => ({
-              ...state,
-              auth: { ...state.auth, user, session, loading: false },
-            }))
-            return
-          }
+          
+          console.log('👤 监听器 - 更新用户对象:', {
+            event,
+            email: user.email,
+            role: user.role,
+            allowedModules: user.allowedModules,
+          })
+          
+          set({ user, session, loading: false })
+        } else {
+          console.log('👋 用户登出')
+          set({ user: null, session: null, loading: false })
         }
-        
-        // 如果没有有效的 session，清除状态
-        set((state) => ({
-          ...state,
-          auth: { ...state.auth, user: null, session: null, loading: false },
-        }))
-
-        // Listen for auth changes
-        supabase.auth.onAuthStateChange(async (_event, session) => {
-          if (session?.user) {
-            // 从 profiles 表获取完整的用户信息
-            const profile = await fetchUserProfile(session.user.id)
-            
-            const user: AuthUser = {
-              id: session.user.id,
-              email: session.user.email || '',
-              ...(profile || {}),
-              // 如果 profile 不存在，回退到 user_metadata
-              name: profile?.name || session.user.user_metadata?.name || session.user.user_metadata?.full_name,
-              avatar: profile?.avatar || session.user.user_metadata?.avatar_url,
-              role: profile?.role || ['user'],
-            }
-            
-            set((state) => ({
-              ...state,
-              auth: { ...state.auth, user, session },
-            }))
-          } else {
-            set((state) => ({
-              ...state,
-              auth: { ...state.auth, user: null, session: null },
-            }))
-  }
-})
-      } catch (error) {
-        console.error('Error initializing auth:', error)
-        set((state) => ({
-          ...state,
-          auth: { ...state.auth, loading: false },
-        }))
-      }
-    },
-    signOut: async () => {
-      try {
-        // 先清除本地状态，避免导航时请求被中止
-        set((state) => ({
-          ...state,
-          auth: { ...state.auth, user: null, session: null },
-        }))
-        
-        // 使用 local scope 登出，避免全局登出可能的问题
-        // 如果需要在所有标签页登出，可以使用 { scope: 'global' }
-        await supabase.auth.signOut({ scope: 'local' })
-      } catch (error) {
-        console.error('Error signing out:', error)
-        // 即使 API 调用失败，也确保本地状态已清除
-        set((state) => ({
-          ...state,
-          auth: { ...state.auth, user: null, session: null },
-        }))
-        // 不抛出错误，允许继续导航
-      }
-    },
-    reset: () =>
-      set((state) => ({
-        ...state,
-        auth: { ...state.auth, user: null, session: null },
-      })),
+      })
+    } catch (error) {
+      console.error('Error initializing auth:', error)
+      set({ loading: false })
+    }
+  },
+  
+  signOut: async () => {
+    try {
+      set({ user: null, session: null })
+      await supabase.auth.signOut({ scope: 'local' })
+    } catch (error) {
+      console.error('Error signing out:', error)
+      set({ user: null, session: null })
+    }
+  },
+  
+  reset: () => {
+    set({ user: null, session: null })
   },
 }))

@@ -102,30 +102,50 @@ function filterSidebarByRole(
 
 export function AppSidebar() {
   const { collapsible, variant } = useLayout()
-  const { auth } = useAuthStore()
-
+  
+  // 直接订阅顶层状态
+  const user = useAuthStore((state) => state.user)
+  const loading = useAuthStore((state) => state.loading)
+  
+  // 每次渲染都打印
+  console.log('🎨 AppSidebar 渲染', {
+    timestamp: new Date().toISOString(),
+    hasUser: !!user,
+    email: user?.email,
+    loading,
+    allowedModulesLength: user?.allowedModules?.length,
+    allowedModules: user?.allowedModules,
+  })
+  
   // Get user from auth store or fallback to sidebar data
-  const user = auth.user
+  const sidebarUser = user
     ? {
-        name: auth.user.name || auth.user.email.split('@')[0] || 'User',
-        email: auth.user.email,
-        avatar: auth.user.avatar || '',
+        name: user.name || user.email.split('@')[0] || 'User',
+        email: user.email,
+        avatar: user.avatar || '',
       }
     : sidebarData.user
 
   // 根据用户角色和模块权限过滤侧边栏菜单
-  const userRoles = auth.user?.role || []
-  const allowedModules = auth.user?.allowedModules || []
+  const userRoles = user?.role || []
+  const allowedModules = user?.allowedModules
   
   // 调试日志
   console.log('=== 侧边栏权限调试 ===')
-  console.log('用户邮箱:', auth.user?.email)
+  console.log('用户邮箱:', user?.email)
   console.log('用户角色:', userRoles)
   console.log('允许的模块:', allowedModules)
-  console.log('模块数量:', allowedModules.length)
+  console.log('Auth loading:', loading)
+  console.log('allowedModules 类型:', typeof allowedModules, Array.isArray(allowedModules))
   
-  const filteredSidebarData = filterSidebarByRole(sidebarData, userRoles, allowedModules)
+  // 关键判断：只有当用户已登录且 allowedModules 已明确加载（不是 undefined）时才显示菜单
+  const isPermissionsReady = user && allowedModules !== undefined && !loading
   
+  const filteredSidebarData = isPermissionsReady 
+    ? filterSidebarByRole(sidebarData, userRoles, allowedModules)
+    : { ...sidebarData, navGroups: [] } // 加载中或未登录显示空菜单
+  
+  console.log('权限数据是否就绪:', isPermissionsReady)
   console.log('过滤后的导航组数量:', filteredSidebarData.navGroups.length)
   filteredSidebarData.navGroups.forEach(group => {
     console.log(`  - ${group.title}: ${group.items.length} 项`)
@@ -143,7 +163,7 @@ export function AppSidebar() {
         ))}
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={user} />
+        <NavUser user={sidebarUser} />
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>

@@ -47,7 +47,7 @@ export function UserAuthForm({
 }: UserAuthFormProps) {
   const [isLoading, setIsLoading] = useState(false)
   const navigate = useNavigate()
-  const { auth } = useAuthStore()
+  const initialize = useAuthStore((state) => state.initialize)
   const config = checkSupabaseConfig()
   const { t } = useTranslation()
 
@@ -92,16 +92,8 @@ export function UserAuthForm({
       }
 
       if (authData.session && authData.user) {
-        const user = {
-          id: authData.user.id,
-          email: authData.user.email || '',
-          name: authData.user.user_metadata?.name || authData.user.user_metadata?.full_name,
-          avatar: authData.user.user_metadata?.avatar_url,
-          role: authData.user.user_metadata?.role || ['user'],
-        }
-
-        auth.setUser(user)
-        auth.setSession(authData.session)
+        // 重新初始化以获取完整的 profile 数据
+        await initialize()
 
         // 处理重定向路径：确保是字符串且格式正确
         let targetPath: string = '/'

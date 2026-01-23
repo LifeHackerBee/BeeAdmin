@@ -5,24 +5,24 @@ import { hasPermission } from '@/lib/rbac'
 
 export const Route = createFileRoute('/_authenticated')({
   beforeLoad: async ({ location }) => {
-    const { auth } = useAuthStore.getState()
+    const { user, session, loading, initialize } = useAuthStore.getState()
     
     // 页面刷新时，store 状态会丢失，需要重新初始化
     // 如果 loading 为 true，说明正在初始化，等待完成
     // 如果 loading 为 false 但没有 user 和 session，说明可能是刷新后的状态丢失，需要重新初始化
-    if (auth.loading) {
+    if (loading) {
       // 等待初始化完成
-      await auth.initialize()
-    } else if (!auth.user || !auth.session) {
+      await initialize()
+    } else if (!user || !session) {
       // 状态丢失，重新初始化
-      await auth.initialize()
+      await initialize()
     }
 
     // 重新获取最新的状态（初始化后）
-    const updatedAuth = useAuthStore.getState().auth
+    const { user: updatedUser, session: updatedSession } = useAuthStore.getState()
     
     // 如果初始化后仍然没有用户或会话，才重定向
-    if (!updatedAuth.user || !updatedAuth.session) {
+    if (!updatedUser || !updatedSession) {
         // 安全地获取重定向路径
       let redirectPath = '/'
       try {
@@ -69,8 +69,8 @@ export const Route = createFileRoute('/_authenticated')({
     }
 
     // 基于路径的权限检查
-    // 此时 updatedAuth.user 一定存在（否则前面已经重定向了）
-    if (!updatedAuth.user) {
+    // 此时 updatedUser 一定存在（否则前面已经重定向了）
+    if (!updatedUser) {
       // 这不应该发生，但为了类型安全添加检查
       throw redirect({
         to: '/sign-in',
@@ -81,7 +81,7 @@ export const Route = createFileRoute('/_authenticated')({
     }
     
     const path = location.pathname
-    const userRoles = updatedAuth.user.role || []
+    const userRoles = updatedUser.role || []
     
     // 检查用户管理页面权限
     if (path.startsWith('/users') && !hasPermission(userRoles, 'users')) {

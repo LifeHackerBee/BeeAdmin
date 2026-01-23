@@ -20,13 +20,17 @@ import {
 } from '@/lib/rbac'
 
 export function useRBAC() {
-  const { auth } = useAuthStore()
-  const userRoles = auth.user?.role || []
-  const allowedModules = auth.user?.allowedModules || []
+  const user = useAuthStore((state) => state.user)
+  const loading = useAuthStore((state) => state.loading)
+  const userRoles = user?.role || []
+  const allowedModules = user?.allowedModules
 
   return {
+    // 加载状态
+    isLoading: loading,
     // 用户角色
     roles: userRoles,
+    userRoles,
     // 用户允许的模块
     allowedModules,
     // 检查权限
@@ -43,9 +47,9 @@ export function useRBAC() {
     getAccessiblePages: () => getAccessiblePages(userRoles),
     // 检查模块权限
     hasModuleAccess: (moduleName: BeeAdminModule | string) => 
-      hasModuleAccess(userRoles, allowedModules, moduleName),
+      hasModuleAccess(userRoles, allowedModules || [], moduleName),
     // 获取可访问的模块列表
-    getAccessibleModules: () => getAccessibleModules(userRoles, allowedModules),
+    getAccessibleModules: () => getAccessibleModules(userRoles, allowedModules || []),
   }
 }
 

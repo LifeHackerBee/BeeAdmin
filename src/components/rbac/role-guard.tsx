@@ -65,8 +65,8 @@ export function RoleGuard({
   redirectTo403 = false,
   fallback = null,
 }: RoleGuardProps) {
-  const { auth } = useAuthStore()
-  const userRoles = auth.user?.role || []
+  const user = useAuthStore((state) => state.user)
+  const userRoles = user?.role || []
 
   let hasAccess = false
 

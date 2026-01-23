@@ -54,7 +54,7 @@ const queryClient = new QueryClient({
       if (error instanceof AxiosError) {
         if (error.response?.status === 401) {
           toast.error('Session expired!')
-          useAuthStore.getState().auth.signOut().catch(console.error)
+          useAuthStore.getState().signOut().catch(console.error)
           // 只传递路径部分，确保是字符串
           let currentPath = '/'
           try {
@@ -103,7 +103,7 @@ declare module '@tanstack/react-router' {
 
 // Initialize auth on app start
 function App() {
-  const initializeAuth = useAuthStore((state) => state.auth.initialize)
+  const initializeAuth = useAuthStore((state) => state.initialize)
 
   useEffect(() => {
     initializeAuth()

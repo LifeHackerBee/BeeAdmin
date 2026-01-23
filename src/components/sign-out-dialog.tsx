@@ -10,7 +10,7 @@ interface SignOutDialogProps {
 export function SignOutDialog({ open, onOpenChange }: SignOutDialogProps) {
   const navigate = useNavigate()
   const location = useLocation()
-  const { auth } = useAuthStore()
+  const signOut = useAuthStore((state) => state.signOut)
 
   const handleSignOut = async () => {
     // 先保存当前路径，用于登出后重定向
@@ -31,7 +31,7 @@ export function SignOutDialog({ open, onOpenChange }: SignOutDialogProps) {
     try {
       // 调用 signOut，但不等待它完成（避免导航时请求被中止）
       // signOut 内部已经处理了错误，会清除本地状态
-      auth.signOut().catch((error) => {
+      signOut().catch((error: unknown) => {
         console.error('Sign out error:', error)
       })
       

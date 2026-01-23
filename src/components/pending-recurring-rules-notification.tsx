@@ -16,7 +16,8 @@ import { format } from 'date-fns'
 import { useExpenseCategories } from '@/features/finance/expenses/hooks/use-expense-categories'
 
 export function PendingRecurringRulesNotification() {
-  const { auth } = useAuthStore()
+  const user = useAuthStore((state) => state.user)
+  const loading = useAuthStore((state) => state.loading)
   const { data: pendingRules = [], isLoading } = usePendingRecurringRules()
   const { data: categories = [] } = useExpenseCategories()
   const executeMutation = useExecuteRecurringRule()
@@ -27,11 +28,11 @@ export function PendingRecurringRulesNotification() {
 
   // 当用户登录且有待触发的规则时，显示通知
   useEffect(() => {
-    if (auth.user && !auth.loading && pendingRules.length > 0 && !hasShown && !isLoading) {
+    if (user && !loading && pendingRules.length > 0 && !hasShown && !isLoading) {
       setIsOpen(true)
       setHasShown(true)
     }
-  }, [auth.user, auth.loading, pendingRules.length, hasShown, isLoading])
+  }, [user, loading, pendingRules.length, hasShown, isLoading])
 
   // 当 pendingRules 变化时，重置 hasShown（允许再次显示）
   useEffect(() => {

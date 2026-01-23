@@ -20,6 +20,7 @@ import {
   Target,
   DollarSign,
   ScanLine,
+  Activity,
 } from 'lucide-react'
 import { type SidebarData } from '../types'
 
@@ -34,7 +35,7 @@ export const sidebarData: SidebarData = {
       title: 'General',
       items: [
         {
-          title: 'Dashboard',
+          title: 'Welcome',
           url: '/',
           icon: LayoutDashboard,
         },
@@ -62,6 +63,11 @@ export const sidebarData: SidebarData = {
           title: 'BeeTrader',
           icon: TrendingUp,
           items: [
+            {
+              title: '仪表盘',
+              url: '/beetrader/dashboard',
+              icon: Activity,
+            },
             {
               title: '巨鲸监控中心',
               url: '/beetrader/whale-wallet-manage',

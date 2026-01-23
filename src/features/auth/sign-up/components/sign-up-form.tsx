@@ -27,7 +27,7 @@ export function SignUpForm({
 }: React.HTMLAttributes<HTMLFormElement>) {
   const [isLoading, setIsLoading] = useState(false)
   const navigate = useNavigate()
-  const { auth } = useAuthStore()
+  const initialize = useAuthStore((state) => state.initialize)
   const { t } = useTranslation()
   
   // 动态创建 schema，因为翻译是动态的
@@ -74,16 +74,8 @@ export function SignUpForm({
       }
 
       if (authData.session && authData.user) {
-        const user = {
-          id: authData.user.id,
-          email: authData.user.email || '',
-          name: authData.user.user_metadata?.name || authData.user.user_metadata?.full_name,
-          avatar: authData.user.user_metadata?.avatar_url,
-          role: authData.user.user_metadata?.role || ['user'],
-        }
-
-        auth.setUser(user)
-        auth.setSession(authData.session)
+        // 重新初始化以获取完整的 profile 数据
+        await initialize()
 
         navigate({ to: '/', replace: true })
         toast.success(t('auth.accountCreated'))
