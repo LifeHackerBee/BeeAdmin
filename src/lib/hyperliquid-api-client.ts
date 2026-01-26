@@ -43,9 +43,21 @@ function getHeaders(requireAuth: boolean = true): HeadersInit {
 
   // 只在登录后且需要认证时添加 API Key
   if (requireAuth && API_KEY) {
-    const { session } = useAuthStore.getState()
-    if (session?.user) {
+    const { user, session } = useAuthStore.getState()
+    // 检查用户是否已登录（检查 user 或 session）
+    if (user || session?.user) {
       headers['X-API-Key'] = API_KEY
+      if (import.meta.env.DEV) {
+        console.log('[Hyperliquid API Client] 已添加 API Key 到请求头')
+      }
+    } else {
+      if (import.meta.env.DEV) {
+        console.warn('[Hyperliquid API Client] 用户未登录，未添加 API Key', {
+          hasUser: !!user,
+          hasSession: !!session,
+          hasSessionUser: !!session?.user,
+        })
+      }
     }
   }
 
@@ -65,6 +77,15 @@ export async function hyperliquidApiFetch(
   const headers = {
     ...getHeaders(requireAuth),
     ...(fetchOptions.headers || {}),
+  }
+
+  // 调试：检查是否包含 API Key
+  if (import.meta.env.DEV) {
+    const hasApiKey = 'X-API-Key' in headers
+    console.log(`[Hyperliquid API Client] 请求 ${url}`, {
+      hasApiKey,
+      method: fetchOptions.method || 'GET',
+    })
   }
 
   const response = await fetch(url, {
