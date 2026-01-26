@@ -62,7 +62,8 @@ export function useEvents() {
       params.append('limit', '100')
       params.append('offset', '0')
 
-      const result: EventListResponse = await hyperliquidApiGet<EventListResponse>(`/api/events?${params.toString()}`)
+      // 注意：URL 末尾必须有斜杠，避免 FastAPI 的 307 重定向
+      const result: EventListResponse = await hyperliquidApiGet<EventListResponse>(`/api/events/?${params.toString()}`)
       setEvents(result.events || [])
       setTotal(result.total || null)
       return result
