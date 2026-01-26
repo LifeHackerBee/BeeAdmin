@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { useAuthStore } from '@/stores/auth-store'
 
 // 获取 backtest_tracker_tasks 统计
 async function getBacktestTrackerStats() {
@@ -284,34 +285,43 @@ async function getWalletsStats() {
 
 // 主 Hook
 export function useDashboardStats() {
+  const user = useAuthStore((state) => state.user)
+  const loading = useAuthStore((state) => state.loading)
+  const isEnabled = !loading && !!user // 只有在已登录且不在加载状态时才执行查询
+  
   const backtestQuery = useQuery({
     queryKey: ['dashboard', 'backtest_tracker_tasks'],
     queryFn: getBacktestTrackerStats,
-    refetchInterval: 30000, // 30秒刷新一次
+    enabled: isEnabled,
+    refetchInterval: isEnabled ? 30000 : false, // 只有在启用时才刷新
   })
 
   const traderAnalysisQuery = useQuery({
     queryKey: ['dashboard', 'trader_analysis'],
     queryFn: getTraderAnalysisStats,
-    refetchInterval: 60000, // 60秒刷新一次
+    enabled: isEnabled,
+    refetchInterval: isEnabled ? 60000 : false, // 只有在启用时才刷新
   })
 
   const walletEventQuery = useQuery({
     queryKey: ['dashboard', 'wallet_state_event'],
     queryFn: getWalletStateEventStats,
-    refetchInterval: 10000, // 10秒刷新一次
+    enabled: isEnabled,
+    refetchInterval: isEnabled ? 10000 : false, // 只有在启用时才刷新
   })
 
   const trackerTaskQuery = useQuery({
     queryKey: ['dashboard', 'wallet_tracker_task'],
     queryFn: getWalletTrackerTaskStats,
-    refetchInterval: 30000, // 30秒刷新一次
+    enabled: isEnabled,
+    refetchInterval: isEnabled ? 30000 : false, // 只有在启用时才刷新
   })
 
   const walletsQuery = useQuery({
     queryKey: ['dashboard', 'wallets'],
     queryFn: getWalletsStats,
-    refetchInterval: 60000, // 60秒刷新一次
+    enabled: isEnabled,
+    refetchInterval: isEnabled ? 60000 : false, // 只有在启用时才刷新
   })
 
   return {

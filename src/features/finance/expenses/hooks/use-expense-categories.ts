@@ -1,12 +1,17 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
+import { useAuthStore } from '@/stores/auth-store'
 import { type ExpenseCategory, expenseCategorySchema, type CreateExpenseCategoryInput } from '../data/category-schema'
 
 // 查询所有记账类型（共享分类，所有用户看到的都一样）
 export function useExpenseCategories() {
+  const user = useAuthStore((state) => state.user)
+  const loading = useAuthStore((state) => state.loading)
+  
   return useQuery({
     queryKey: ['expense-categories'],
+    enabled: !loading && !!user, // 只有在已登录且不在加载状态时才执行查询
     queryFn: async () => {
       const { data, error } = await supabase
         .from('expense_categories')
@@ -50,8 +55,12 @@ export function useExpenseCategories() {
 
 // 查询所有记账类型（包括非激活的）
 export function useAllExpenseCategories() {
+  const user = useAuthStore((state) => state.user)
+  const loading = useAuthStore((state) => state.loading)
+  
   return useQuery({
     queryKey: ['expense-categories-all'],
+    enabled: !loading && !!user, // 只有在已登录且不在加载状态时才执行查询
     queryFn: async () => {
       const { data, error } = await supabase
         .from('expense_categories')

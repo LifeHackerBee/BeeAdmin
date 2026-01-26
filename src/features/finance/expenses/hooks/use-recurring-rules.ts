@@ -1,12 +1,17 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
+import { useAuthStore } from '@/stores/auth-store'
 import { type RecurringRule, recurringRuleSchema, type CreateRecurringRuleInput } from '../data/recurring-rule-schema'
 
 // 查询所有周期性记账规则
 export function useRecurringRules() {
+  const user = useAuthStore((state) => state.user)
+  const loading = useAuthStore((state) => state.loading)
+  
   return useQuery({
     queryKey: ['recurring-rules'],
+    enabled: !loading && !!user, // 只有在已登录且不在加载状态时才执行查询
     queryFn: async () => {
       const { data, error } = await supabase
         .from('recurring_rules')
@@ -68,8 +73,12 @@ export function useRecurringRules() {
 
 // 查询待触发的周期性记账规则（next_run_at <= 当前时间且状态为 active）
 export function usePendingRecurringRules() {
+  const user = useAuthStore((state) => state.user)
+  const loading = useAuthStore((state) => state.loading)
+  
   return useQuery({
     queryKey: ['pending-recurring-rules'],
+    enabled: !loading && !!user, // 只有在已登录且不在加载状态时才执行查询
     queryFn: async () => {
       const now = new Date().toISOString()
       const { data, error } = await supabase

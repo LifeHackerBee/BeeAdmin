@@ -1,10 +1,15 @@
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { useAuthStore } from '@/stores/auth-store'
 import { type Liability, liabilitySchema } from '../data/schema'
 
 export function useLiabilities() {
+  const user = useAuthStore((state) => state.user)
+  const loading = useAuthStore((state) => state.loading)
+  
   return useQuery({
     queryKey: ['liabilities'],
+    enabled: !loading && !!user, // 只有在已登录且不在加载状态时才执行查询
     queryFn: async () => {
       // 使用 liability_details 视图获取完整信息
       const { data, error } = await supabase

@@ -1,10 +1,15 @@
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { useAuthStore } from '@/stores/auth-store'
 import { type Expense, expenseSchema } from '../data/schema'
 
 export function useExpenses() {
+  const user = useAuthStore((state) => state.user)
+  const loading = useAuthStore((state) => state.loading)
+  
   return useQuery({
     queryKey: ['expenses'],
+    enabled: !loading && !!user, // 只有在已登录且不在加载状态时才执行查询
     queryFn: async () => {
       const { data, error } = await supabase
         .from('expenses')
