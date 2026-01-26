@@ -1,6 +1,5 @@
 import { useState, useCallback, useEffect } from 'react'
-
-const API_BASE_URL = import.meta.env.VITE_HYPERLIQUID_TRADER_API_URL || 'http://localhost:8000'
+import { hyperliquidApiGet, hyperliquidApiPost, hyperliquidApiDelete } from '@/lib/hyperliquid-api-client'
 
 export interface MonitorTask {
   task_id: string
@@ -50,19 +49,7 @@ export function useTracker() {
       setLoading(true)
       setError(null)
 
-      const response = await fetch(`${API_BASE_URL}/api/monitor/tasks`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      })
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`API 请求失败: ${response.status} - ${errorText}`)
-      }
-
-      const result: TaskListResponse = await response.json()
+      const result: TaskListResponse = await hyperliquidApiGet<TaskListResponse>('/api/monitor/tasks')
       console.log('获取到的任务列表:', result)
       console.log('任务数量:', result.tasks?.length || 0, '总数:', result.total)
       
@@ -92,29 +79,16 @@ export function useTracker() {
         throw new Error('无效的钱包地址格式')
       }
 
-      const response = await fetch(`${API_BASE_URL}/api/monitor/tasks`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          wallet_address: request.wallet_address,
-          interval: request.interval || 60,
-          local_mode: request.local_mode || false,
-          output_dir: request.output_dir,
-          event_config: request.event_config,
-          debug_events: request.debug_events || false,
-          auto_start: request.auto_start !== false, // 默认 true
-          overwrite: request.overwrite || false,
-        }),
+      const result: MonitorTask = await hyperliquidApiPost<MonitorTask>('/api/monitor/tasks', {
+        wallet_address: request.wallet_address,
+        interval: request.interval || 60,
+        local_mode: request.local_mode || false,
+        output_dir: request.output_dir,
+        event_config: request.event_config,
+        debug_events: request.debug_events || false,
+        auto_start: request.auto_start !== false, // 默认 true
+        overwrite: request.overwrite || false,
       })
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`API 请求失败: ${response.status} - ${errorText}`)
-      }
-
-      const result: MonitorTask = await response.json()
       
       // 刷新任务列表
       await fetchTasks()
@@ -136,19 +110,7 @@ export function useTracker() {
       setLoading(true)
       setError(null)
 
-      const response = await fetch(`${API_BASE_URL}/api/monitor/tasks/${taskId}/start`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      })
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`API 请求失败: ${response.status} - ${errorText}`)
-      }
-
-      const result: MonitorTask = await response.json()
+      const result: MonitorTask = await hyperliquidApiPost<MonitorTask>(`/api/monitor/tasks/${taskId}/start`)
       
       // 更新任务列表
       setTasks((prev) =>
@@ -172,19 +134,7 @@ export function useTracker() {
       setLoading(true)
       setError(null)
 
-      const response = await fetch(`${API_BASE_URL}/api/monitor/tasks/${taskId}/stop`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      })
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`API 请求失败: ${response.status} - ${errorText}`)
-      }
-
-      const result: MonitorTask = await response.json()
+      const result: MonitorTask = await hyperliquidApiPost<MonitorTask>(`/api/monitor/tasks/${taskId}/stop`)
       
       // 更新任务列表
       setTasks((prev) =>
@@ -208,17 +158,7 @@ export function useTracker() {
       setLoading(true)
       setError(null)
 
-      const response = await fetch(`${API_BASE_URL}/api/monitor/tasks/${taskId}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      })
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`API 请求失败: ${response.status} - ${errorText}`)
-      }
+      await hyperliquidApiDelete(`/api/monitor/tasks/${taskId}`)
 
       // 从列表中移除
       setTasks((prev) => prev.filter((task) => task.task_id !== taskId))

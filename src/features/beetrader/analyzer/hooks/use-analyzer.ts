@@ -1,6 +1,5 @@
 import { useState, useCallback } from 'react'
-
-const API_BASE_URL = import.meta.env.VITE_HYPERLIQUID_TRADER_API_URL || 'http://localhost:8000'
+import { hyperliquidApiPost } from '@/lib/hyperliquid-api-client'
 
 export interface AnalysisData {
   type: string | null
@@ -48,23 +47,10 @@ export function useAnalyzer() {
       }
 
       // 使用 POST 方法调用 API
-      const response = await fetch(`${API_BASE_URL}/api/analyzer/analyze`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          address,
-          days,
-        }),
+      const result: AnalyzeResponse = await hyperliquidApiPost<AnalyzeResponse>('/api/analyzer/analyze', {
+        address,
+        days,
       })
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`API 请求失败: ${response.status} - ${errorText}`)
-      }
-
-      const result: AnalyzeResponse = await response.json()
 
       if (!result.success) {
         throw new Error('分析失败，请检查地址是否正确')

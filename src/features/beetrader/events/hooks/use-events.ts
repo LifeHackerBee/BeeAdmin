@@ -1,6 +1,5 @@
 import { useState, useCallback, useEffect } from 'react'
-
-const API_BASE_URL = import.meta.env.VITE_HYPERLIQUID_TRADER_API_URL || 'http://localhost:8000'
+import { hyperliquidApiGet } from '@/lib/hyperliquid-api-client'
 
 export interface PositionEvent {
   id: number
@@ -63,19 +62,7 @@ export function useEvents() {
       params.append('limit', '100')
       params.append('offset', '0')
 
-      const response = await fetch(`${API_BASE_URL}/api/events?${params.toString()}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      })
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`API 请求失败: ${response.status} - ${errorText}`)
-      }
-
-      const result: EventListResponse = await response.json()
+      const result: EventListResponse = await hyperliquidApiGet<EventListResponse>(`/api/events?${params.toString()}`)
       setEvents(result.events || [])
       setTotal(result.total || null)
       return result

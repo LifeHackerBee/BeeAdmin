@@ -17,8 +17,6 @@ import {
 } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
 
-const API_BASE_URL = import.meta.env.VITE_HYPERLIQUID_TRADER_API_URL || 'http://localhost:8000'
-
 export function Events() {
   const {
     events,
@@ -189,7 +187,7 @@ export function Events() {
               {error.message}
               <br />
               <span className='text-xs mt-2 block'>
-                API URL: {API_BASE_URL}
+                API URL: {import.meta.env.VITE_HYPERLIQUID_TRADER_API_URL || 'http://localhost:8000'}
               </span>
             </AlertDescription>
           </Alert>

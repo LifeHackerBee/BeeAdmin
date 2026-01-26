@@ -1,6 +1,5 @@
 import { useState, useCallback, useEffect } from 'react'
-
-const API_BASE_URL = import.meta.env.VITE_HYPERLIQUID_TRADER_API_URL || 'http://localhost:8000'
+import { hyperliquidApiGet } from '@/lib/hyperliquid-api-client'
 
 export interface TaskStatistics {
   total_tasks: number
@@ -72,19 +71,7 @@ export function useStatistics() {
       setLoading(true)
       setError(null)
 
-      const response = await fetch(`${API_BASE_URL}/api/statistics/tasks`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      })
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`API 请求失败: ${response.status} - ${errorText}`)
-      }
-
-      const result: TaskStatistics = await response.json()
+      const result: TaskStatistics = await hyperliquidApiGet<TaskStatistics>('/api/statistics/tasks')
       setTaskStats(result)
       return result
     } catch (err) {
@@ -103,19 +90,7 @@ export function useStatistics() {
       setLoading(true)
       setError(null)
 
-      const response = await fetch(`${API_BASE_URL}/api/statistics/wallets`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      })
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`API 请求失败: ${response.status} - ${errorText}`)
-      }
-
-      const result: WalletStatistics[] = await response.json()
+      const result: WalletStatistics[] = await hyperliquidApiGet<WalletStatistics[]>('/api/statistics/wallets')
       setWalletStats(result)
       return result
     } catch (err) {
@@ -134,19 +109,7 @@ export function useStatistics() {
       setLoading(true)
       setError(null)
 
-      const response = await fetch(`${API_BASE_URL}/api/statistics/dashboard`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      })
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`API 请求失败: ${response.status} - ${errorText}`)
-      }
-
-      const result: DashboardStatistics = await response.json()
+      const result: DashboardStatistics = await hyperliquidApiGet<DashboardStatistics>('/api/statistics/dashboard')
       setDashboardStats(result)
       return result
     } catch (err) {

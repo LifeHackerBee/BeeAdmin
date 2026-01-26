@@ -1,6 +1,5 @@
 import { useState, useCallback, useEffect } from 'react'
-
-const API_BASE_URL = import.meta.env.VITE_HYPERLIQUID_TRADER_API_URL || 'http://localhost:8000'
+import { hyperliquidApiGet, hyperliquidApiPost, hyperliquidApiPut, hyperliquidApiDelete } from '@/lib/hyperliquid-api-client'
 
 export interface BacktestTrackerTask {
   id: number
@@ -74,20 +73,8 @@ export function useBacktestTracker() {
       if (wallet_address) params.append('wallet_address', wallet_address)
       if (status) params.append('status', status)
 
-      const url = `${API_BASE_URL}/api/backtest/tracker/tasks${params.toString() ? '?' + params.toString() : ''}`
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      })
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`API 请求失败: ${response.status} - ${errorText}`)
-      }
-
-      const result = await response.json()
+      const url = `/api/backtest/tracker/tasks${params.toString() ? '?' + params.toString() : ''}`
+      const result = await hyperliquidApiGet<{ tasks: BacktestTrackerTask[]; count?: number }>(url)
       setTasks(result.tasks || [])
       return result
     } catch (err) {
@@ -103,19 +90,7 @@ export function useBacktestTracker() {
   // 获取单个任务
   const fetchTask = useCallback(async (taskId: number) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/backtest/tracker/tasks/${taskId}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      })
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`API 请求失败: ${response.status} - ${errorText}`)
-      }
-
-      const result = await response.json()
+      const result = await hyperliquidApiGet<{ task: BacktestTrackerTask }>(`/api/backtest/tracker/tasks/${taskId}`)
       return result.task
     } catch (err) {
       console.error('Error fetching tracker task:', err)
@@ -129,20 +104,7 @@ export function useBacktestTracker() {
       setLoading(true)
       setError(null)
 
-      const response = await fetch(`${API_BASE_URL}/api/backtest/tracker/tasks`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(request),
-      })
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`API 请求失败: ${response.status} - ${errorText}`)
-      }
-
-      const result = await response.json()
+      const result = await hyperliquidApiPost<{ task: BacktestTrackerTask }>('/api/backtest/tracker/tasks', request)
       
       // 刷新任务列表
       await fetchTasks()
@@ -164,20 +126,7 @@ export function useBacktestTracker() {
       setLoading(true)
       setError(null)
 
-      const response = await fetch(`${API_BASE_URL}/api/backtest/tracker/tasks/${taskId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(request),
-      })
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`API 请求失败: ${response.status} - ${errorText}`)
-      }
-
-      const result = await response.json()
+      const result = await hyperliquidApiPut<{ task: BacktestTrackerTask }>(`/api/backtest/tracker/tasks/${taskId}`, request)
       
       // 刷新任务列表
       await fetchTasks()
@@ -199,19 +148,7 @@ export function useBacktestTracker() {
       setLoading(true)
       setError(null)
 
-      const response = await fetch(`${API_BASE_URL}/api/backtest/tracker/tasks/${taskId}/start`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      })
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`API 请求失败: ${response.status} - ${errorText}`)
-      }
-
-      const result = await response.json()
+      const result = await hyperliquidApiPost<{ task: BacktestTrackerTask }>(`/api/backtest/tracker/tasks/${taskId}/start`)
       
       // 更新任务列表
       setTasks((prev) =>
@@ -235,19 +172,7 @@ export function useBacktestTracker() {
       setLoading(true)
       setError(null)
 
-      const response = await fetch(`${API_BASE_URL}/api/backtest/tracker/tasks/${taskId}/stop`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      })
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`API 请求失败: ${response.status} - ${errorText}`)
-      }
-
-      const result = await response.json()
+      const result = await hyperliquidApiPost<{ task: BacktestTrackerTask }>(`/api/backtest/tracker/tasks/${taskId}/stop`)
       
       // 更新任务列表
       setTasks((prev) =>
@@ -271,17 +196,7 @@ export function useBacktestTracker() {
       setLoading(true)
       setError(null)
 
-      const response = await fetch(`${API_BASE_URL}/api/backtest/tracker/tasks/${taskId}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      })
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`API 请求失败: ${response.status} - ${errorText}`)
-      }
+      await hyperliquidApiDelete(`/api/backtest/tracker/tasks/${taskId}`)
 
       // 从列表中移除
       setTasks((prev) => prev.filter((task) => task.id !== taskId))
@@ -301,20 +216,8 @@ export function useBacktestTracker() {
       const params = new URLSearchParams()
       if (limit) params.append('limit', limit.toString())
 
-      const url = `${API_BASE_URL}/api/backtest/tracker/tasks/${taskId}/snapshots${params.toString() ? '?' + params.toString() : ''}`
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      })
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`API 请求失败: ${response.status} - ${errorText}`)
-      }
-
-      const result = await response.json()
+      const url = `/api/backtest/tracker/tasks/${taskId}/snapshots${params.toString() ? '?' + params.toString() : ''}`
+      const result = await hyperliquidApiGet<{ snapshots: BacktestTrackerSnapshot[] }>(url)
       return result.snapshots || []
     } catch (err) {
       console.error('Error fetching snapshots:', err)

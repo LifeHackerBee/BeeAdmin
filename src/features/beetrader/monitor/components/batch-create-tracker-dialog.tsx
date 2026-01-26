@@ -17,8 +17,7 @@ import { supabase } from '@/lib/supabase'
 import { Loader2 } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { AlertCircle, CheckCircle2, XCircle } from 'lucide-react'
-
-const API_BASE_URL = import.meta.env.VITE_HYPERLIQUID_TRADER_API_URL || 'http://localhost:8000'
+import { hyperliquidApiPost } from '@/lib/hyperliquid-api-client'
 
 interface BatchCreateResult {
   wallet_address: string
@@ -112,25 +111,15 @@ export function BatchCreateTrackerDialog() {
         .filter((w) => selectedWallets.has(w.id))
         .map((w) => w.address)
 
-      const response = await fetch(`${API_BASE_URL}/api/monitor/tasks/batch`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      const batchResult: BatchCreateResponse = await hyperliquidApiPost<BatchCreateResponse>(
+        '/api/monitor/tasks/batch',
+        {
           wallet_addresses: selectedAddresses,
           interval,
           auto_start: autoStart,
           overwrite,
-        }),
-      })
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`API 请求失败: ${response.status} - ${errorText}`)
-      }
-
-      const batchResult: BatchCreateResponse = await response.json()
+        }
+      )
       setResult(batchResult)
 
       if (batchResult.failed === 0) {
