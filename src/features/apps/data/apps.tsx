@@ -1,217 +1,27 @@
-export type AppCategory = 'finance' | 'investment' | 'lifestyle' | 'all'
+import { ScanLine } from 'lucide-react'
+
+export type AppCategory = 'tool' | 'all'
 
 export interface App {
   name: string
-  logo: string // emoji 图标
+  logo: React.ReactNode
   connected: boolean
   desc: string
   category: AppCategory
   rating?: number
-  users?: string // 用户数
+  users?: string
+  route?: string // 跳转路由
 }
 
 export const apps: App[] = [
-  // 理财类应用
   {
-    name: '智能记账',
-    logo: '📊',
+    name: 'Crawl4AI 爬虫',
+    logo: <ScanLine className="h-6 w-6" />,
     connected: true,
-    desc: '自动分类记账，智能分析消费习惯，生成个性化理财报告',
-    category: 'finance',
-    rating: 4.8,
-    users: '10万+',
-  },
-  {
-    name: '预算管家',
-    logo: '💰',
-    connected: false,
-    desc: '设置月度预算，实时监控支出，超支自动提醒',
-    category: 'finance',
-    rating: 4.6,
-    users: '5万+',
-  },
-  {
-    name: '账单提醒',
-    logo: '📅',
-    connected: false,
-    desc: '信用卡、贷款、保险等账单到期提醒，避免逾期',
-    category: 'finance',
-    rating: 4.7,
-    users: '8万+',
-  },
-  {
-    name: '理财计算器',
-    logo: '🧮',
-    connected: false,
-    desc: '复利计算、贷款计算、投资收益分析等实用工具',
-    category: 'finance',
-    rating: 4.5,
-    users: '3万+',
-  },
-  {
-    name: '消费分析',
-    logo: '📈',
-    connected: true,
-    desc: '可视化消费趋势，识别不必要支出，优化消费结构',
-    category: 'finance',
+    desc: '基于 Crawl4AI API 的智能爬取工具，支持 Markdown 清洗与 LLM 内容抽取',
+    category: 'tool',
     rating: 4.9,
-    users: '15万+',
-  },
-  {
-    name: '储蓄目标',
-    logo: '🎯',
-    connected: false,
-    desc: '设定储蓄目标，追踪进度，养成良好储蓄习惯',
-    category: 'finance',
-    rating: 4.4,
-    users: '6万+',
-  },
-
-  // 投资类应用
-  {
-    name: '股票追踪',
-    logo: '📉',
-    connected: true,
-    desc: '实时股票行情，自选股监控，价格预警通知',
-    category: 'investment',
-    rating: 4.8,
-    users: '20万+',
-  },
-  {
-    name: '基金分析',
-    logo: '📊',
-    connected: false,
-    desc: '基金净值查询，历史业绩分析，风险评估',
-    category: 'investment',
-    rating: 4.7,
-    users: '12万+',
-  },
-  {
-    name: '加密货币监控',
-    logo: '₿',
-    connected: true,
-    desc: 'BTC、ETH 等主流币价格追踪，钱包余额监控',
-    category: 'investment',
-    rating: 4.6,
-    users: '8万+',
-  },
-  {
-    name: '投资组合',
-    logo: '💼',
-    connected: false,
-    desc: '管理投资组合，计算收益率，资产配置建议',
-    category: 'investment',
-    rating: 4.9,
-    users: '18万+',
-  },
-  {
-    name: '市场资讯',
-    logo: '📰',
-    connected: false,
-    desc: '实时财经新闻，市场分析，投资机会提醒',
-    category: 'investment',
-    rating: 4.5,
-    users: '10万+',
-  },
-  {
-    name: '定投助手',
-    logo: '⏰',
-    connected: false,
-    desc: '基金定投计划，自动执行，长期投资策略',
-    category: 'investment',
-    rating: 4.7,
-    users: '7万+',
-  },
-  {
-    name: 'Web3 策略',
-    logo: '🔷',
-    connected: true,
-    desc: 'DeFi 收益分析，NFT 市场追踪，Web3 投资策略',
-    category: 'investment',
-    rating: 4.8,
-    users: '5万+',
-  },
-  {
-    name: '宏观分析',
-    logo: '🌍',
-    connected: false,
-    desc: '宏观经济数据，政策解读，市场趋势预测',
-    category: 'investment',
-    rating: 4.6,
-    users: '9万+',
-  },
-
-  // 生活管理类应用
-  {
-    name: '待办清单',
-    logo: '✅',
-    connected: true,
-    desc: '任务管理，优先级设置，完成度追踪',
-    category: 'lifestyle',
-    rating: 4.7,
-    users: '25万+',
-  },
-  {
-    name: '习惯追踪',
-    logo: '🔥',
-    connected: false,
-    desc: '培养好习惯，每日打卡，连续天数统计',
-    category: 'lifestyle',
-    rating: 4.8,
-    users: '15万+',
-  },
-  {
-    name: '健康管理',
-    logo: '💪',
-    connected: false,
-    desc: '运动记录，健康数据追踪，健康建议',
-    category: 'lifestyle',
-    rating: 4.6,
-    users: '12万+',
-  },
-  {
-    name: '时间管理',
-    logo: '⏱️',
-    connected: false,
-    desc: '番茄工作法，时间统计，效率分析',
-    category: 'lifestyle',
-    rating: 4.5,
-    users: '8万+',
-  },
-  {
-    name: '目标管理',
-    logo: '🎯',
-    connected: true,
-    desc: '设定年度、月度目标，进度追踪，成就系统',
-    category: 'lifestyle',
-    rating: 4.9,
-    users: '20万+',
-  },
-  {
-    name: '笔记管理',
-    logo: '📝',
-    connected: false,
-    desc: '个人笔记，知识管理，标签分类',
-    category: 'lifestyle',
-    rating: 4.4,
-    users: '10万+',
-  },
-  {
-    name: '密码管理',
-    logo: '🔐',
-    connected: false,
-    desc: '安全存储密码，自动填充，密码强度检测',
-    category: 'lifestyle',
-    rating: 4.8,
-    users: '30万+',
-  },
-  {
-    name: '订阅管理',
-    logo: '📱',
-    connected: false,
-    desc: '管理各类订阅服务，到期提醒，费用统计',
-    category: 'lifestyle',
-    rating: 4.6,
-    users: '11万+',
+    users: '1万+',
+    route: '/apps/crawler',
   },
 ]

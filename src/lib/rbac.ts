@@ -41,6 +41,7 @@ export const BeeAdminModules = {
   MONITORING_TASKS: 'monitoring.tasks',
   TASKS: 'tasks',
   APPS: 'apps',
+  CRAWLER: 'crawler',
   USERS: 'users',
   SETTINGS: 'settings',
   HELP_CENTER: 'help-center',
@@ -61,6 +62,7 @@ export const defaultPermissions: RolePermissions = {
   'monitoring': { roles: ['admin', 'manager', 'user'], description: '访问监控模块' },
   'monitoring.tasks': { roles: ['admin', 'manager', 'user'], description: '访问后台任务管理' },
   'apps': { roles: ['admin', 'manager', 'user'], description: '访问应用' },
+  'crawler': { roles: ['admin', 'manager', 'user'], description: '访问爬虫模块' },
   'chats': { roles: ['admin', 'manager', 'user'], description: '访问聊天' },
   'beeai': { roles: ['admin', 'manager', 'user'], description: '访问 BeeAI 智能助手' },
   'beetrader': { roles: ['admin', 'manager', 'user'], description: '访问 BeeTrader 交易平台' },
@@ -220,4 +222,3 @@ export function getAccessibleModules(
 
   return allowedModules
 }
-

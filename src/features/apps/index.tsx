@@ -1,6 +1,6 @@
 import { type ChangeEvent, useState } from 'react'
-import { getRouteApi } from '@tanstack/react-router'
-import { SlidersHorizontal, ArrowUpAZ, ArrowDownAZ, Star } from 'lucide-react'
+import { getRouteApi, useNavigate } from '@tanstack/react-router'
+import { SlidersHorizontal, ArrowUpAZ, ArrowDownAZ, Star, ExternalLink } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -32,9 +32,7 @@ const appTypeText = new Map<AppType, string>([
 
 const categoryText = new Map<AppCategory, string>([
   ['all', '全部分类'],
-  ['finance', '理财'],
-  ['investment', '投资'],
-  ['lifestyle', '生活管理'],
+  ['tool', '工具'],
 ])
 
 export function Apps() {
@@ -44,7 +42,8 @@ export function Apps() {
     category = 'all',
     sort: initSort = 'asc',
   } = route.useSearch()
-  const navigate = route.useNavigate()
+  const routeNavigate = route.useNavigate()
+  const globalNavigate = useNavigate()
 
   const [sort, setSort] = useState(initSort)
   const [appType, setAppType] = useState(type)
@@ -71,7 +70,7 @@ export function Apps() {
 
   const handleSearch = (e: ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(e.target.value)
-    navigate({
+    routeNavigate({
       search: (prev) => ({
         ...prev,
         filter: e.target.value || undefined,
@@ -81,7 +80,7 @@ export function Apps() {
 
   const handleTypeChange = (value: AppType) => {
     setAppType(value)
-    navigate({
+    routeNavigate({
       search: (prev) => ({
         ...prev,
         type: value === 'all' ? undefined : value,
@@ -91,7 +90,7 @@ export function Apps() {
 
   const handleCategoryChange = (value: AppCategory) => {
     setAppCategory(value)
-    navigate({
+    routeNavigate({
       search: (prev) => ({
         ...prev,
         category: value === 'all' ? undefined : value,
@@ -99,9 +98,15 @@ export function Apps() {
     })
   }
 
-  const handleSortChange = (sort: 'asc' | 'desc') => {
-    setSort(sort)
-    navigate({ search: (prev) => ({ ...prev, sort }) })
+  const handleSortChange = (sortValue: 'asc' | 'desc') => {
+    setSort(sortValue)
+    routeNavigate({ search: (prev) => ({ ...prev, sort: sortValue }) })
+  }
+
+  const handleAppClick = (appRoute?: string) => {
+    if (appRoute) {
+      globalNavigate({ to: appRoute })
+    }
   }
 
   return (
@@ -121,7 +126,7 @@ export function Apps() {
         <div>
           <h1 className='text-2xl font-bold tracking-tight'>应用市场</h1>
           <p className='text-muted-foreground'>
-            发现各种理财、投资、生活管理应用，提升您的生活效率
+            发现各种实用工具，提升您的工作效率
           </p>
         </div>
         <div className='my-4 flex flex-col gap-4 sm:my-0 sm:flex-row sm:items-center sm:justify-between'>
@@ -138,9 +143,7 @@ export function Apps() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value='all'>全部分类</SelectItem>
-                <SelectItem value='finance'>理财</SelectItem>
-                <SelectItem value='investment'>投资</SelectItem>
-                <SelectItem value='lifestyle'>生活管理</SelectItem>
+                <SelectItem value='tool'>工具</SelectItem>
               </SelectContent>
             </Select>
             <Select value={appType} onValueChange={handleTypeChange}>
@@ -182,12 +185,13 @@ export function Apps() {
           {filteredApps.map((app) => (
             <li
               key={app.name}
-              className='group rounded-lg border p-4 transition-shadow hover:shadow-md'
+              className='group rounded-lg border p-4 transition-shadow hover:shadow-md cursor-pointer'
+              onClick={() => handleAppClick(app.route)}
             >
               <div className='mb-4 flex items-start justify-between'>
                 <div className='flex items-center gap-3'>
                   <div className='flex size-12 items-center justify-center rounded-lg bg-muted text-2xl p-2'>
-                  {app.logo}
+                    {app.logo}
                   </div>
                   <div className='flex-1 min-w-0'>
                     <h2 className='font-semibold truncate'>{app.name}</h2>
@@ -212,8 +216,16 @@ export function Apps() {
                   variant='outline'
                   size='sm'
                   className={`shrink-0 ${app.connected ? 'border border-blue-300 bg-blue-50 hover:bg-blue-100 dark:border-blue-700 dark:bg-blue-950 dark:hover:bg-blue-900' : ''}`}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleAppClick(app.route)
+                  }}
                 >
-                  {app.connected ? '已连接' : '连接'}
+                  {app.route ? (
+                    <span className='flex items-center gap-1'>
+                      打开 <ExternalLink size={12} />
+                    </span>
+                  ) : app.connected ? '已连接' : '连接'}
                 </Button>
               </div>
               <div className='space-y-2'>

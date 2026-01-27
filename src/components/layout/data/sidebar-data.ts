@@ -41,8 +41,19 @@ export const sidebarData: SidebarData = {
         },
         {
           title: 'Apps',
-          url: '/apps',
           icon: Package,
+          items: [
+            {
+              title: '应用市场',
+              url: '/apps',
+              icon: Package,
+            },
+            {
+              title: 'Crawl4AI 爬虫',
+              url: '/apps/crawler',
+              icon: ScanLine,
+            },
+          ],
         },
         {
           title: 'BeeAI',

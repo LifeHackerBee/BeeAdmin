@@ -10,7 +10,7 @@ const appsSearchSchema = z.object({
     .optional()
     .catch(undefined),
   category: z
-    .enum(['all', 'finance', 'investment', 'lifestyle'])
+    .enum(['all', 'tool'])
     .optional()
     .catch(undefined),
   filter: z.string().optional().catch(''),
