@@ -225,9 +225,9 @@ export const walletsColumns: ColumnDef<Wallet>[] = [
     cell: ({ row }) => {
       const address = row.getValue('address') as string
       return (
-        <div className='flex items-center gap-2'>
-          <span className='font-mono text-sm'>
-            {address.slice(0, 6)}...{address.slice(-4)}
+        <div className='flex items-center gap-2 min-w-0'>
+          <span className='font-mono text-sm break-all' title={address}>
+            {address}
           </span>
           <CopyAddressButton address={address} />
         </div>

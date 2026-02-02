@@ -12,6 +12,7 @@ import { AlertCircle, RefreshCw, TrendingUp, TrendingDown, ChevronDown, ChevronR
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
+import { WalletAddressCell } from '../../components/wallet-address-cell'
 import { format } from 'date-fns'
 import { zhCN } from 'date-fns/locale'
 import {
@@ -366,8 +367,11 @@ function CombinedContent() {
                               )
                             ) : null}
                           </TableCell>
-                          <TableCell className='sticky left-0 bg-background z-10 font-mono text-sm'>
-                            {wallet.address.slice(0, 6)}...{wallet.address.slice(-4)}
+                          <TableCell
+                            className='sticky left-0 bg-background z-10 font-mono text-sm min-w-0'
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <WalletAddressCell address={wallet.address} />
                           </TableCell>
                           <TableCell className='max-w-[200px]'>
                             <div className='truncate' title={wallet.note || ''}>

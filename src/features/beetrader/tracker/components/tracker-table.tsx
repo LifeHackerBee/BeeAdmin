@@ -9,7 +9,8 @@ import {
 } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Trash2, Play, Square, ExternalLink } from 'lucide-react'
+import { Trash2, Play, Square } from 'lucide-react'
+import { WalletAddressCell } from '../../components/wallet-address-cell'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -60,10 +61,6 @@ export function TrackerTable({ data, onStart, onStop, onDelete }: TrackerTablePr
     setDeletingTaskId(taskId)
   }
 
-  const formatAddress = (address: string) => {
-    return `${address.slice(0, 6)}...${address.slice(-4)}`
-  }
-
   const getStatusBadge = (status: string) => {
     const statusMap: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline'; label: string }> = {
       running: { variant: 'default', label: '运行中' },
@@ -112,23 +109,8 @@ export function TrackerTable({ data, onStart, onStop, onDelete }: TrackerTablePr
           <TableBody>
             {data.map((task) => (
               <TableRow key={task.task_id}>
-                <TableCell>
-                  <div className='flex items-center gap-2'>
-                    <code className='text-sm font-mono'>{formatAddress(task.wallet_address)}</code>
-                    <Button
-                      variant='ghost'
-                      size='sm'
-                      className='h-6 w-6 p-0'
-                      onClick={() => {
-                        window.open(
-                          `https://app.hyperliquid.xyz/explorer?address=${task.wallet_address}`,
-                          '_blank'
-                        )
-                      }}
-                    >
-                      <ExternalLink className='h-3 w-3' />
-                    </Button>
-                  </div>
+                <TableCell className='min-w-0'>
+                  <WalletAddressCell address={task.wallet_address} />
                 </TableCell>
                 <TableCell>{getStatusBadge(task.status)}</TableCell>
                 <TableCell>{task.interval}s</TableCell>
@@ -206,7 +188,7 @@ export function TrackerTable({ data, onStart, onStop, onDelete }: TrackerTablePr
           <AlertDialogHeader>
             <AlertDialogTitle>确认删除</AlertDialogTitle>
             <AlertDialogDescription>
-              确定要删除任务 {deletingTaskId ? formatAddress(data.find(t => t.task_id === deletingTaskId)?.wallet_address || '') : ''} 吗？
+              确定要删除任务 {deletingTaskId ? (data.find(t => t.task_id === deletingTaskId)?.wallet_address || '') : ''} 吗？
               如果任务正在运行，将先停止任务再删除。
             </AlertDialogDescription>
           </AlertDialogHeader>

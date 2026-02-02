@@ -9,6 +9,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { type PositionEvent } from '../hooks/use-events'
 import { formatDateTime } from '@/lib/timezone'
+import { WalletAddressCell } from '../../components/wallet-address-cell'
 
 interface EventsTableProps {
   data: PositionEvent[]
@@ -27,11 +28,6 @@ function formatNumber(value: number | null | undefined, decimals: number = 2): s
     return '-'
   }
   return value.toFixed(decimals)
-}
-
-function formatAddress(address: string): string {
-  if (!address) return '-'
-  return `${address.slice(0, 6)}...${address.slice(-4)}`
 }
 
 export function EventsTable({ data }: EventsTableProps) {
@@ -108,8 +104,12 @@ export function EventsTable({ data }: EventsTableProps) {
             return (
               <TableRow key={event.id}>
                 <TableCell className='font-mono text-xs'>{timeDisplay}</TableCell>
-                <TableCell className='font-mono text-xs'>
-                  {formatAddress(event.wallet_address)}
+                <TableCell className='font-mono text-xs min-w-0'>
+                  {event.wallet_address ? (
+                    <WalletAddressCell address={event.wallet_address} />
+                  ) : (
+                    '-'
+                  )}
                 </TableCell>
                 <TableCell className='font-semibold'>{event.coin}</TableCell>
                 <TableCell>
