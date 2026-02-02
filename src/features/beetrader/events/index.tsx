@@ -1,8 +1,10 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { useSearch, useNavigate } from '@tanstack/react-router'
 import { useEvents } from './hooks/use-events'
+import { useWallets } from '../monitor/hooks/use-wallets'
 import { EventsTable } from './components/events-table'
 import { Button } from '@/components/ui/button'
-import { RefreshCw } from 'lucide-react'
+import { RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { AlertCircle } from 'lucide-react'
@@ -16,8 +18,16 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
+import { getPageNumbers } from '@/lib/utils'
+
+const EVENTS_PAGE_SIZE_OPTIONS = [10, 20, 50, 100]
 
 export function Events() {
+  const search = useSearch({ from: '/_authenticated/beetrader/whale-wallet-manage' } as any)
+  const navigate = useNavigate({ from: '/beetrader/whale-wallet-manage' } as any)
+  const page = Math.max(1, Number((search as any)?.page) || 1)
+  const pageSize = EVENTS_PAGE_SIZE_OPTIONS.includes(Number((search as any)?.pageSize)) ? Number((search as any)?.pageSize) : 20
+
   const {
     events,
     loading,
@@ -30,9 +40,14 @@ export function Events() {
     setEventType,
     coin,
     setCoin,
-  } = useEvents()
+  } = useEvents({ page, pageSize })
+  const { wallets } = useWallets()
+  const walletNotes = useMemo(
+    () => Object.fromEntries((wallets || []).map((w) => [w.address, w.note || ''])),
+    [wallets]
+  )
   const [autoRefresh, setAutoRefresh] = useState(true)
-  const refreshInterval = 10 // 默认 10 秒
+  const refreshInterval = 60 // 默认 1 分钟
   const [isRefreshing, setIsRefreshing] = useState(false)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
   const isRefreshingRef = useRef(false)
@@ -91,6 +106,28 @@ export function Events() {
     }
   }, [autoRefresh, handleRefresh])
 
+  const totalCount = total ?? 0
+  const pageCount = Math.max(1, Math.ceil(totalCount / pageSize))
+  const currentPage = Math.min(page, pageCount)
+  const pageNumbers = getPageNumbers(currentPage, pageCount)
+
+  const setPage = useCallback(
+    (p: number) => {
+      navigate({
+        search: (prev: any) => ({ ...prev, page: Math.max(1, Math.min(p, pageCount)) }),
+      } as any)
+    },
+    [navigate, pageCount]
+  )
+  const setPageSize = useCallback(
+    (size: number) => {
+      navigate({
+        search: (prev: any) => ({ ...prev, pageSize: size, page: 1 }),
+      } as any)
+    },
+    [navigate]
+  )
+
   return (
     <div className='flex flex-col space-y-4'>
       <div className='flex items-center justify-end flex-shrink-0'>
@@ -107,7 +144,7 @@ export function Events() {
             </Label>
             {autoRefresh && (
               <span className='text-xs text-muted-foreground'>
-                ({refreshInterval}秒)
+                ({refreshInterval >= 60 ? `${refreshInterval / 60}分钟` : `${refreshInterval}秒`})
               </span>
             )}
           </div>
@@ -173,7 +210,7 @@ export function Events() {
         )}
       </div>
 
-      <div>
+      <div className='flex flex-col gap-4'>
         {loading ? (
           <div className='space-y-4'>
             <Skeleton className='h-12 w-full' />
@@ -192,7 +229,74 @@ export function Events() {
             </AlertDescription>
           </Alert>
         ) : (
-          <EventsTable data={events} />
+          <>
+            <EventsTable data={events} walletNotes={walletNotes} />
+            {totalCount > 0 && (
+              <div className='flex flex-wrap items-center justify-between gap-4 border-t pt-4'>
+                <div className='flex items-center gap-4'>
+                  <p className='text-sm text-muted-foreground'>
+                    共 {totalCount} 条，第 {currentPage} / {pageCount} 页
+                  </p>
+                  <div className='flex items-center gap-2'>
+                    <span className='text-sm text-muted-foreground'>每页</span>
+                    <Select
+                      value={String(pageSize)}
+                      onValueChange={(v) => setPageSize(Number(v))}
+                    >
+                      <SelectTrigger className='h-8 w-[70px]'>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent side='top'>
+                        {EVENTS_PAGE_SIZE_OPTIONS.map((n) => (
+                          <SelectItem key={n} value={String(n)}>
+                            {n}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <span className='text-sm text-muted-foreground'>条</span>
+                  </div>
+                </div>
+                <div className='flex items-center gap-2'>
+                  <Button
+                    variant='outline'
+                    size='icon'
+                    className='h-8 w-8'
+                    onClick={() => setPage(currentPage - 1)}
+                    disabled={currentPage <= 1}
+                  >
+                    <ChevronLeft className='h-4 w-4 -ml-0.5' />
+                  </Button>
+                  {pageNumbers.map((num, i) =>
+                    num === '...' ? (
+                      <span key={`ellipsis-${i}`} className='px-1 text-sm text-muted-foreground'>
+                        …
+                      </span>
+                    ) : (
+                      <Button
+                        key={num}
+                        variant={currentPage === num ? 'default' : 'outline'}
+                        size='icon'
+                        className='h-8 w-8'
+                        onClick={() => setPage(num as number)}
+                      >
+                        {num}
+                      </Button>
+                    )
+                  )}
+                  <Button
+                    variant='outline'
+                    size='icon'
+                    className='h-8 w-8'
+                    onClick={() => setPage(currentPage + 1)}
+                    disabled={currentPage >= pageCount}
+                  >
+                    <ChevronRight className='h-4 w-4 -mr-0.5' />
+                  </Button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

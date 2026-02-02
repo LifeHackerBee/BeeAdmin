@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useTracker } from './hooks/use-tracker'
 import { useStatistics } from './hooks/use-statistics'
+import { useWallets } from '../monitor/hooks/use-wallets'
 import { TrackerTable } from './components/tracker-table'
 import { TrackerDialog } from './components/tracker-dialog'
 import { StatisticsCards } from './components/statistics-cards'
@@ -17,6 +18,11 @@ import { BeeAdminModules } from '@/lib/rbac'
 export function Tracker() {
   const { tasks, loading, error, refetch, createTask, startTask, stopTask, deleteTask } = useTracker()
   const { refetch: refetchStatistics } = useStatistics()
+  const { wallets } = useWallets()
+  const walletNotes = useMemo(
+    () => Object.fromEntries((wallets || []).map((w) => [w.address, w.note || ''])),
+    [wallets]
+  )
   const [dialogOpen, setDialogOpen] = useState(false)
   const [autoRefresh, setAutoRefresh] = useState(true)
   const refreshInterval = 60 // 默认 60 秒 (1分钟)
@@ -166,6 +172,7 @@ export function Tracker() {
         ) : (
           <TrackerTable 
             data={tasks} 
+            walletNotes={walletNotes}
             onStart={(taskId) => handleTaskAction(() => startTask(taskId))}
             onStop={(taskId) => handleTaskAction(() => stopTask(taskId))}
             onDelete={(taskId) => handleTaskAction(() => deleteTask(taskId))}

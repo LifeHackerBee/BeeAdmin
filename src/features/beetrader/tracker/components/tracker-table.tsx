@@ -26,12 +26,14 @@ import { formatDateTime } from '@/lib/timezone'
 
 interface TrackerTableProps {
   data: MonitorTask[]
+  /** 钱包地址 -> 备注，用于显示在表格中 */
+  walletNotes?: Record<string, string>
   onStart: (taskId: string) => Promise<unknown>
   onStop: (taskId: string) => Promise<unknown>
   onDelete: (taskId: string) => Promise<void>
 }
 
-export function TrackerTable({ data, onStart, onStop, onDelete }: TrackerTableProps) {
+export function TrackerTable({ data, walletNotes = {}, onStart, onStop, onDelete }: TrackerTableProps) {
   const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null)
   const [operatingTaskId, setOperatingTaskId] = useState<string | null>(null)
 
@@ -96,6 +98,7 @@ export function TrackerTable({ data, onStart, onStop, onDelete }: TrackerTablePr
           <TableHeader>
             <TableRow>
               <TableHead>钱包地址</TableHead>
+              <TableHead className='w-[140px]'>备注</TableHead>
               <TableHead>状态</TableHead>
               <TableHead>间隔</TableHead>
               <TableHead>检查次数</TableHead>
@@ -111,6 +114,9 @@ export function TrackerTable({ data, onStart, onStop, onDelete }: TrackerTablePr
               <TableRow key={task.task_id}>
                 <TableCell className='min-w-0'>
                   <WalletAddressCell address={task.wallet_address} />
+                </TableCell>
+                <TableCell className='text-sm text-muted-foreground max-w-[140px] truncate' title={walletNotes[task.wallet_address] || ''}>
+                  {walletNotes[task.wallet_address] || '无备注'}
                 </TableCell>
                 <TableCell>{getStatusBadge(task.status)}</TableCell>
                 <TableCell>{task.interval}s</TableCell>

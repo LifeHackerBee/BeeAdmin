@@ -35,7 +35,13 @@ export interface EventListResponse {
   events: PositionEvent[]
 }
 
-export function useEvents() {
+export type UseEventsOptions = {
+  page?: number
+  pageSize?: number
+}
+
+export function useEvents(options: UseEventsOptions = {}) {
+  const { page = 1, pageSize = 20 } = options
   const [events, setEvents] = useState<PositionEvent[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<Error | null>(null)
@@ -59,13 +65,14 @@ export function useEvents() {
       if (coin) {
         params.append('coin', coin)
       }
-      params.append('limit', '100')
-      params.append('offset', '0')
+      const offset = (page - 1) * pageSize
+      params.append('limit', String(pageSize))
+      params.append('offset', String(offset))
 
       // 注意：URL 末尾必须有斜杠，避免 FastAPI 的 307 重定向
       const result: EventListResponse = await hyperliquidApiGet<EventListResponse>(`/api/events/?${params.toString()}`)
       setEvents(result.events || [])
-      setTotal(result.total || null)
+      setTotal(result.total ?? null)
       return result
     } catch (err) {
       const error = err instanceof Error ? err : new Error('获取事件列表失败')
@@ -75,7 +82,7 @@ export function useEvents() {
     } finally {
       setLoading(false)
     }
-  }, [walletAddress, eventType, coin])
+  }, [walletAddress, eventType, coin, page, pageSize])
 
   useEffect(() => {
     fetchEvents()
@@ -93,5 +100,7 @@ export function useEvents() {
     coin,
     setCoin,
     refetch: fetchEvents,
+    page,
+    pageSize,
   }
 }

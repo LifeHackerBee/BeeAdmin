@@ -13,6 +13,8 @@ import { WalletAddressCell } from '../../components/wallet-address-cell'
 
 interface EventsTableProps {
   data: PositionEvent[]
+  /** 钱包地址 -> 备注，用于显示在事件表格中 */
+  walletNotes?: Record<string, string>
 }
 
 const EVENT_TYPE_MAP: Record<string, { label: string; variant: 'default' | 'destructive' | 'secondary' | 'outline' }> = {
@@ -30,7 +32,7 @@ function formatNumber(value: number | null | undefined, decimals: number = 2): s
   return value.toFixed(decimals)
 }
 
-export function EventsTable({ data }: EventsTableProps) {
+export function EventsTable({ data, walletNotes = {} }: EventsTableProps) {
   if (data.length === 0) {
     return (
       <div className='flex items-center justify-center h-64 text-muted-foreground'>
@@ -46,6 +48,7 @@ export function EventsTable({ data }: EventsTableProps) {
           <TableRow>
             <TableHead className='w-[180px]'>时间</TableHead>
             <TableHead className='w-[200px]'>钱包地址</TableHead>
+            <TableHead className='w-[140px]'>备注</TableHead>
             <TableHead className='w-[100px]'>币种</TableHead>
             <TableHead className='w-[100px]'>事件类型</TableHead>
             <TableHead className='w-[100px]'>方向</TableHead>
@@ -110,6 +113,9 @@ export function EventsTable({ data }: EventsTableProps) {
                   ) : (
                     '-'
                   )}
+                </TableCell>
+                <TableCell className='text-sm text-muted-foreground max-w-[140px] truncate' title={walletNotes[event.wallet_address] || ''}>
+                  {walletNotes[event.wallet_address] || '无备注'}
                 </TableCell>
                 <TableCell className='font-semibold'>{event.coin}</TableCell>
                 <TableCell>
