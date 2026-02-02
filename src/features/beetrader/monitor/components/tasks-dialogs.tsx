@@ -4,11 +4,11 @@ import { TasksImportDialog } from './tasks-import-dialog'
 import { WalletsMutateDrawer } from './tasks-mutate-drawer'
 import { BatchCreateTrackerDialog } from './batch-create-tracker-dialog'
 import { useWallets as useWalletsContext } from './tasks-provider'
-import { useWallets } from '../hooks/use-wallets'
+import { useWalletsData } from '../context/wallets-data-provider'
 
 export function WalletsDialogs() {
   const { open, setOpen, currentRow, setCurrentRow, triggerRefresh } = useWalletsContext()
-  const { deleteWallet, refetch } = useWallets()
+  const { deleteWallet, refetch } = useWalletsData()
 
   const handleDelete = async () => {
     if (!currentRow) return

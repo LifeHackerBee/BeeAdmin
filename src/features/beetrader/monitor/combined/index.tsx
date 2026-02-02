@@ -4,7 +4,7 @@ import { WalletsPrimaryButtons } from '../components/tasks-primary-buttons'
 import { WalletsDialogs } from '../components/tasks-dialogs'
 import { DataTableRowActions } from '../components/data-table-row-actions'
 import { type Row } from '@tanstack/react-table'
-import { useWallets } from '../hooks/use-wallets'
+import { useWalletsData } from '../context/wallets-data-provider'
 import { type Wallet } from '../data/schema'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -66,7 +66,7 @@ interface PositionData {
 const HYPERLIQUID_API_URL = 'https://api.hyperliquid.xyz/info'
 
 function CombinedContent() {
-  const { wallets, loading: walletsLoading, refetch } = useWallets()
+  const { wallets, loading: walletsLoading, refetch } = useWalletsData()
   const { refreshTrigger } = useWalletsContext()
   const [positionsData, setPositionsData] = useState<Record<string, PositionData>>({})
   const [loading, setLoading] = useState(false)

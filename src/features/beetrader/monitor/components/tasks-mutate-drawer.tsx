@@ -33,7 +33,7 @@ import {
 } from '@/components/ui/sheet'
 import { type Wallet, walletTypes as walletTypeEnum } from '../data/schema'
 import { walletTypes } from '../data/data'
-import { useWallets } from '../hooks/use-wallets'
+import { useWalletsData } from '../context/wallets-data-provider'
 import { useWallets as useWalletsContext } from './tasks-provider'
 
 type WalletMutateDrawerProps = {
@@ -56,7 +56,7 @@ export function WalletsMutateDrawer({
   currentRow,
 }: WalletMutateDrawerProps) {
   const isUpdate = !!currentRow
-  const { createWallet, updateWallet, refetch } = useWallets()
+  const { createWallet, updateWallet, refetch } = useWalletsData()
   const { triggerRefresh } = useWalletsContext()
   const [isSubmitting, setIsSubmitting] = useState(false)
 

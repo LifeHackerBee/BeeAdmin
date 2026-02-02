@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { type Wallet } from '../data/schema'
-import { useWallets } from '../hooks/use-wallets'
+import { useWalletsData } from '../context/wallets-data-provider'
 
 type WalletsMultiDeleteDialogProps<TData> = {
   open: boolean
@@ -25,7 +25,7 @@ export function WalletsMultiDeleteDialog<TData>({
   table,
 }: WalletsMultiDeleteDialogProps<TData>) {
   const [value, setValue] = useState('')
-  const { deleteWallets, refetch } = useWallets()
+  const { deleteWallets, refetch } = useWalletsData()
 
   const selectedRows = table.getFilteredSelectedRowModel().rows
 

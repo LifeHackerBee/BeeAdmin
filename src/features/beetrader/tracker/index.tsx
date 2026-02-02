@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useTracker } from './hooks/use-tracker'
 import { useStatistics } from './hooks/use-statistics'
-import { useWallets } from '../monitor/hooks/use-wallets'
+import { useWalletsData } from '../monitor/context/wallets-data-provider'
 import { TrackerTable } from './components/tracker-table'
 import { TrackerDialog } from './components/tracker-dialog'
 import { StatisticsCards } from './components/statistics-cards'
@@ -18,7 +18,7 @@ import { BeeAdminModules } from '@/lib/rbac'
 export function Tracker() {
   const { tasks, loading, error, refetch, createTask, startTask, stopTask, deleteTask } = useTracker()
   const { refetch: refetchStatistics } = useStatistics()
-  const { wallets } = useWallets()
+  const { wallets } = useWalletsData()
   const walletNotes = useMemo(
     () => Object.fromEntries((wallets || []).map((w) => [w.address, w.note || ''])),
     [wallets]

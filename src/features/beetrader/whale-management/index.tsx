@@ -2,6 +2,7 @@ import { useSearch, useNavigate } from '@tanstack/react-router'
 import { CombinedMonitor } from '../monitor/combined'
 import { Tracker } from '../tracker'
 import { Events } from '../events'
+import { WalletsDataProvider } from '../monitor/context/wallets-data-provider'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 export function WhaleManagement() {
@@ -16,6 +17,7 @@ export function WhaleManagement() {
   }
 
   return (
+    <WalletsDataProvider>
     <div className='flex flex-col space-y-4'>
       <div className='flex-shrink-0 border-b pb-4'>
         <h2 className='text-2xl font-semibold'>巨鲸监控中心</h2>
@@ -44,5 +46,6 @@ export function WhaleManagement() {
         </TabsContent>
       </Tabs>
     </div>
+    </WalletsDataProvider>
   )
 }

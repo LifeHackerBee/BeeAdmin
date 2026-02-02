@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useSearch, useNavigate } from '@tanstack/react-router'
 import { useEvents } from './hooks/use-events'
-import { useWallets } from '../monitor/hooks/use-wallets'
+import { useWalletsData } from '../monitor/context/wallets-data-provider'
 import { EventsTable } from './components/events-table'
 import { Button } from '@/components/ui/button'
 import { RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react'
@@ -41,7 +41,7 @@ export function Events() {
     coin,
     setCoin,
   } = useEvents({ page, pageSize })
-  const { wallets } = useWallets()
+  const { wallets } = useWalletsData()
   const walletNotes = useMemo(
     () => Object.fromEntries((wallets || []).map((w) => [w.address, w.note || ''])),
     [wallets]
