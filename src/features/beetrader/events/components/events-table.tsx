@@ -7,9 +7,45 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
+import { Info } from 'lucide-react'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { type PositionEvent } from '../hooks/use-events'
 import { formatDateTime } from '@/lib/timezone'
 import { WalletAddressCell } from '../../components/wallet-address-cell'
+
+/** 带提示图标的表头 */
+function TableHeadWithTooltip({ 
+  children, 
+  tooltip, 
+  className 
+}: { 
+  children: React.ReactNode
+  tooltip: string
+  className?: string 
+}) {
+  return (
+    <TableHead className={className}>
+      <div className='flex items-center gap-1'>
+        {children}
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Info className='h-3.5 w-3.5 text-muted-foreground cursor-help' />
+            </TooltipTrigger>
+            <TooltipContent>
+              <p className='max-w-xs'>{tooltip}</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      </div>
+    </TableHead>
+  )
+}
 
 interface EventsTableProps {
   data: PositionEvent[]
@@ -63,10 +99,10 @@ export function EventsTable({ data, walletNotes = {}, currentPrices = {} }: Even
             <TableHead className='w-[120px]'>持仓大小</TableHead>
             <TableHead className='w-[100px]'>杠杆</TableHead>
             <TableHead className='w-[120px]'>持仓价值</TableHead>
-            <TableHead className='w-[120px]'>入场价格</TableHead>
-            <TableHead className='w-[120px]' title='仓位异动发生时的市场价格'>买入/卖出价</TableHead>
-            <TableHead className='w-[120px]' title='实时市场价格（每5秒刷新）'>实时价格</TableHead>
-            <TableHead className='w-[100px]' title='当前价格相对买入/卖出价的涨跌幅'>涨跌幅</TableHead>
+            <TableHead className='w-[120px]'>开仓价格</TableHead>
+            <TableHeadWithTooltip className='w-[120px]' tooltip='仓位异动发生时的市场价格'>买入/卖出价</TableHeadWithTooltip>
+            <TableHeadWithTooltip className='w-[120px]' tooltip='实时市场价格（每5秒刷新）'>实时价格</TableHeadWithTooltip>
+            <TableHeadWithTooltip className='w-[100px]' tooltip='实时价格相对买入/卖出价的涨跌幅'>涨跌幅</TableHeadWithTooltip>
           </TableRow>
         </TableHeader>
         <TableBody>
