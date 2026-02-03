@@ -22,6 +22,7 @@ export interface PositionEvent {
   now_liquidation_px?: number | null
   szi_change?: number | null
   position_value_change?: number | null
+  mark_price?: number | null  // 事件发生时的市场价格
   event_time_ms?: number | null
   event_time?: string | null
   created_at: string

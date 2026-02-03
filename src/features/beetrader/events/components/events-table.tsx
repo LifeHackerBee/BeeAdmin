@@ -15,6 +15,8 @@ interface EventsTableProps {
   data: PositionEvent[]
   /** 钱包地址 -> 备注，用于显示在事件表格中 */
   walletNotes?: Record<string, string>
+  /** 当前市场价格 (coin -> price)，价格可能是字符串或数字 */
+  currentPrices?: Record<string, number | string>
 }
 
 const EVENT_TYPE_MAP: Record<string, { label: string; variant: 'default' | 'destructive' | 'secondary' | 'outline' }> = {
@@ -25,14 +27,19 @@ const EVENT_TYPE_MAP: Record<string, { label: string; variant: 'default' | 'dest
   FLIP: { label: '翻转', variant: 'destructive' },
 }
 
-function formatNumber(value: number | null | undefined, decimals: number = 2): string {
+function formatNumber(value: number | string | null | undefined, decimals: number = 2): string {
   if (value === null || value === undefined) {
     return '-'
   }
-  return value.toFixed(decimals)
+  // 确保转换为数字
+  const num = typeof value === 'string' ? parseFloat(value) : value
+  if (isNaN(num)) {
+    return '-'
+  }
+  return num.toFixed(decimals)
 }
 
-export function EventsTable({ data, walletNotes = {} }: EventsTableProps) {
+export function EventsTable({ data, walletNotes = {}, currentPrices = {} }: EventsTableProps) {
   if (data.length === 0) {
     return (
       <div className='flex items-center justify-center h-64 text-muted-foreground'>
@@ -57,6 +64,9 @@ export function EventsTable({ data, walletNotes = {} }: EventsTableProps) {
             <TableHead className='w-[100px]'>杠杆</TableHead>
             <TableHead className='w-[120px]'>持仓价值</TableHead>
             <TableHead className='w-[120px]'>入场价格</TableHead>
+            <TableHead className='w-[120px]'>事件时价格</TableHead>
+            <TableHead className='w-[120px]'>当前价格</TableHead>
+            <TableHead className='w-[100px]'>价格变化</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -149,6 +159,39 @@ export function EventsTable({ data, walletNotes = {} }: EventsTableProps) {
                 </TableCell>
                 <TableCell className='font-mono text-xs'>
                   {event.now_entry_px ? `$${formatNumber(event.now_entry_px, 4)}` : '-'}
+                </TableCell>
+                <TableCell className='font-mono text-xs'>
+                  {event.mark_price ? `$${formatNumber(event.mark_price, 4)}` : '-'}
+                </TableCell>
+                <TableCell className='font-mono text-xs'>
+                  {(() => {
+                    const currentPrice = currentPrices[event.coin]
+                    return currentPrice ? `$${formatNumber(currentPrice, 4)}` : '-'
+                  })()}
+                </TableCell>
+                <TableCell className='font-mono text-xs'>
+                  {(() => {
+                    const currentPriceRaw = currentPrices[event.coin]
+                    const markPriceRaw = event.mark_price
+                    
+                    if (!currentPriceRaw || !markPriceRaw) return '-'
+                    
+                    // 确保转换为数字
+                    const currentPrice = typeof currentPriceRaw === 'string' ? parseFloat(currentPriceRaw) : currentPriceRaw
+                    const markPrice = typeof markPriceRaw === 'string' ? parseFloat(markPriceRaw) : markPriceRaw
+                    
+                    if (isNaN(currentPrice) || isNaN(markPrice) || markPrice === 0) return '-'
+                    
+                    const change = currentPrice - markPrice
+                    const changePct = (change / markPrice) * 100
+                    const isPositive = change > 0
+                    
+                    return (
+                      <span className={isPositive ? 'text-green-600' : 'text-red-600'}>
+                        {isPositive ? '+' : ''}{changePct.toFixed(2)}%
+                      </span>
+                    )
+                  })()}
                 </TableCell>
               </TableRow>
             )

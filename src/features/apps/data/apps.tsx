@@ -1,4 +1,4 @@
-import { ScanLine } from 'lucide-react'
+import { ScanLine, Link2 } from 'lucide-react'
 
 export type AppCategory = 'tool' | 'all'
 
@@ -23,5 +23,15 @@ export const apps: App[] = [
     rating: 4.9,
     users: '1万+',
     route: '/apps/crawler',
+  },
+  {
+    name: 'Subconvertor 转换',
+    logo: <Link2 className="h-6 w-6" />,
+    connected: true,
+    desc: '订阅链接 URL 编码并拼接到转换服务，生成 Clash/Surge 等客户端链接与 wget 命令',
+    category: 'tool',
+    rating: 4.8,
+    users: '1万+',
+    route: '/apps/subconvertor',
   },
 ]

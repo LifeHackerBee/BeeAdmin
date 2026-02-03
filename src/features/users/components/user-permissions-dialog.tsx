@@ -49,6 +49,7 @@ const AVAILABLE_MODULES = [
   { value: BeeAdminModules.TASKS, label: 'Tasks', description: '任务管理' },
   { value: BeeAdminModules.APPS, label: 'Apps', description: '应用中心' },
   { value: BeeAdminModules.CRAWLER, label: 'Crawler', description: '爬虫模块' },
+  { value: BeeAdminModules.SUBCONVERTOR, label: 'Subconvertor', description: '订阅链接转换' },
   { value: BeeAdminModules.USERS, label: 'Users', description: '用户管理' },
 ]
 

@@ -42,6 +42,7 @@ export const BeeAdminModules = {
   TASKS: 'tasks',
   APPS: 'apps',
   CRAWLER: 'crawler',
+  SUBCONVERTOR: 'subconvertor',
   USERS: 'users',
   SETTINGS: 'settings',
   HELP_CENTER: 'help-center',

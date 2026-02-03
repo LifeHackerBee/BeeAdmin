@@ -20,6 +20,7 @@ import {
   Target,
   DollarSign,
   ScanLine,
+  Link2,
   Activity,
 } from 'lucide-react'
 import { type SidebarData } from '../types'
@@ -52,6 +53,11 @@ export const sidebarData: SidebarData = {
               title: 'Crawl4AI 爬虫',
               url: '/apps/crawler',
               icon: ScanLine,
+            },
+            {
+              title: 'Subconvertor 转换',
+              url: '/apps/subconvertor',
+              icon: Link2,
             },
           ],
         },

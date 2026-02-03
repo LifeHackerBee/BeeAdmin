@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useSearch, useNavigate } from '@tanstack/react-router'
 import { useEvents } from './hooks/use-events'
 import { useWalletsData } from '../monitor/context/wallets-data-provider'
+import { useMarketPrices } from '../macroscopic/hooks/use-market-prices'
 import { EventsTable } from './components/events-table'
 import { Button } from '@/components/ui/button'
 import { RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react'
@@ -46,6 +47,9 @@ export function Events() {
     () => Object.fromEntries((wallets || []).map((w) => [w.address, w.note || ''])),
     [wallets]
   )
+  
+  // 获取当前市场价格（每 5 秒刷新一次）
+  const { prices: currentPrices, refetch: refetchPrices } = useMarketPrices(5000)
   const [autoRefresh, setAutoRefresh] = useState(true)
   const refreshInterval = 60 // 默认 1 分钟
   const [isRefreshing, setIsRefreshing] = useState(false)
@@ -60,11 +64,13 @@ export function Events() {
 
     isRefreshingRef.current = true
     setIsRefreshing(true)
-    refetch().finally(() => {
+    
+    // 同时刷新事件和价格
+    Promise.all([refetch(), refetchPrices()]).finally(() => {
       isRefreshingRef.current = false
       setIsRefreshing(false)
     })
-  }, [refetch])
+  }, [refetch, refetchPrices])
 
   // 自动刷新逻辑
   useEffect(() => {
@@ -230,7 +236,7 @@ export function Events() {
           </Alert>
         ) : (
           <>
-            <EventsTable data={events} walletNotes={walletNotes} />
+            <EventsTable data={events} walletNotes={walletNotes} currentPrices={currentPrices} />
             {totalCount > 0 && (
               <div className='flex flex-wrap items-center justify-between gap-4 border-t pt-4'>
                 <div className='flex items-center gap-4'>
