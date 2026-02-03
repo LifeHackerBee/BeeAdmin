@@ -65,7 +65,7 @@ export function EventsTable({ data, walletNotes = {}, currentPrices = {} }: Even
             <TableHead className='w-[120px]'>持仓价值</TableHead>
             <TableHead className='w-[120px]'>入场价格</TableHead>
             <TableHead className='w-[120px]' title='仓位异动发生时的市场价格'>买入/卖出价</TableHead>
-            <TableHead className='w-[120px]' title='当前实时市场价格（每5秒刷新）'>当前价格</TableHead>
+            <TableHead className='w-[120px]' title='实时市场价格（每5秒刷新）'>实时价格</TableHead>
             <TableHead className='w-[100px]' title='当前价格相对买入/卖出价的涨跌幅'>涨跌幅</TableHead>
           </TableRow>
         </TableHeader>
