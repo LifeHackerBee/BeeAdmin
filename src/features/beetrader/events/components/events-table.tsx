@@ -150,8 +150,16 @@ export function EventsTable({ data, walletNotes = {}, currentPrices = {} }: Even
               return '无'
             }
 
+            // 判断是否需要高亮：开仓事件 或 杠杆 >= 20x
+            const isOpenEvent = event.event_type === 'OPEN'
+            const isHighLeverage = event.now_leverage && event.now_leverage >= 20
+            const shouldHighlight = isOpenEvent || isHighLeverage
+
             return (
-              <TableRow key={event.id}>
+              <TableRow 
+                key={event.id}
+                className={shouldHighlight ? 'bg-yellow-50 dark:bg-yellow-950/30 hover:bg-yellow-100 dark:hover:bg-yellow-950/50' : ''}
+              >
                 <TableCell className='font-mono text-xs'>{timeDisplay}</TableCell>
                 <TableCell className='font-mono text-xs min-w-0'>
                   {event.wallet_address ? (
