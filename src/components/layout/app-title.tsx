@@ -8,12 +8,10 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar'
 import { Button } from '../ui/button'
-import { useTheme } from '@/context/theme-provider'
 
 export function AppTitle() {
   const { setOpenMobile } = useSidebar()
-  const { resolvedTheme } = useTheme()
-  const faviconPath = resolvedTheme === 'dark' ? '/images/favicon_light.svg' : '/images/favicon.svg'
+  const logoPath = '/images/favicon.png'
 
   return (
     <SidebarMenu>
@@ -30,7 +28,7 @@ export function AppTitle() {
               className='flex items-center gap-2 flex-1 text-start'
             >
               <img
-                src={faviconPath}
+                src={logoPath}
                 alt='BeeAdmin Logo'
                 className='size-6 flex-shrink-0'
               />
