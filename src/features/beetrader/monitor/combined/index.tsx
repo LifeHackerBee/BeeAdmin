@@ -8,7 +8,7 @@ import { useWalletsData } from '../context/wallets-data-provider'
 import { type Wallet } from '../data/schema'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { AlertCircle, RefreshCw, TrendingUp, TrendingDown, ChevronDown, ChevronRight } from 'lucide-react'
+import { AlertCircle, RefreshCw, TrendingUp, TrendingDown, ChevronDown, ChevronRight, LineChart as LineChartIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
@@ -23,6 +23,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { EquityCurveDialog, type EquityPoint } from './equity-curve-dialog'
+import { EquitySparkline } from './equity-sparkline'
 
 interface PositionData {
   address: string
@@ -63,15 +65,23 @@ interface PositionData {
   error?: string
 }
 
+export type EquityHistory = {
+  day: EquityPoint[]
+  threeDay: EquityPoint[]
+}
+
 const HYPERLIQUID_API_URL = 'https://api.hyperliquid.xyz/info'
+const THREE_DAY_MS = 3 * 24 * 60 * 60 * 1000
 
 function CombinedContent() {
   const { wallets, loading: walletsLoading, refetch } = useWalletsData()
   const { refreshTrigger } = useWalletsContext()
   const [positionsData, setPositionsData] = useState<Record<string, PositionData>>({})
+  const [equityHistory, setEquityHistory] = useState<Record<string, EquityHistory>>({})
   const [loading, setLoading] = useState(false)
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null)
   const [expandedWallets, setExpandedWallets] = useState<Set<string>>(new Set())
+  const [curveDialogAddress, setCurveDialogAddress] = useState<string | null>(null)
 
   // 当 refreshTrigger 变化时，重新获取钱包列表
   // 注意：钱包列表的更新会通过 walletAddresses 的变化自动触发持仓数据刷新
@@ -208,24 +218,54 @@ function CombinedContent() {
     }
   }
 
+  const fetchPortfolio = async (address: string): Promise<EquityHistory | null> => {
+    try {
+      const response = await fetch(HYPERLIQUID_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'portfolio', user: address }),
+      })
+      if (!response.ok) return null
+      const raw: Array<[string, { accountValueHistory?: [number, number][] }]> = await response.json()
+      const byFrame: Record<string, [number, number][]> = {}
+      for (const item of raw) {
+        const [key, data] = item
+        if (data?.accountValueHistory?.length) byFrame[key] = data.accountValueHistory
+      }
+      const day = (byFrame.day || []).map(([t, v]) => ({ t, v }))
+      const week = (byFrame.week || []).map(([t, v]) => ({ t, v }))
+      const now = Date.now()
+      const threeDay = week.filter((p) => now - p.t <= THREE_DAY_MS)
+      return { day, threeDay: threeDay.length > 0 ? threeDay : week }
+    } catch (e) {
+      console.error(`Error fetching portfolio for ${address}:`, e)
+      return null
+    }
+  }
+
   const refreshAllPositions = async () => {
     if (wallets.length === 0) {
       setPositionsData({})
+      setEquityHistory({})
       return
     }
     
     setLoading(true)
     const newPositionsData: Record<string, PositionData> = {}
+    const newEquityHistory: Record<string, EquityHistory> = {}
     
     const promises = wallets.map(async (wallet) => {
-      const data = await fetchWalletPositions(wallet.address)
-      if (data) {
-        newPositionsData[wallet.address] = data
-      }
+      const [positionData, portfolioData] = await Promise.all([
+        fetchWalletPositions(wallet.address),
+        fetchPortfolio(wallet.address),
+      ])
+      if (positionData) newPositionsData[wallet.address] = positionData
+      if (portfolioData) newEquityHistory[wallet.address] = portfolioData
     })
 
     await Promise.all(promises)
     setPositionsData(newPositionsData)
+    setEquityHistory(newEquityHistory)
     setLastRefresh(new Date())
     setLoading(false)
     // 只在手动刷新时显示提示，自动刷新时不显示
@@ -318,7 +358,9 @@ function CombinedContent() {
                     <TableHead className='sticky left-0 bg-background z-10'>钱包地址</TableHead>
                     <TableHead>备注</TableHead>
                     <TableHead>类型</TableHead>
-                    <TableHead className='text-right'>账户价值</TableHead>
+                    <TableHead className='text-right'>当前 Equity</TableHead>
+                    <TableHead className='text-right'>24h 趋势</TableHead>
+                    <TableHead className='text-right'>3天 趋势</TableHead>
                     <TableHead className='text-right'>总持仓价值</TableHead>
                     <TableHead className='text-right'>持仓占比</TableHead>
                     <TableHead className='text-right'>总保证金</TableHead>
@@ -328,6 +370,7 @@ function CombinedContent() {
                     <TableHead className='text-right'>持仓数量</TableHead>
                     <TableHead className='text-right'>多/空</TableHead>
                     <TableHead className='text-right'>更新时间</TableHead>
+                    <TableHead className='w-[80px]'>曲线</TableHead>
                     <TableHead className='w-[100px]'>操作</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -397,6 +440,42 @@ function CombinedContent() {
                             )}
                           </TableCell>
                           <TableCell className='text-right'>
+                            {(() => {
+                              const hist = equityHistory[wallet.address]
+                              if (!hist?.day?.length) return '-'
+                              const start = hist.day[0].v
+                              const end = accountValue
+                              const delta = end - start
+                              const pct = start > 0 ? (delta / start) * 100 : 0
+                              return (
+                                <div className='flex flex-col items-end gap-0.5'>
+                                  <div className={`text-xs font-medium ${delta >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                    {delta >= 0 ? '+' : ''}{formatCurrency(delta)} ({delta >= 0 ? '+' : ''}{formatNumber(pct)}%)
+                                  </div>
+                                  <EquitySparkline data={hist.day} positive={delta >= 0} />
+                                </div>
+                              )
+                            })()}
+                          </TableCell>
+                          <TableCell className='text-right'>
+                            {(() => {
+                              const hist = equityHistory[wallet.address]
+                              if (!hist?.threeDay?.length) return '-'
+                              const start = hist.threeDay[0].v
+                              const end = accountValue
+                              const delta = end - start
+                              const pct = start > 0 ? (delta / start) * 100 : 0
+                              return (
+                                <div className='flex flex-col items-end gap-0.5'>
+                                  <div className={`text-xs font-medium ${delta >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                    {delta >= 0 ? '+' : ''}{formatCurrency(delta)} ({delta >= 0 ? '+' : ''}{formatNumber(pct)}%)
+                                  </div>
+                                  <EquitySparkline data={hist.threeDay} positive={delta >= 0} />
+                                </div>
+                              )
+                            })()}
+                          </TableCell>
+                          <TableCell className='text-right'>
                             {totalPositionValue > 0 ? formatCurrency(totalPositionValue) : '-'}
                           </TableCell>
                           <TableCell className='text-right'>
@@ -456,13 +535,28 @@ function CombinedContent() {
                               : '-'}
                           </TableCell>
                           <TableCell onClick={(e) => e.stopPropagation()}>
+                            {equityHistory[wallet.address] ? (
+                              <Button
+                                variant='ghost'
+                                size='sm'
+                                className='h-8 gap-1'
+                                onClick={() => setCurveDialogAddress(wallet.address)}
+                              >
+                                <LineChartIcon className='h-4 w-4' />
+                                曲线
+                              </Button>
+                            ) : (
+                              '-'
+                            )}
+                          </TableCell>
+                          <TableCell onClick={(e) => e.stopPropagation()}>
                             <DataTableRowActions row={{ original: wallet } as Row<Wallet>} />
                           </TableCell>
                         </TableRow>
                         {/* 展开的持仓明细 */}
                         {isExpanded && positionData && positionData.positions.length > 0 && (
                           <TableRow>
-                            <TableCell colSpan={15} className='p-0'>
+                            <TableCell colSpan={18} className='p-0'>
                               <div className='p-4 bg-muted/30'>
                                 <div className='text-sm font-semibold mb-3'>持仓明细（按仓位占比排序）</div>
                                 <div className='rounded-md border overflow-x-auto'>
@@ -602,6 +696,20 @@ function CombinedContent() {
           )}
         </div>
         <WalletsDialogs />
+        {curveDialogAddress && (
+          <EquityCurveDialog
+            open={!!curveDialogAddress}
+            onOpenChange={(open) => !open && setCurveDialogAddress(null)}
+            address={curveDialogAddress}
+            currentEquity={
+              positionsData[curveDialogAddress]?.marginSummary
+                ? parseFloat(positionsData[curveDialogAddress].marginSummary!.accountValue)
+                : 0
+            }
+            day={equityHistory[curveDialogAddress]?.day ?? []}
+            threeDay={equityHistory[curveDialogAddress]?.threeDay ?? []}
+          />
+        )}
       </div>
     </WalletsProvider>
   )
