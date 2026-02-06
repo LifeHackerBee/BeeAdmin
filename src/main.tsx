@@ -7,6 +7,7 @@ import {
   QueryClientProvider,
 } from '@tanstack/react-query'
 import { RouterProvider, createRouter } from '@tanstack/react-router'
+import { Analytics } from '@vercel/analytics/react'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
 import { handleServerError } from '@/lib/handle-server-error'
@@ -126,6 +127,7 @@ if (!rootElement.innerHTML) {
             <FontProvider>
               <DirectionProvider>
                 <App />
+                <Analytics />
               </DirectionProvider>
             </FontProvider>
           </ThemeProvider>
