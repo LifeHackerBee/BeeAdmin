@@ -58,6 +58,8 @@ export type WalletLiveData = {
   portfolio: PortfolioResponse | null
   clearinghouse: ClearinghouseState | null
   fills: UserFill[]
+  /** 未聚合的成交，用于准确计算「最近 N 笔胜率」（与后端 analyzer 一致） */
+  winRateFills?: UserFill[]
 }
 
 async function postInfo<T>(body: object): Promise<T> {
@@ -92,15 +94,25 @@ export function useWalletLive() {
     }
     setError(null)
     try {
-      const [portfolio, clearinghouse, fills] = await Promise.all([
+      const endTime = Date.now()
+      const startTime = endTime - 30 * 24 * 60 * 60 * 1000
+      const [portfolio, clearinghouse, fills, winRateFills] = await Promise.all([
         postInfo<PortfolioResponse>({ type: 'portfolio', user: addr }),
         postInfo<ClearinghouseState>({ type: 'clearinghouseState', user: addr }),
         postInfo<UserFill[]>({ type: 'userFills', user: addr, aggregateByTime: true }),
+        postInfo<UserFill[]>({
+          type: 'userFillsByTime',
+          user: addr,
+          startTime,
+          endTime,
+          aggregateByTime: false,
+        }),
       ])
       setData({
         portfolio: Array.isArray(portfolio) ? portfolio : null,
         clearinghouse: clearinghouse ?? null,
         fills: Array.isArray(fills) ? fills : [],
+        winRateFills: Array.isArray(winRateFills) ? winRateFills : [],
       })
     } catch (err) {
       setError(err instanceof Error ? err : new Error('获取实时数据失败'))

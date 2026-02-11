@@ -129,6 +129,76 @@ function BalanceChart({ data }: { data: WalletLiveData }) {
   )
 }
 
+const RECENT_WIN_RATE_TRADES = 200
+
+/**
+ * 从成交记录计算最近 N 笔平仓胜率（与后端 analyzer 一致）
+ * - 只统计 closedPnl !== 0 的成交（有已实现盈亏的平仓）
+ * - 按时间升序后取最后 N 笔 = 时间上最近的 N 笔
+ */
+function getRecentWinRate(fills: UserFill[], recentN: number = RECENT_WIN_RATE_TRADES) {
+  const withPnl = fills
+    .filter((f) => parseFloat(f.closedPnl ?? '0') !== 0)
+    .map((f) => ({ time: f.time ?? 0, pnl: parseFloat(f.closedPnl ?? '0') }))
+  const sorted = [...withPnl].sort((a, b) => a.time - b.time)
+  const recent = sorted.slice(-recentN)
+  if (recent.length === 0) return null
+  const wins = recent.filter((r) => r.pnl > 0).length
+  const losses = recent.length - wins
+  return {
+    recentTrades: recent.length,
+    winRate: Math.round((wins / recent.length) * 10000) / 100,
+    winCount: wins,
+    lossCount: losses,
+  }
+}
+
+function RecentWinRateModule({ fills }: { fills: UserFill[] }) {
+  const stat = getRecentWinRate(fills)
+  return (
+    <Card id="analyzer-recent-win-rate" className="overflow-hidden">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base flex items-center gap-2">
+          <span className="rounded-md bg-amber-100 dark:bg-amber-900/40 px-1.5 py-0.5 text-amber-700 dark:text-amber-300 font-medium">
+            胜率统计
+          </span>
+        </CardTitle>
+        <CardDescription>
+          按时间取最近 {RECENT_WIN_RATE_TRADES} 条有已实现盈亏的成交，胜率 = 盈利笔数 ÷ 总笔数
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="pt-0">
+        {stat ? (
+          <div className="flex flex-wrap items-end gap-6">
+            <div className="flex items-baseline gap-2">
+              <span
+                className={`text-3xl font-bold tabular-nums ${
+                  stat.winRate >= 50 ? 'text-green-600 dark:text-green-500' : 'text-red-600 dark:text-red-500'
+                }`}
+              >
+                {stat.winRate}%
+              </span>
+              <span className="text-sm text-muted-foreground">最近 {stat.recentTrades} 笔</span>
+            </div>
+            <div className="flex items-center gap-4 text-sm">
+              <span className="flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-green-500" />
+                胜 {stat.winCount}
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-red-500" />
+                负 {stat.lossCount}
+              </span>
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">暂无平仓数据</p>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
 function PnLCards({ data }: { data: WalletLiveData }) {
   const raw = data.clearinghouse
   const ch: ClearinghouseStateInner | null | undefined = raw
@@ -584,7 +654,7 @@ export function WalletLiveQuery() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-[200px_1fr] gap-6">
-            <div className="order-2 lg:order-1">
+            <div className="order-2 lg:order-1 flex flex-col gap-3">
               <PnLCards data={data} />
             </div>
             <div className="order-1 lg:order-2 space-y-4">
@@ -592,6 +662,8 @@ export function WalletLiveQuery() {
               <SummaryDonuts data={data} />
             </div>
           </div>
+
+          <RecentWinRateModule fills={data.winRateFills?.length ? data.winRateFills : data.fills} />
 
           <PositionsTable data={data} />
           <FillsTable fills={data.fills} />

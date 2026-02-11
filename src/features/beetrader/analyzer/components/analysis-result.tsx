@@ -142,6 +142,33 @@ export function AnalysisResult({ data }: { data: AnalyzeResponse }) {
                 {key_metrics.leverage != null ? `${key_metrics.leverage.toFixed(2)}x` : 'N/A'}
               </div>
             </div>
+            {/* 最近 N 笔胜率 - 高亮便于在 /beetrader/analyzer 页面快速找到 */}
+            <div
+              id='analyzer-recent-win-rate'
+              className='space-y-1 min-w-0 rounded-lg border-2 border-amber-400 bg-amber-50/80 dark:bg-amber-950/30 dark:border-amber-500 px-3 py-2'
+            >
+              <div className='text-sm text-muted-foreground font-medium'>
+                最近 {key_metrics.recent_trades ?? '—'} 笔胜率
+              </div>
+              <div className='flex flex-wrap items-baseline gap-2'>
+                {key_metrics.recent_trades != null && key_metrics.recent_trades > 0 ? (
+                  <>
+                    <span
+                      className={`text-xl sm:text-2xl font-bold ${
+                        (key_metrics.recent_win_rate ?? 0) >= 50 ? 'text-green-500' : 'text-red-500'
+                      }`}
+                    >
+                      {key_metrics.recent_win_rate != null ? `${key_metrics.recent_win_rate}%` : 'N/A'}
+                    </span>
+                    <span className='text-sm text-muted-foreground'>
+                      （胜 {key_metrics.recent_win_count ?? 0} / 负 {key_metrics.recent_loss_count ?? 0}）
+                    </span>
+                  </>
+                ) : (
+                  <span className='text-muted-foreground'>暂无平仓数据</span>
+                )}
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>

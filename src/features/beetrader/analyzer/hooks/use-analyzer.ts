@@ -13,6 +13,11 @@ export interface AnalysisData {
     total_pnl: number | null
     maker_ratio: number | null
     leverage: number | null
+    /** 最近 N 笔平仓单胜率（%） */
+    recent_win_rate?: number | null
+    recent_win_count?: number | null
+    recent_loss_count?: number | null
+    recent_trades?: number | null
   }
   data_quality: {
     has_portfolio: boolean
