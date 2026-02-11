@@ -86,6 +86,11 @@ export const sidebarData: SidebarData = {
               icon: Activity,
             },
             {
+              title: 'Trader 分析',
+              url: '/beetrader/analyzer',
+              icon: ScanLine,
+            },
+            {
               title: '巨鲸监控中心',
               url: '/beetrader/whale-wallet-manage',
               icon: Eye,
@@ -109,11 +114,6 @@ export const sidebarData: SidebarData = {
               title: '回测模块',
               url: '/beetrader/backtest',
               icon: BarChart3,
-            },
-            {
-              title: 'Trader 分析',
-              url: '/beetrader/analyzer',
-              icon: ScanLine,
             },
           ],
         },
