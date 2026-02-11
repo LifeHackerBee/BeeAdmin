@@ -1,13 +1,16 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { type Wallet } from '../data/schema'
+
+const VISIBILITY_REFETCH_DEBOUNCE_MS = 15_000
 
 export function useWallets() {
   const [wallets, setWallets] = useState<Wallet[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
+  const lastVisibilityRefetchAt = useRef<number>(0)
 
-  const fetchWallets = async () => {
+  const fetchWallets = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
@@ -39,11 +42,23 @@ export function useWallets() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
     fetchWallets()
-  }, [])
+  }, [fetchWallets])
+
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return
+      const now = Date.now()
+      if (now - lastVisibilityRefetchAt.current < VISIBILITY_REFETCH_DEBOUNCE_MS) return
+      lastVisibilityRefetchAt.current = now
+      void fetchWallets()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [fetchWallets])
 
   const createWallet = async (wallet: { address: string; note?: string; type?: Wallet['type']; volume?: number | null }) => {
     try {

@@ -5,6 +5,7 @@
 
 import { useState, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
+import { useAuthStore } from '@/stores/auth-store'
 
 export interface UserProfile {
   id: string
@@ -80,6 +81,8 @@ export function useUserProfiles() {
       })
 
       if (error) throw error
+      const currentUserId = useAuthStore.getState().user?.id
+      if (currentUserId === userId) await useAuthStore.getState().refreshProfile()
     } catch (err) {
       const error = err instanceof Error ? err : new Error('更新用户角色失败')
       setError(error)
@@ -103,6 +106,8 @@ export function useUserProfiles() {
       })
 
       if (error) throw error
+      const currentUserId = useAuthStore.getState().user?.id
+      if (currentUserId === userId) await useAuthStore.getState().refreshProfile()
     } catch (err) {
       const error = err instanceof Error ? err : new Error('更新用户模块权限失败')
       setError(error)
@@ -126,6 +131,8 @@ export function useUserProfiles() {
         .eq('id', userId)
 
       if (error) throw error
+      const currentUserId = useAuthStore.getState().user?.id
+      if (currentUserId === userId) await useAuthStore.getState().refreshProfile()
     } catch (err) {
       const error = err instanceof Error ? err : new Error('更新用户状态失败')
       setError(error)
@@ -150,6 +157,8 @@ export function useUserProfiles() {
           .eq('id', userId)
 
         if (error) throw error
+        const currentUserId = useAuthStore.getState().user?.id
+        if (currentUserId === userId) await useAuthStore.getState().refreshProfile()
       } catch (err) {
         const error = err instanceof Error ? err : new Error('更新用户信息失败')
         setError(error)

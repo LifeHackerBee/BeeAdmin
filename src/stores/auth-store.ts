@@ -24,6 +24,8 @@ interface AuthState {
   setSession: (session: Session | null) => void
   setLoading: (loading: boolean) => void
   initialize: () => Promise<void>
+  /** 重新从 profiles 拉取当前用户权限/模块等，权限变更后调用可避免刷新页面 */
+  refreshProfile: () => Promise<void>
   signOut: () => Promise<void>
   reset: () => void
 }
@@ -187,7 +189,28 @@ export const useAuthStore = create<AuthState>()((set) => ({
       set({ loading: false })
     }
   },
-  
+
+  refreshProfile: async () => {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.user) return
+    const profile = await fetchUserProfile(session.user.id)
+    const state = useAuthStore.getState()
+    const existingUser = state.user
+    if (!existingUser || existingUser.id !== session.user.id) return
+    const user: AuthUser = {
+      ...existingUser,
+      name: profile?.name ?? existingUser.name,
+      avatar: profile?.avatar ?? existingUser.avatar,
+      role: profile?.role ?? existingUser.role,
+      customPermissions: profile?.customPermissions ?? existingUser.customPermissions,
+      allowedModules: profile?.allowedModules ?? existingUser.allowedModules,
+      isActive: profile?.isActive ?? existingUser.isActive,
+      isVerified: profile?.isVerified ?? existingUser.isVerified,
+      bio: profile?.bio ?? existingUser.bio,
+    }
+    set({ user })
+  },
+
   signOut: async () => {
     try {
       set({ user: null, session: null })
