@@ -7,14 +7,20 @@ const VISIBILITY_REFETCH_DEBOUNCE_MS = 15_000
 export function useWallets() {
   const [wallets, setWallets] = useState<Wallet[]>([])
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<Error | null>(null)
   const lastVisibilityRefetchAt = useRef<number>(0)
 
-  const fetchWallets = useCallback(async () => {
+  const fetchWallets = useCallback(async (options?: { backgroundRefresh?: boolean }) => {
+    const isBackgroundRefresh = options?.backgroundRefresh === true
     try {
-      setLoading(true)
+      if (isBackgroundRefresh) {
+        setRefreshing(true)
+      } else {
+        setLoading(true)
+      }
       setError(null)
-      
+
       const { data, error: fetchError } = await supabase
         .from('wallets')
         .select('*')
@@ -41,6 +47,7 @@ export function useWallets() {
       console.error('Error fetching wallets:', err)
     } finally {
       setLoading(false)
+      setRefreshing(false)
     }
   }, [])
 
@@ -54,7 +61,7 @@ export function useWallets() {
       const now = Date.now()
       if (now - lastVisibilityRefetchAt.current < VISIBILITY_REFETCH_DEBOUNCE_MS) return
       lastVisibilityRefetchAt.current = now
-      void fetchWallets()
+      void fetchWallets({ backgroundRefresh: true })
     }
     document.addEventListener('visibilitychange', onVisible)
     return () => document.removeEventListener('visibilitychange', onVisible)
@@ -96,8 +103,8 @@ export function useWallets() {
         throw createError
       }
 
-      // 刷新列表
-      await fetchWallets()
+      // 刷新列表（后台刷新，不闪骨架屏）
+      await fetchWallets({ backgroundRefresh: true })
       return data
     } catch (err) {
       const error = err instanceof Error ? err : new Error('创建钱包失败')
@@ -121,8 +128,7 @@ export function useWallets() {
         throw updateError
       }
 
-      // 刷新列表
-      await fetchWallets()
+      await fetchWallets({ backgroundRefresh: true })
     } catch (err) {
       const error = err instanceof Error ? err : new Error('更新钱包失败')
       console.error('Error updating wallet:', err)
@@ -141,8 +147,7 @@ export function useWallets() {
         throw deleteError
       }
 
-      // 刷新列表
-      await fetchWallets()
+      await fetchWallets({ backgroundRefresh: true })
     } catch (err) {
       const error = err instanceof Error ? err : new Error('删除钱包失败')
       console.error('Error deleting wallet:', err)
@@ -161,8 +166,7 @@ export function useWallets() {
         throw deleteError
       }
 
-      // 刷新列表
-      await fetchWallets()
+      await fetchWallets({ backgroundRefresh: true })
     } catch (err) {
       const error = err instanceof Error ? err : new Error('批量删除钱包失败')
       console.error('Error deleting wallets:', err)
@@ -173,6 +177,7 @@ export function useWallets() {
   return {
     wallets,
     loading,
+    refreshing,
     error,
     refetch: fetchWallets,
     createWallet,

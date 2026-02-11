@@ -75,9 +75,10 @@ export type EquityHistory = {
 const HYPERLIQUID_API_URL = 'https://api.hyperliquid.xyz/info'
 const THREE_DAY_MS = 3 * 24 * 60 * 60 * 1000
 const VISIBILITY_REFETCH_DEBOUNCE_MS = 15_000
+const AUTO_REFRESH_INTERVAL_MS = 15_000
 
 function CombinedContent() {
-  const { wallets, loading: walletsLoading, refetch } = useWalletsData()
+  const { wallets, loading: walletsLoading, refreshing: walletsRefreshing, refetch } = useWalletsData()
   const { refreshTrigger } = useWalletsContext()
   const [positionsData, setPositionsData] = useState<Record<string, PositionData>>({})
   const [equityHistory, setEquityHistory] = useState<Record<string, EquityHistory>>({})
@@ -88,27 +89,35 @@ function CombinedContent() {
   const [filterByPositive3Day, setFilterByPositive3Day] = useState(true)
   const lastVisibilityRefetchAt = useRef<number>(0)
 
-  // 当 refreshTrigger 变化时，重新获取钱包列表
-  // 注意：钱包列表的更新会通过 walletAddresses 的变化自动触发持仓数据刷新
+  // 当 refreshTrigger 变化时，重新获取钱包列表（后台刷新，不闪骨架屏）
   useEffect(() => {
     if (refreshTrigger > 0) {
-      refetch()
+      refetch({ backgroundRefresh: true })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshTrigger])
 
-  // 页面/标签重新可见时刷新钱包列表；钱包更新后会触发下方 effect 自动刷新持仓
+  // 页面/标签重新可见时刷新钱包列表（后台刷新）；钱包更新后会触发下方 effect 自动刷新持仓
   useEffect(() => {
     const onVisible = () => {
       if (document.visibilityState !== 'visible') return
       const now = Date.now()
       if (now - lastVisibilityRefetchAt.current < VISIBILITY_REFETCH_DEBOUNCE_MS) return
       lastVisibilityRefetchAt.current = now
-      void refetch()
+      void refetch({ backgroundRefresh: true })
     }
     document.addEventListener('visibilitychange', onVisible)
     return () => document.removeEventListener('visibilitychange', onVisible)
   }, [refetch])
+
+  // 有钱包列表时每 15 秒自动刷新数据（后台刷新，不刷新页面）
+  useEffect(() => {
+    if (wallets.length === 0) return
+    const timer = setInterval(() => {
+      refetch({ backgroundRefresh: true })
+    }, AUTO_REFRESH_INTERVAL_MS)
+    return () => clearInterval(timer)
+  }, [wallets.length, refetch])
 
   const toggleWallet = (walletId: string) => {
     setExpandedWallets((prev) => {
@@ -369,14 +378,20 @@ function CombinedContent() {
             )}
           </div>
           <div className='flex items-center gap-2'>
-            {lastRefresh && (
+            {walletsRefreshing && (
+              <span className='inline-flex items-center gap-1.5 text-xs text-muted-foreground'>
+                <RefreshCw className='h-3.5 w-3.5 animate-spin' />
+                更新数据中…
+              </span>
+            )}
+            {lastRefresh && !walletsRefreshing && (
               <span className='text-sm text-muted-foreground'>
                 最后更新: {format(lastRefresh, 'HH:mm:ss', { locale: zhCN })}
               </span>
             )}
             <Button
               onClick={refreshAllPositions}
-              disabled={loading || walletsLoading || wallets.length === 0}
+              disabled={loading || (walletsLoading && wallets.length === 0) || wallets.length === 0}
               variant='outline'
               size='sm'
             >
@@ -387,7 +402,8 @@ function CombinedContent() {
           </div>
         </div>
         <div>
-          {walletsLoading ? (
+          {/* 仅首次加载（无数据）时显示骨架屏；后台刷新时保留表格只更新数据 */}
+          {walletsLoading && wallets.length === 0 ? (
             <div className='space-y-4'>
               <Skeleton className='h-12 w-full' />
               <Skeleton className='h-64 w-full' />
