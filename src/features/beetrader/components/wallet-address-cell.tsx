@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { Button } from '@/components/ui/button'
-import { Copy, Check, ExternalLink } from 'lucide-react'
+import { Copy, Check, ExternalLink, Eye, EyeOff } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   Tooltip,
@@ -10,6 +10,13 @@ import {
 } from '@/components/ui/tooltip'
 
 const ANALYSIS_BASE_URL = 'https://app.coinmarketman.com/hypertracker/wallet'
+const TRUNCATE_HEAD = 6
+const TRUNCATE_TAIL = 8
+
+function truncateAddress(addr: string): string {
+  if (addr.length <= TRUNCATE_HEAD + TRUNCATE_TAIL + 3) return addr
+  return `${addr.slice(0, TRUNCATE_HEAD)}...${addr.slice(-TRUNCATE_TAIL)}`
+}
 
 export function WalletAddressCell({
   address,
@@ -20,6 +27,9 @@ export function WalletAddressCell({
   linkToAnalyzer?: boolean
 }) {
   const [copied, setCopied] = useState(false)
+  const [showFull, setShowFull] = useState(false)
+  const isShort = address.length <= TRUNCATE_HEAD + TRUNCATE_TAIL + 3
+  const displayAddress = showFull || isShort ? address : truncateAddress(address)
 
   const handleCopy = async (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -63,20 +73,43 @@ export function WalletAddressCell({
           title={address}
           onClick={(e) => e.stopPropagation()}
         >
-          {address}
+          {displayAddress}
         </Link>
       </TooltipTrigger>
       <TooltipContent>跳转 Trader 分析并自动分析</TooltipContent>
     </Tooltip>
   ) : (
     <span className='font-mono text-sm break-all' title={address}>
-      {address}
+      {displayAddress}
     </span>
   )
 
   return (
     <div className='flex items-center gap-2 min-w-0'>
       {addressNode}
+      {!isShort && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant='ghost'
+              size='icon'
+              className='h-6 w-6 flex-shrink-0'
+              onClick={(e) => {
+                e.stopPropagation()
+                setShowFull((v) => !v)
+              }}
+              title={showFull ? '收起地址' : '显示完整地址'}
+            >
+              {showFull ? (
+                <EyeOff className='h-3 w-3' />
+              ) : (
+                <Eye className='h-3 w-3' />
+              )}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{showFull ? '收起地址' : '显示完整地址'}</TooltipContent>
+        </Tooltip>
+      )}
       <Button
         variant='ghost'
         size='icon'

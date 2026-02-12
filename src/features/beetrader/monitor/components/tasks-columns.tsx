@@ -1,15 +1,11 @@
 import { type ColumnDef } from '@tanstack/react-table'
-import { Link } from '@tanstack/react-router'
 import { Checkbox } from '@/components/ui/checkbox'
 import { DataTableColumnHeader } from '@/components/data-table'
 import { type Wallet } from '../data/schema'
 import { DataTableRowActions } from './data-table-row-actions'
 import { format } from 'date-fns'
 import { zhCN } from 'date-fns/locale'
-import { Copy, Check, Loader2, AlertCircle } from 'lucide-react'
-import { useState } from 'react'
-import { Button } from '@/components/ui/button'
-import { toast } from 'sonner'
+import { Loader2, AlertCircle, BarChart2 } from 'lucide-react'
 import { walletTypes, getWalletTypeLabel } from '../data/data'
 import { Badge } from '@/components/ui/badge'
 import { useHyperliquidInfo } from '../hooks/use-hyperliquid-info'
@@ -18,66 +14,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-
-function CopyAddressButton({ address }: { address: string }) {
-  const [copied, setCopied] = useState(false)
-  
-  const handleCopy = async (e: React.MouseEvent) => {
-    e.stopPropagation() // 防止触发行选择
-    
-    try {
-      // 优先使用 Clipboard API
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(address)
-        setCopied(true)
-        toast.success('地址已复制')
-        setTimeout(() => setCopied(false), 2000)
-      } else {
-        // Fallback: 使用传统的 execCommand 方法
-        const textArea = document.createElement('textarea')
-        textArea.value = address
-        textArea.style.position = 'fixed'
-        textArea.style.left = '-999999px'
-        textArea.style.top = '-999999px'
-        document.body.appendChild(textArea)
-        textArea.focus()
-        textArea.select()
-        
-        try {
-          const successful = document.execCommand('copy')
-          if (successful) {
-            setCopied(true)
-            toast.success('地址已复制')
-            setTimeout(() => setCopied(false), 2000)
-          } else {
-            throw new Error('复制失败')
-          }
-        } finally {
-          document.body.removeChild(textArea)
-        }
-      }
-    } catch (error) {
-      console.error('复制失败:', error)
-      toast.error('复制失败，请手动复制')
-    }
-  }
-
-  return (
-    <Button
-      variant='ghost'
-      size='icon'
-      className='h-6 w-6'
-      onClick={handleCopy}
-      title='复制地址'
-    >
-      {copied ? (
-        <Check className='h-3 w-3 text-green-500' />
-      ) : (
-        <Copy className='h-3 w-3' />
-      )}
-    </Button>
-  )
-}
+import { WalletAddressCell } from '../../components/wallet-address-cell'
 
 function HyperliquidInfoCell({ address }: { address: string }) {
   const { data, isLoading, error } = useHyperliquidInfo(address)
@@ -221,26 +158,19 @@ export const walletsColumns: ColumnDef<Wallet>[] = [
     ),
     meta: {
       className: 'ps-1',
-      tdClassName: 'ps-4',
+      tdClassName: 'ps-4 bg-primary/5 dark:bg-primary/10',
     },
     cell: ({ row }) => {
       const address = row.getValue('address') as string
       return (
-        <div className='flex items-center gap-2 min-w-0'>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Link
-                to={'/beetrader/analyzer' as '/'}
-                search={{ address, autoAnalyze: '1' } as Record<string, unknown>}
-                className='font-mono text-sm break-all text-primary hover:underline focus:outline-none focus:underline'
-                title={address}
-              >
-                {address}
-              </Link>
-            </TooltipTrigger>
-            <TooltipContent>跳转 Trader 分析并自动分析</TooltipContent>
-          </Tooltip>
-          <CopyAddressButton address={address} />
+        <div className='flex flex-col gap-1 min-w-0 py-0.5'>
+          <div className='flex items-center gap-2 min-w-0'>
+            <WalletAddressCell address={address} linkToAnalyzer />
+          </div>
+          <Badge variant='secondary' className='w-fit text-xs font-normal gap-1 bg-primary/10 text-primary hover:bg-primary/20 dark:bg-primary/20 dark:text-primary dark:hover:bg-primary/30'>
+            <BarChart2 className='h-3 w-3 shrink-0' />
+            点击跳转分析
+          </Badge>
         </div>
       )
     },
