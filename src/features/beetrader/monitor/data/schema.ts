@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 // 钱包类型枚举
-export const walletTypes = ['whale', 'high_win_rate', 'institution', 'trader', 'other'] as const
+export const walletTypes = ['whale', 'high_win_rate', 'smart_money', 'institution', 'trader', 'other'] as const
 export type WalletType = (typeof walletTypes)[number]
 
 // 巨鲸钱包数据模型

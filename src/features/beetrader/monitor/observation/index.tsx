@@ -66,10 +66,15 @@ interface PositionData {
 }
 
 const HYPERLIQUID_API_URL = 'https://api.hyperliquid.xyz/info'
+const THREE_DAY_MS = 3 * 24 * 60 * 60 * 1000
+
+type EquityPoint = { t: number; v: number }
+type EquityHistory = { day: EquityPoint[]; threeDay: EquityPoint[]; week: EquityPoint[] }
 
 export function WhaleObservation() {
   const { wallets, loading: walletsLoading } = useWallets()
   const [positionsData, setPositionsData] = useState<Record<string, PositionData>>({})
+  const [equityHistory, setEquityHistory] = useState<Record<string, EquityHistory>>({})
   const [loading, setLoading] = useState(false)
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null)
   const [expandedWallets, setExpandedWallets] = useState<Set<string>>(new Set())
@@ -234,22 +239,61 @@ export function WhaleObservation() {
     }
   }
 
+  const valueAtTime = (history: EquityPoint[], targetTimeMs: number): number | null => {
+    if (!history.length) return null
+    const sorted = [...history].sort((a, b) => a.t - b.t)
+    let best = sorted[0]
+    for (const p of sorted) {
+      if (p.t > targetTimeMs) break
+      best = p
+    }
+    return best.v
+  }
+
+  const fetchPortfolio = async (address: string): Promise<EquityHistory | null> => {
+    try {
+      const response = await fetch(HYPERLIQUID_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'portfolio', user: address }),
+      })
+      if (!response.ok) return null
+      const raw: Array<[string, { accountValueHistory?: [number, number][] }]> = await response.json()
+      const byFrame: Record<string, [number, number][]> = {}
+      for (const item of raw) {
+        const [key, data] = item
+        if (data?.accountValueHistory?.length) byFrame[key] = data.accountValueHistory
+      }
+      const day = (byFrame.day || []).map(([t, v]) => ({ t, v }))
+      const week = (byFrame.week || []).map(([t, v]) => ({ t, v }))
+      const now = Date.now()
+      const threeDay = week.filter((p) => now - p.t <= THREE_DAY_MS)
+      return { day, threeDay: threeDay.length > 0 ? threeDay : week, week }
+    } catch (e) {
+      console.error(`Error fetching portfolio for ${address}:`, e)
+      return null
+    }
+  }
+
   const refreshAllPositions = async () => {
     if (wallets.length === 0) return
     
     setLoading(true)
     const newPositionsData: Record<string, PositionData> = {}
+    const newEquityHistory: Record<string, EquityHistory> = {}
     
-    // 并发获取所有钱包的持仓数据
     const promises = wallets.map(async (wallet) => {
-      const data = await fetchWalletPositions(wallet.address)
-      if (data) {
-        newPositionsData[wallet.address] = data
-      }
+      const [positionData, portfolioData] = await Promise.all([
+        fetchWalletPositions(wallet.address),
+        fetchPortfolio(wallet.address),
+      ])
+      if (positionData) newPositionsData[wallet.address] = positionData
+      if (portfolioData) newEquityHistory[wallet.address] = portfolioData
     })
 
     await Promise.all(promises)
     setPositionsData(newPositionsData)
+    setEquityHistory(newEquityHistory)
     setLastRefresh(new Date())
     setLoading(false)
     toast.success('数据刷新完成')
@@ -335,12 +379,10 @@ export function WhaleObservation() {
                     <TableHead className='sticky left-0 bg-background z-10'>钱包地址</TableHead>
                     <TableHead>备注</TableHead>
                     <TableHead className='text-right'>账户价值</TableHead>
-                    <TableHead className='text-right'>总持仓价值</TableHead>
-                    <TableHead className='text-right'>持仓占比</TableHead>
                     <TableHead className='text-right'>总保证金</TableHead>
-                    <TableHead className='text-right'>风险率</TableHead>
-                    <TableHead className='text-right'>总盈亏</TableHead>
-                    <TableHead className='text-right'>收益率</TableHead>
+                    <TableHead className='text-right'>Total PnL</TableHead>
+                    <TableHead className='text-right'>24h PnL</TableHead>
+                    <TableHead className='text-right'>Perps Position Value</TableHead>
                     <TableHead className='text-right'>持仓数量</TableHead>
                     <TableHead className='text-right'>多/空</TableHead>
                     <TableHead className='text-right'>更新时间</TableHead>
@@ -360,9 +402,15 @@ export function WhaleObservation() {
                     const totalMargin = positionData?.marginSummary 
                       ? parseFloat(positionData.marginSummary.totalMarginUsed) 
                       : 0
-                    const positionRatio = accountValue > 0 ? (totalPositionValue / accountValue) * 100 : 0
-                    const riskRate = accountValue > 0 ? (totalMargin / accountValue) * 100 : 0
-                    const returnRate = accountValue > 0 ? (positionData?.totalPnl || 0) / accountValue * 100 : 0
+                    const hist = equityHistory[wallet.address]
+                    const dayHist = hist?.day ?? []
+                    const weekHist = hist?.week ?? []
+                    const now = Date.now()
+                    const v24h = valueAtTime(dayHist.length >= 2 ? dayHist : (hist?.threeDay ?? []), now - 24 * 60 * 60 * 1000)
+                    const v30d = valueAtTime(weekHist, now - 30 * 24 * 60 * 60 * 1000)
+                    const base = accountValue > 0 ? accountValue : (dayHist.length > 0 ? dayHist[dayHist.length - 1].v : weekHist.length > 0 ? weekHist[weekHist.length - 1].v : null)
+                    const totalPnlVal = base != null && v30d != null ? base - v30d : null
+                    const pnl24Val = base != null && v24h != null ? base - v24h : null
                     const longCount = positionData?.positions.filter(p => p.side === 'Long').length || 0
                     const shortCount = positionData?.positions.filter(p => p.side === 'Short').length || 0
 
@@ -402,47 +450,29 @@ export function WhaleObservation() {
                             )}
                           </TableCell>
                           <TableCell className='text-right'>
-                            {totalPositionValue > 0 ? formatCurrency(totalPositionValue) : '-'}
-                          </TableCell>
-                          <TableCell className='text-right'>
-                            {positionRatio > 0 ? (
-                              <span className={positionRatio > 50 ? 'text-orange-600 font-semibold' : ''}>
-                                {formatNumber(positionRatio)}%
-                              </span>
-                            ) : '-'}
-                          </TableCell>
-                          <TableCell className='text-right'>
                             {totalMargin > 0 ? formatCurrency(totalMargin) : '-'}
                           </TableCell>
-                          <TableCell className='text-right'>
-                            {riskRate > 0 ? (
-                              <span className={
-                                riskRate > 50 ? 'text-red-600 font-semibold' : 
-                                riskRate > 30 ? 'text-orange-600' : 
-                                ''
-                              }>
-                                {formatNumber(riskRate)}%
-                              </span>
-                            ) : '-'}
-                          </TableCell>
                           <TableCell className={`text-right font-semibold ${
-                            (positionData?.totalPnl || 0) >= 0 ? 'text-green-600' : 'text-red-600'
+                            totalPnlVal != null ? (totalPnlVal >= 0 ? 'text-green-600' : 'text-red-600') : ''
                           }`}>
-                            {(positionData?.totalPnl || 0) !== 0 ? (
+                            {totalPnlVal != null ? (
                               <>
-                                {(positionData?.totalPnl || 0) >= 0 ? (
+                                {totalPnlVal >= 0 ? (
                                   <TrendingUp className='inline h-3 w-3 mr-1' />
                                 ) : (
                                   <TrendingDown className='inline h-3 w-3 mr-1' />
                                 )}
-                                {formatCurrency(positionData?.totalPnl || 0)}
+                                {formatCurrency(totalPnlVal)}
                               </>
                             ) : '-'}
                           </TableCell>
-                          <TableCell className={`text-right ${
-                            returnRate >= 0 ? 'text-green-600' : 'text-red-600'
+                          <TableCell className={`text-right font-medium ${
+                            pnl24Val != null ? (pnl24Val >= 0 ? 'text-green-600' : 'text-red-600') : ''
                           }`}>
-                            {returnRate !== 0 ? `${returnRate >= 0 ? '+' : ''}${formatNumber(returnRate)}%` : '-'}
+                            {pnl24Val != null ? formatCurrency(pnl24Val) : '-'}
+                          </TableCell>
+                          <TableCell className='text-right'>
+                            {totalPositionValue > 0 ? formatCurrency(totalPositionValue) : '-'}
                           </TableCell>
                           <TableCell className='text-right'>
                             {positionData?.positions.length || 0}
@@ -464,7 +494,7 @@ export function WhaleObservation() {
                         {/* 展开的持仓明细 */}
                         {isExpanded && positionData && positionData.positions.length > 0 && (
                           <TableRow>
-                            <TableCell colSpan={13} className='p-0'>
+                            <TableCell colSpan={11} className='p-0'>
                               <div className='p-4 bg-muted/30'>
                                 <div className='text-sm font-semibold mb-3'>持仓明细（按仓位占比排序）</div>
                                 <div className='rounded-md border overflow-x-auto'>
@@ -484,24 +514,14 @@ export function WhaleObservation() {
                                             <span className='text-xs text-muted-foreground font-normal'>名义价值</span>
                                           </div>
                                         </TableHead>
-                                        <TableHead className='text-right'>
-                                          <div className='flex flex-col items-end'>
-                                            <span>杠杆</span>
-                                            <span className='text-xs text-muted-foreground font-normal'>风险率</span>
-                                          </div>
-                                        </TableHead>
+                                        <TableHead className='text-right'>杠杆</TableHead>
                                         <TableHead className='text-right'>
                                           <div className='flex flex-col items-end'>
                                             <span>有效杠杆</span>
                                             <span className='text-xs text-muted-foreground font-normal'>爆仓距离%</span>
                                           </div>
                                         </TableHead>
-                                        <TableHead className='text-right'>
-                                          <div className='flex flex-col items-end'>
-                                            <span>未实现盈亏</span>
-                                            <span className='text-xs text-muted-foreground font-normal'>收益率</span>
-                                          </div>
-                                        </TableHead>
+                                        <TableHead className='text-right'>未实现盈亏</TableHead>
                                         <TableHead className='text-right'>
                                           <div className='flex flex-col items-end'>
                                             <span>开仓价</span>
@@ -540,16 +560,7 @@ export function WhaleObservation() {
                                               </div>
                                             </TableCell>
                                             <TableCell className='text-right'>
-                                              <div className='flex flex-col items-end'>
-                                                <Badge variant='outline' className='w-fit'>{pos.leverage}x</Badge>
-                                                <span className={`text-xs font-medium mt-1 ${
-                                                  pos.riskRate > 50 ? 'text-red-600' : 
-                                                  pos.riskRate > 30 ? 'text-orange-600' : 
-                                                  'text-muted-foreground'
-                                                }`}>
-                                                  {formatNumber(pos.riskRate)}%
-                                                </span>
-                                              </div>
+                                              <Badge variant='outline' className='w-fit'>{pos.leverage}x</Badge>
                                             </TableCell>
                                             <TableCell className='text-right'>
                                               <div className='flex flex-col items-end'>
@@ -564,18 +575,11 @@ export function WhaleObservation() {
                                               </div>
                                             </TableCell>
                                             <TableCell className='text-right'>
-                                              <div className='flex flex-col items-end'>
-                                                <span className={`font-semibold ${
-                                                  pos.isProfitable ? 'text-green-600' : 'text-red-600'
-                                                }`}>
-                                                  {pos.isProfitable ? '+' : ''}{formatCurrency(pos.unrealizedPnl)}
-                                                </span>
-                                                <span className={`text-xs font-medium mt-1 ${
-                                                  pos.isProfitable ? 'text-green-600' : 'text-red-600'
-                                                }`}>
-                                                  {pos.isProfitable ? '+' : ''}{formatNumber(pos.profitMargin)}%
-                                                </span>
-                                              </div>
+                                              <span className={`font-semibold ${
+                                                pos.isProfitable ? 'text-green-600' : 'text-red-600'
+                                              }`}>
+                                                {pos.isProfitable ? '+' : ''}{formatCurrency(pos.unrealizedPnl)}
+                                              </span>
                                             </TableCell>
                                             <TableCell className='text-right'>
                                               <div className='flex flex-col items-end'>

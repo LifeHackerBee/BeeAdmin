@@ -129,17 +129,31 @@ function BalanceChart({ data }: { data: WalletLiveData }) {
   )
 }
 
-const RECENT_WIN_RATE_TRADES = 200
+const RECENT_WIN_RATE_TRADES = 1000
 
 /**
- * 从成交记录计算最近 N 笔平仓胜率（与后端 analyzer 一致）
- * - 只统计 closedPnl !== 0 的成交（有已实现盈亏的平仓）
- * - 按时间升序后取最后 N 笔 = 时间上最近的 N 笔
+ * 【胜率计算说明】与后端 analyzer 对齐，便于对账
+ *
+ * 1. 数据来源
+ *    - 前端：userFillsByTime(user, startTime, endTime, aggregateByTime: false)，固定 30 天
+ *    - 后端：get_user_fills_by_time(..., aggregate_by_time=False)，时间窗口由请求的 days 决定（可为自适应）
+ *
+ * 2. 筛选条件
+ *    - 只使用 closedPnl（平仓已实现盈亏的权威字段），不使用 pnl 回退
+ *    - 只保留 closedPnl != null 且 closedPnl !== 0 的成交
+ *
+ * 3. 时间顺序与“最近 N 笔”
+ *    - 按 time 升序排序（旧→新），与后端一致
+ *    - 取数组最后 recentN 条 = 时间上最近的 N 笔（不足 N 笔则全部取）
+ *
+ * 4. 胜/负与胜率
+ *    - 赢：closedPnl > 0；输：closedPnl < 0
+ *    - 胜率 = (赢的笔数 / 总笔数) * 100，保留两位小数
  */
 function getRecentWinRate(fills: UserFill[], recentN: number = RECENT_WIN_RATE_TRADES) {
   const withPnl = fills
-    .filter((f) => parseFloat(f.closedPnl ?? '0') !== 0)
-    .map((f) => ({ time: f.time ?? 0, pnl: parseFloat(f.closedPnl ?? '0') }))
+    .filter((f) => f.closedPnl != null && parseFloat(String(f.closedPnl)) !== 0)
+    .map((f) => ({ time: f.time ?? 0, pnl: parseFloat(String(f.closedPnl!)) }))
   const sorted = [...withPnl].sort((a, b) => a.time - b.time)
   const recent = sorted.slice(-recentN)
   if (recent.length === 0) return null
@@ -164,7 +178,7 @@ function RecentWinRateModule({ fills }: { fills: UserFill[] }) {
           </span>
         </CardTitle>
         <CardDescription>
-          按时间取最近 {RECENT_WIN_RATE_TRADES} 条有已实现盈亏的成交，胜率 = 盈利笔数 ÷ 总笔数
+          按时间取最近最多 {RECENT_WIN_RATE_TRADES} 条有已实现盈亏的成交（不足则全部计入），胜率 = 盈利笔数 ÷ 总笔数
         </CardDescription>
       </CardHeader>
       <CardContent className="pt-0">
@@ -537,16 +551,37 @@ function FillsTable({ fills }: { fills: UserFill[] }) {
 
 const AUTO_REFRESH_INTERVAL_MS = 15_000
 
-export function WalletLiveQuery() {
-  const [inputAddr, setInputAddr] = useState('')
+export function WalletLiveQuery({
+  initialAddress,
+  autoAnalyze = false,
+}: {
+  initialAddress?: string
+  autoAnalyze?: boolean
+} = {}) {
+  const [inputAddr, setInputAddr] = useState(initialAddress ?? '')
   const [aiDays, setAiDays] = useState(30)
   const { address, loading, refreshing, error, data, fetchLive, reset } = useWalletLive()
   const { analyze: runAnalyze, loading: analysisLoading, error: analysisError, data: analysisData, reset: resetAnalysis } = useAnalyzer()
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const autoAnalyzeDoneRef = useRef(false)
 
   const handleQuery = () => {
     fetchLive(inputAddr || address)
   }
+
+  // 从钱包管理跳转时：带 initialAddress 则自动拉取数据
+  useEffect(() => {
+    if (!initialAddress?.trim() || initialAddress.length !== 42) return
+    setInputAddr(initialAddress)
+    fetchLive(initialAddress)
+  }, [initialAddress])
+
+  // 数据拉取完成后若需自动分析，则触发一次 AI 分析
+  useEffect(() => {
+    if (!autoAnalyze || autoAnalyzeDoneRef.current || !address || !data || analysisLoading) return
+    autoAnalyzeDoneRef.current = true
+    runAnalyze(address, aiDays)
+  }, [autoAnalyze, address, data, analysisLoading, aiDays, runAnalyze])
 
   // 有地址且已成功拉过数据时，每 15 秒自动重新拉取数据（不刷新页面）
   useEffect(() => {

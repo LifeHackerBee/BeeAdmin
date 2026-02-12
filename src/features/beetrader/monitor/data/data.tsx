@@ -1,4 +1,4 @@
-import { Wallet, TrendingUp, Users, Building2, Trophy } from 'lucide-react'
+import { Wallet, TrendingUp, Users, Building2, Trophy, Sparkles } from 'lucide-react'
 import { type WalletType } from './schema'
 
 // 钱包类型配置
@@ -16,6 +16,11 @@ export const walletTypes: Array<{
     value: 'high_win_rate',
     label: '高胜率钱包',
     icon: Trophy,
+  },
+  {
+    value: 'smart_money',
+    label: 'Smart Money',
+    icon: Sparkles,
   },
   {
     value: 'institution',

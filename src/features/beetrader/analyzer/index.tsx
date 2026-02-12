@@ -1,9 +1,16 @@
+import { useSearch } from '@tanstack/react-router'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Search, History } from 'lucide-react'
 import { HistoryList } from './components/history-list'
 import { WalletLiveQuery } from './components/wallet-live-query'
 
+type AnalyzerSearch = { address?: string; autoAnalyze?: boolean | '1' }
+
 export function TraderAnalyzer() {
+  const search = useSearch({ strict: false }) as AnalyzerSearch | undefined
+  const initialAddress = typeof search?.address === 'string' ? search.address : undefined
+  const autoAnalyze = search?.autoAnalyze === true || search?.autoAnalyze === '1'
+
   return (
     <div className='flex h-full flex-col space-y-6 min-h-0'>
       <div className='flex items-center justify-between flex-shrink-0'>
@@ -28,7 +35,7 @@ export function TraderAnalyzer() {
         </TabsList>
 
         <TabsContent value='analyze' className='flex-1 overflow-y-auto mt-4'>
-          <WalletLiveQuery />
+          <WalletLiveQuery initialAddress={initialAddress} autoAnalyze={autoAnalyze} />
         </TabsContent>
 
         <TabsContent value='history' className='flex-1 overflow-y-auto mt-4'>

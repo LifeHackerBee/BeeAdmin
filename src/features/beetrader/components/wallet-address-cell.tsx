@@ -1,11 +1,24 @@
 import { useState } from 'react'
+import { Link } from '@tanstack/react-router'
 import { Button } from '@/components/ui/button'
 import { Copy, Check, ExternalLink } from 'lucide-react'
 import { toast } from 'sonner'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 
 const ANALYSIS_BASE_URL = 'https://app.coinmarketman.com/hypertracker/wallet'
 
-export function WalletAddressCell({ address }: { address: string }) {
+export function WalletAddressCell({
+  address,
+  linkToAnalyzer = false,
+}: {
+  address: string
+  /** 为 true 时地址可点击跳转 Trader 分析并自动分析，外链按钮改为在新标签打开 Trader 分析 */
+  linkToAnalyzer?: boolean
+}) {
   const [copied, setCopied] = useState(false)
 
   const handleCopy = async (e: React.MouseEvent) => {
@@ -35,13 +48,35 @@ export function WalletAddressCell({ address }: { address: string }) {
     }
   }
 
-  const analysisUrl = `${ANALYSIS_BASE_URL}/${address}`
+  const analyzerSearch = { address, autoAnalyze: '1' as const }
+  const analyzerUrl = linkToAnalyzer
+    ? `/beetrader/analyzer?address=${encodeURIComponent(address)}&autoAnalyze=1`
+    : `${ANALYSIS_BASE_URL}/${address}`
+
+  const addressNode = linkToAnalyzer ? (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Link
+          to='/beetrader/analyzer'
+          search={analyzerSearch}
+          className='font-mono text-sm break-all text-primary hover:underline focus:outline-none focus:underline'
+          title={address}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {address}
+        </Link>
+      </TooltipTrigger>
+      <TooltipContent>跳转 Trader 分析并自动分析</TooltipContent>
+    </Tooltip>
+  ) : (
+    <span className='font-mono text-sm break-all' title={address}>
+      {address}
+    </span>
+  )
 
   return (
     <div className='flex items-center gap-2 min-w-0'>
-      <span className='font-mono text-sm break-all' title={address}>
-        {address}
-      </span>
+      {addressNode}
       <Button
         variant='ghost'
         size='icon'
@@ -61,9 +96,9 @@ export function WalletAddressCell({ address }: { address: string }) {
         className='h-6 w-6 flex-shrink-0'
         onClick={(e) => {
           e.stopPropagation()
-          window.open(analysisUrl, '_blank')
+          window.open(analyzerUrl, '_blank')
         }}
-        title='打开钱包分析'
+        title={linkToAnalyzer ? '在新标签打开 Trader 分析' : '打开钱包分析'}
       >
         <ExternalLink className='h-3 w-3' />
       </Button>

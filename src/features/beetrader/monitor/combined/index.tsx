@@ -15,6 +15,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import { WalletAddressCell } from '../../components/wallet-address-cell'
+import { getWalletTypeLabel } from '../data/data'
 import { format } from 'date-fns'
 import { zhCN } from 'date-fns/locale'
 import {
@@ -70,18 +71,42 @@ interface PositionData {
 export type EquityHistory = {
   day: EquityPoint[]
   threeDay: EquityPoint[]
+  week: EquityPoint[]
 }
 
 const HYPERLIQUID_API_URL = 'https://api.hyperliquid.xyz/info'
 const THREE_DAY_MS = 3 * 24 * 60 * 60 * 1000
 const VISIBILITY_REFETCH_DEBOUNCE_MS = 15_000
 const AUTO_REFRESH_INTERVAL_MS = 15_000
+const RECENT_WIN_RATE_TRADES = 1000
+
+type UserFillLike = { time?: number; closedPnl?: string }
+function getRecentWinRateFromFills(
+  fills: UserFillLike[],
+  recentN: number = RECENT_WIN_RATE_TRADES
+): { winRate: number; recentTrades: number; winCount: number; lossCount: number } | null {
+  const withPnl = fills
+    .filter((f) => f.closedPnl != null && parseFloat(String(f.closedPnl)) !== 0)
+    .map((f) => ({ time: f.time ?? 0, pnl: parseFloat(String(f.closedPnl!)) }))
+  const sorted = [...withPnl].sort((a, b) => a.time - b.time)
+  const recent = sorted.slice(-recentN)
+  if (recent.length === 0) return null
+  const wins = recent.filter((r) => r.pnl > 0).length
+  const losses = recent.length - wins
+  return {
+    winRate: Math.round((wins / recent.length) * 10000) / 100,
+    recentTrades: recent.length,
+    winCount: wins,
+    lossCount: losses,
+  }
+}
 
 function CombinedContent() {
   const { wallets, loading: walletsLoading, refreshing: walletsRefreshing, refetch } = useWalletsData()
   const { refreshTrigger } = useWalletsContext()
   const [positionsData, setPositionsData] = useState<Record<string, PositionData>>({})
   const [equityHistory, setEquityHistory] = useState<Record<string, EquityHistory>>({})
+  const [winRateByAddress, setWinRateByAddress] = useState<Record<string, { winRate: number; recentTrades: number; winCount: number; lossCount: number } | null>>({})
   const [loading, setLoading] = useState(false)
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null)
   const [expandedWallets, setExpandedWallets] = useState<Set<string>>(new Set())
@@ -245,6 +270,18 @@ function CombinedContent() {
     }
   }
 
+  /** 从历史曲线中取最接近目标时间的账户价值（与 analyzer 一致） */
+  const valueAtTime = (history: EquityPoint[], targetTimeMs: number): number | null => {
+    if (!history.length) return null
+    const sorted = [...history].sort((a, b) => a.t - b.t)
+    let best = sorted[0]
+    for (const p of sorted) {
+      if (p.t > targetTimeMs) break
+      best = p
+    }
+    return best.v
+  }
+
   const fetchPortfolio = async (address: string): Promise<EquityHistory | null> => {
     try {
       const response = await fetch(HYPERLIQUID_API_URL, {
@@ -263,10 +300,34 @@ function CombinedContent() {
       const week = (byFrame.week || []).map(([t, v]) => ({ t, v }))
       const now = Date.now()
       const threeDay = week.filter((p) => now - p.t <= THREE_DAY_MS)
-      return { day, threeDay: threeDay.length > 0 ? threeDay : week }
+      return { day, threeDay: threeDay.length > 0 ? threeDay : week, week }
     } catch (e) {
       console.error(`Error fetching portfolio for ${address}:`, e)
       return null
+    }
+  }
+
+  const fetchUserFills = async (address: string): Promise<UserFillLike[]> => {
+    try {
+      const endTime = Date.now()
+      const startTime = endTime - 30 * 24 * 60 * 60 * 1000
+      const response = await fetch(HYPERLIQUID_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'userFillsByTime',
+          user: address,
+          startTime,
+          endTime,
+          aggregateByTime: false,
+        }),
+      })
+      if (!response.ok) return []
+      const data = await response.json()
+      return Array.isArray(data) ? data : []
+    } catch (e) {
+      console.error(`Error fetching fills for ${address}:`, e)
+      return []
     }
   }
 
@@ -274,25 +335,31 @@ function CombinedContent() {
     if (wallets.length === 0) {
       setPositionsData({})
       setEquityHistory({})
+      setWinRateByAddress({})
       return
     }
     
     setLoading(true)
     const newPositionsData: Record<string, PositionData> = {}
     const newEquityHistory: Record<string, EquityHistory> = {}
+    const newWinRateByAddress: Record<string, { winRate: number; recentTrades: number; winCount: number; lossCount: number } | null> = {}
     
     const promises = wallets.map(async (wallet) => {
-      const [positionData, portfolioData] = await Promise.all([
+      const [positionData, portfolioData, fills] = await Promise.all([
         fetchWalletPositions(wallet.address),
         fetchPortfolio(wallet.address),
+        fetchUserFills(wallet.address),
       ])
       if (positionData) newPositionsData[wallet.address] = positionData
       if (portfolioData) newEquityHistory[wallet.address] = portfolioData
+      const wr = getRecentWinRateFromFills(fills)
+      newWinRateByAddress[wallet.address] = wr
     })
 
     await Promise.all(promises)
     setPositionsData(newPositionsData)
     setEquityHistory(newEquityHistory)
+    setWinRateByAddress(newWinRateByAddress)
     setLastRefresh(new Date())
     setLoading(false)
     // 只在手动刷新时显示提示，自动刷新时不显示
@@ -425,15 +492,14 @@ function CombinedContent() {
                     <TableHead className='sticky left-0 bg-background z-10'>钱包地址</TableHead>
                     <TableHead>备注</TableHead>
                     <TableHead>类型</TableHead>
+                    <TableHead className='text-right'>胜率</TableHead>
                     <TableHead className='text-right'>当前 Equity</TableHead>
                     <TableHead className='text-right'>24h 趋势</TableHead>
                     <TableHead className='text-right'>3天 趋势</TableHead>
-                    <TableHead className='text-right'>总持仓价值</TableHead>
-                    <TableHead className='text-right'>持仓占比</TableHead>
                     <TableHead className='text-right'>总保证金</TableHead>
-                    <TableHead className='text-right'>风险率</TableHead>
-                    <TableHead className='text-right'>总盈亏</TableHead>
-                    <TableHead className='text-right'>收益率</TableHead>
+                    <TableHead className='text-right'>Total PnL</TableHead>
+                    <TableHead className='text-right'>24h PnL</TableHead>
+                    <TableHead className='text-right'>Perps Position Value</TableHead>
                     <TableHead className='text-right'>持仓数量</TableHead>
                     <TableHead className='text-right'>多/空</TableHead>
                     <TableHead className='text-right'>更新时间</TableHead>
@@ -444,7 +510,7 @@ function CombinedContent() {
                 <TableBody>
                   {filterByPositive3Day && filteredWallets.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={18} className='text-center py-8 text-muted-foreground'>
+                      <TableCell colSpan={17} className='text-center py-8 text-muted-foreground'>
                         当前无 3 天 equity 增长为正的钱包（共 {wallets.length} 个已加载）。取消勾选「仅显示 3 天 equity 增长为正」可查看全部。
                       </TableCell>
                     </TableRow>
@@ -462,9 +528,15 @@ function CombinedContent() {
                     const totalMargin = positionData?.marginSummary 
                       ? parseFloat(positionData.marginSummary.totalMarginUsed) 
                       : 0
-                    const positionRatio = accountValue > 0 ? (totalPositionValue / accountValue) * 100 : 0
-                    const riskRate = accountValue > 0 ? (totalMargin / accountValue) * 100 : 0
-                    const returnRate = accountValue > 0 ? (positionData?.totalPnl || 0) / accountValue * 100 : 0
+                    const hist = equityHistory[wallet.address]
+                    const dayHist = hist?.day ?? []
+                    const weekHist = hist?.week ?? []
+                    const now = Date.now()
+                    const v24h = valueAtTime(dayHist.length >= 2 ? dayHist : (hist?.threeDay ?? []), now - 24 * 60 * 60 * 1000)
+                    const v30d = valueAtTime(weekHist, now - 30 * 24 * 60 * 60 * 1000)
+                    const base = accountValue > 0 ? accountValue : (dayHist.length > 0 ? dayHist[dayHist.length - 1].v : weekHist.length > 0 ? weekHist[weekHist.length - 1].v : null)
+                    const totalPnlVal = base != null && v30d != null ? base - v30d : null
+                    const pnl24Val = base != null && v24h != null ? base - v24h : null
                     const longCount = positionData?.positions.filter(p => p.side === 'Long').length || 0
                     const shortCount = positionData?.positions.filter(p => p.side === 'Short').length || 0
 
@@ -488,7 +560,7 @@ function CombinedContent() {
                             className='sticky left-0 bg-background z-10 font-mono text-sm min-w-0'
                             onClick={(e) => e.stopPropagation()}
                           >
-                            <WalletAddressCell address={wallet.address} />
+                            <WalletAddressCell address={wallet.address} linkToAnalyzer />
                           </TableCell>
                           <TableCell className='max-w-[200px]'>
                             <div className='truncate' title={wallet.note || ''}>
@@ -497,10 +569,24 @@ function CombinedContent() {
                           </TableCell>
                           <TableCell>
                             {wallet.type ? (
-                              <Badge variant='outline'>{wallet.type}</Badge>
+                              <Badge variant='outline'>{getWalletTypeLabel(wallet.type)}</Badge>
                             ) : (
                               <span className='text-muted-foreground text-sm'>-</span>
                             )}
+                          </TableCell>
+                          <TableCell className='text-right'>
+                            {(() => {
+                              const wr = winRateByAddress[wallet.address]
+                              if (!wr) return <span className='text-muted-foreground text-sm'>-</span>
+                              return (
+                                <div className='flex flex-col items-end gap-0.5'>
+                                  <span className={`text-sm font-semibold ${wr.winRate >= 50 ? 'text-green-600' : 'text-red-600'}`}>
+                                    {wr.winRate}%
+                                  </span>
+                                  <span className='text-xs text-muted-foreground'>最近{wr.recentTrades}笔 胜{wr.winCount}/负{wr.lossCount}</span>
+                                </div>
+                              )
+                            })()}
                           </TableCell>
                           <TableCell className='text-right font-medium'>
                             {isLoading ? (
@@ -550,47 +636,29 @@ function CombinedContent() {
                             })()}
                           </TableCell>
                           <TableCell className='text-right'>
-                            {totalPositionValue > 0 ? formatCurrency(totalPositionValue) : '-'}
-                          </TableCell>
-                          <TableCell className='text-right'>
-                            {positionRatio > 0 ? (
-                              <span className={positionRatio > 50 ? 'text-orange-600 font-semibold' : ''}>
-                                {formatNumber(positionRatio)}%
-                              </span>
-                            ) : '-'}
-                          </TableCell>
-                          <TableCell className='text-right'>
                             {totalMargin > 0 ? formatCurrency(totalMargin) : '-'}
                           </TableCell>
-                          <TableCell className='text-right'>
-                            {riskRate > 0 ? (
-                              <span className={
-                                riskRate > 50 ? 'text-red-600 font-semibold' : 
-                                riskRate > 30 ? 'text-orange-600' : 
-                                ''
-                              }>
-                                {formatNumber(riskRate)}%
-                              </span>
-                            ) : '-'}
-                          </TableCell>
                           <TableCell className={`text-right font-semibold ${
-                            (positionData?.totalPnl || 0) >= 0 ? 'text-green-600' : 'text-red-600'
+                            totalPnlVal != null ? (totalPnlVal >= 0 ? 'text-green-600' : 'text-red-600') : ''
                           }`}>
-                            {(positionData?.totalPnl || 0) !== 0 ? (
+                            {totalPnlVal != null ? (
                               <>
-                                {(positionData?.totalPnl || 0) >= 0 ? (
+                                {totalPnlVal >= 0 ? (
                                   <TrendingUp className='inline h-3 w-3 mr-1' />
                                 ) : (
                                   <TrendingDown className='inline h-3 w-3 mr-1' />
                                 )}
-                                {formatCurrency(positionData?.totalPnl || 0)}
+                                {formatCurrency(totalPnlVal)}
                               </>
                             ) : '-'}
                           </TableCell>
-                          <TableCell className={`text-right ${
-                            returnRate >= 0 ? 'text-green-600' : 'text-red-600'
+                          <TableCell className={`text-right font-medium ${
+                            pnl24Val != null ? (pnl24Val >= 0 ? 'text-green-600' : 'text-red-600') : ''
                           }`}>
-                            {returnRate !== 0 ? `${returnRate >= 0 ? '+' : ''}${formatNumber(returnRate)}%` : '-'}
+                            {pnl24Val != null ? formatCurrency(pnl24Val) : '-'}
+                          </TableCell>
+                          <TableCell className='text-right'>
+                            {totalPositionValue > 0 ? formatCurrency(totalPositionValue) : '-'}
                           </TableCell>
                           <TableCell className='text-right'>
                             {positionData?.positions.length || 0}
@@ -630,7 +698,7 @@ function CombinedContent() {
                         {/* 展开的持仓明细 */}
                         {isExpanded && positionData && positionData.positions.length > 0 && (
                           <TableRow>
-                            <TableCell colSpan={18} className='p-0'>
+                            <TableCell colSpan={17} className='p-0'>
                               <div className='p-4 bg-muted/30'>
                                 <div className='text-sm font-semibold mb-3'>持仓明细（按仓位占比排序）</div>
                                 <div className='rounded-md border overflow-x-auto'>
@@ -650,24 +718,14 @@ function CombinedContent() {
                                             <span className='text-xs text-muted-foreground font-normal'>名义价值</span>
                                           </div>
                                         </TableHead>
-                                        <TableHead className='text-right'>
-                                          <div className='flex flex-col items-end'>
-                                            <span>杠杆</span>
-                                            <span className='text-xs text-muted-foreground font-normal'>风险率</span>
-                                          </div>
-                                        </TableHead>
+                                        <TableHead className='text-right'>杠杆</TableHead>
                                         <TableHead className='text-right'>
                                           <div className='flex flex-col items-end'>
                                             <span>有效杠杆</span>
                                             <span className='text-xs text-muted-foreground font-normal'>爆仓距离%</span>
                                           </div>
                                         </TableHead>
-                                        <TableHead className='text-right'>
-                                          <div className='flex flex-col items-end'>
-                                            <span>未实现盈亏</span>
-                                            <span className='text-xs text-muted-foreground font-normal'>收益率</span>
-                                          </div>
-                                        </TableHead>
+                                        <TableHead className='text-right'>未实现盈亏</TableHead>
                                         <TableHead className='text-right'>
                                           <div className='flex flex-col items-end'>
                                             <span>开仓价</span>
@@ -706,16 +764,7 @@ function CombinedContent() {
                                               </div>
                                             </TableCell>
                                             <TableCell className='text-right'>
-                                              <div className='flex flex-col items-end'>
-                                                <Badge variant='outline' className='w-fit'>{pos.leverage}x</Badge>
-                                                <span className={`text-xs font-medium mt-1 ${
-                                                  pos.riskRate > 50 ? 'text-red-600' : 
-                                                  pos.riskRate > 30 ? 'text-orange-600' : 
-                                                  'text-muted-foreground'
-                                                }`}>
-                                                  {formatNumber(pos.riskRate)}%
-                                                </span>
-                                              </div>
+                                              <Badge variant='outline' className='w-fit'>{pos.leverage}x</Badge>
                                             </TableCell>
                                             <TableCell className='text-right'>
                                               <div className='flex flex-col items-end'>
@@ -730,18 +779,11 @@ function CombinedContent() {
                                               </div>
                                             </TableCell>
                                             <TableCell className='text-right'>
-                                              <div className='flex flex-col items-end'>
-                                                <span className={`font-semibold ${
-                                                  pos.isProfitable ? 'text-green-600' : 'text-red-600'
-                                                }`}>
-                                                  {pos.isProfitable ? '+' : ''}{formatCurrency(pos.unrealizedPnl)}
-                                                </span>
-                                                <span className={`text-xs font-medium mt-1 ${
-                                                  pos.isProfitable ? 'text-green-600' : 'text-red-600'
-                                                }`}>
-                                                  {pos.isProfitable ? '+' : ''}{formatNumber(pos.profitMargin)}%
-                                                </span>
-                                              </div>
+                                              <span className={`font-semibold ${
+                                                pos.isProfitable ? 'text-green-600' : 'text-red-600'
+                                              }`}>
+                                                {pos.isProfitable ? '+' : ''}{formatCurrency(pos.unrealizedPnl)}
+                                              </span>
                                             </TableCell>
                                             <TableCell className='text-right'>
                                               <div className='flex flex-col items-end'>

@@ -1,4 +1,5 @@
 import { type ColumnDef } from '@tanstack/react-table'
+import { Link } from '@tanstack/react-router'
 import { Checkbox } from '@/components/ui/checkbox'
 import { DataTableColumnHeader } from '@/components/data-table'
 import { type Wallet } from '../data/schema'
@@ -226,9 +227,19 @@ export const walletsColumns: ColumnDef<Wallet>[] = [
       const address = row.getValue('address') as string
       return (
         <div className='flex items-center gap-2 min-w-0'>
-          <span className='font-mono text-sm break-all' title={address}>
-            {address}
-          </span>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Link
+                to={'/beetrader/analyzer' as '/'}
+                search={{ address, autoAnalyze: '1' } as Record<string, unknown>}
+                className='font-mono text-sm break-all text-primary hover:underline focus:outline-none focus:underline'
+                title={address}
+              >
+                {address}
+              </Link>
+            </TooltipTrigger>
+            <TooltipContent>跳转 Trader 分析并自动分析</TooltipContent>
+          </Tooltip>
           <CopyAddressButton address={address} />
         </div>
       )
@@ -246,7 +257,7 @@ export const walletsColumns: ColumnDef<Wallet>[] = [
       if (typeConfig) {
         const Icon = typeConfig.icon
         return (
-          <Badge variant={type === 'whale' ? 'default' : type === 'high_win_rate' ? 'secondary' : 'outline'}>
+          <Badge variant={type === 'whale' ? 'default' : type === 'high_win_rate' || type === 'smart_money' ? 'secondary' : 'outline'}>
             <span className='flex items-center gap-1'>
               <Icon className='h-3 w-3' />
               {typeConfig.label}
