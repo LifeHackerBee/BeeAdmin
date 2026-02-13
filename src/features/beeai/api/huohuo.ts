@@ -1,15 +1,19 @@
 /**
  * 火火 Agent API 客户端
- * 通过 Cloudflare Tunnel + FastAPI + OpenClaw 暴露的远程 Agent 服务
- * 鉴权：CF-Access-Client-Id / CF-Access-Client-Secret（来自 .env）
+ * - 直连：通过 Cloudflare Tunnel，鉴权用 CF-Access-Client-Id / CF-Access-Client-Secret
+ * - 代理：VITE_HUOHUO_USE_PROXY=true 时请求同源 /api/huohuo-stream，由 Vercel 转发，避免 CORS
  */
 
-const BASE_URL =
-  import.meta.env.VITE_HUOHUO_API_URL || 'https://huohuo.hackerbee.life'
+const USE_PROXY = import.meta.env.VITE_HUOHUO_USE_PROXY === 'true'
+const BASE_URL = USE_PROXY
+  ? '' // 同源，用相对路径
+  : (import.meta.env.VITE_HUOHUO_API_URL || 'https://huohuo.hackerbee.life')
+const STREAM_PATH = USE_PROXY ? '/api/huohuo-stream' : '/ask/stream'
 const CF_CLIENT_ID = import.meta.env.VITE_CF_ACCESS_CLIENT_ID || ''
 const CF_CLIENT_SECRET = import.meta.env.VITE_CF_ACCESS_CLIENT_SECRET || ''
 
 function authHeaders(): Record<string, string> {
+  if (USE_PROXY) return {} // 代理由服务端带 CF 头
   return {
     'CF-Access-Client-Id': CF_CLIENT_ID,
     'CF-Access-Client-Secret': CF_CLIENT_SECRET,
@@ -22,8 +26,9 @@ export type AskResponse =
   | { stdout: string; stderr: string; returncode: number }
   | { error: string; stdout: null; stderr: null }
 
-/** GET /health */
+/** GET /health（代理模式下不直连，可忽略） */
 export async function healthCheck(): Promise<HealthResponse> {
+  if (USE_PROXY) return { status: 'ok' }
   const res = await fetch(`${BASE_URL}/health`, {
     method: 'GET',
     headers: authHeaders(),
@@ -57,7 +62,8 @@ export async function askStream(
   onChunk: (text: string) => void,
   signal?: AbortSignal
 ): Promise<string> {
-  const res = await fetch(`${BASE_URL}/ask/stream`, {
+  const url = USE_PROXY ? STREAM_PATH : `${BASE_URL}/ask/stream`
+  const res = await fetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
