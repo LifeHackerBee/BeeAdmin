@@ -1,15 +1,26 @@
-import { useSearch } from '@tanstack/react-router'
+import { useMemo } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Search, History } from 'lucide-react'
 import { HistoryList } from './components/history-list'
 import { WalletLiveQuery } from './components/wallet-live-query'
 
-type AnalyzerSearch = { address?: string; autoAnalyze?: boolean | '1' }
+interface AnalyzerSearchParams {
+  address?: string
+  autoAnalyze: boolean
+}
+
+function getAnalyzerSearchParams(): AnalyzerSearchParams {
+  if (typeof window === 'undefined') return { autoAnalyze: false }
+  const params = new URLSearchParams(window.location.search)
+  const address = params.get('address') ?? undefined
+  const autoAnalyze = params.get('autoAnalyze') === '1' || params.get('autoAnalyze') === 'true'
+  return { address: address || undefined, autoAnalyze }
+}
 
 export function TraderAnalyzer() {
-  const search = useSearch({ strict: false }) as AnalyzerSearch | undefined
-  const initialAddress = typeof search?.address === 'string' ? search.address : undefined
-  const autoAnalyze = search?.autoAnalyze === true || search?.autoAnalyze === '1'
+  const params: AnalyzerSearchParams = useMemo(() => getAnalyzerSearchParams(), [])
+  const initialAddress = params.address
+  const autoAnalyze = params.autoAnalyze
 
   return (
     <div className='flex h-full flex-col space-y-6 min-h-0'>

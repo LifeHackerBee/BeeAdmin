@@ -1,78 +1,185 @@
-import { useState } from 'react'
-import { Fragment } from 'react/jsx-runtime'
+import { useState, useRef, useEffect } from 'react'
 import { format } from 'date-fns'
-import {
-  ArrowLeft,
-  MoreVertical,
-  Plus,
-  Search as SearchIcon,
-  Send,
-  Bot,
-  Sparkles,
-} from 'lucide-react'
+import type { Components } from 'react-markdown'
+import ReactMarkdown from 'react-markdown'
+import remarkBreaks from 'remark-breaks'
+import remarkGfm from 'remark-gfm'
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
+import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
+import { Bot, Send, Loader2, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { Separator } from '@/components/ui/separator'
 import { ConfigDrawer } from '@/components/config-drawer'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
 import { LanguageSwitch } from '@/components/language-switch'
-import { NewAIChat } from './components/new-ai-chat'
-import { type AIAgent, type Message } from './data/beeai-types'
-// Fake Data
-import { conversations } from './data/conversations.json'
+import { askStream } from './api/huohuo'
+
+const AGENT_NAME = '火火'
+
+const markdownComponents: Components = {
+  code(props) {
+    const { className, children, ...rest } = props
+    const match = /language-(\w+)/.exec(className ?? '')
+    const code = String(children).replace(/\n$/, '')
+    if (match) {
+      return (
+        <SyntaxHighlighter
+          PreTag='div'
+          style={oneDark}
+          language={match[1]}
+          customStyle={{
+            margin: 0,
+            borderRadius: '0.5rem',
+            fontSize: '0.8125rem',
+          }}
+          codeTagProps={{ style: {} }}
+        >
+          {code}
+        </SyntaxHighlighter>
+      )
+    }
+    return (
+      <code
+        className='rounded bg-muted-foreground/15 px-1.5 py-0.5 font-mono text-sm'
+        {...rest}
+      >
+        {children}
+      </code>
+    )
+  },
+}
+
+/** 把火火输出的 ---##、)### 等连写格式转成标准 Markdown 换行与标题，便于正确渲染 */
+function normalizeMarkdownContent(raw: string): string {
+  return (
+    raw
+      // "当前场景)---##一、xxx" -> "当前场景)\n\n## 一、xxx"，让 ## 单独成段并识别为标题
+      .replace(/---##/g, '\n\n## ')
+      // "关键点在这:###" -> "关键点在这:\n\n### "，让 ### 单独成段
+      .replace(/([：:)\）\s])###(?=\s|[\u4e00-\u9fff])/g, '$1\n\n### ')
+      // "文字。\n下一段" 保持；"文字。下一段" 在中文句号后加空行，增加段落感
+      .replace(/([。！？])([^\s\n\r])/g, '$1\n\n$2')
+      // 独立的 "---" 前后加空行，渲染为分隔线
+      .replace(/([^\n])\n---\n(?=[^\n#])/g, '$1\n\n---\n\n')
+      .trim()
+  )
+}
+
+function ChatMarkdown({ content }: { content: string }) {
+  const normalized = normalizeMarkdownContent(content)
+  return (
+    <div className='chat-markdown text-sm leading-[1.65] [&_blockquote]:my-3 [&_blockquote]:border-l-4 [&_blockquote]:border-primary/40 [&_blockquote]:bg-muted/40 [&_blockquote]:py-1 [&_blockquote]:pl-3 [&_blockquote]:pr-2 [&_blockquote]:rounded-r [&_br]:block [&_br]:h-3 [&_h1]:mt-4 [&_h1]:mb-2 [&_h1]:text-base [&_h1]:font-semibold [&_h1]:scroll-mt-2 [&_h2]:mt-4 [&_h2]:mb-2 [&_h2]:text-sm [&_h2]:font-semibold [&_h2]:scroll-mt-2 [&_h3]:mt-3 [&_h3]:mb-1.5 [&_h3]:text-sm [&_h3]:font-medium [&_li]:my-0.5 [&_li]:leading-6 [&_ol]:my-3 [&_ol]:pl-5 [&_ol]:list-decimal [&_p]:my-2.5 [&_p]:leading-6 [&_pre]:my-3 [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_strong]:font-semibold [&_ul]:my-3 [&_ul]:pl-5 [&_ul]:list-disc'>
+      <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]} components={markdownComponents}>
+        {normalized}
+      </ReactMarkdown>
+    </div>
+  )
+}
+
+type Message = {
+  role: 'user' | 'assistant'
+  content: string
+  timestamp: string
+}
+
+const STORAGE_KEY = 'beeai-huohuo-messages'
+
+function loadMessages(): Message[] {
+  if (typeof window === 'undefined') return []
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw) as unknown
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter(
+      (m): m is Message =>
+        m &&
+        typeof m === 'object' &&
+        (m.role === 'user' || m.role === 'assistant') &&
+        typeof m.content === 'string' &&
+        typeof m.timestamp === 'string'
+    )
+  } catch {
+    return []
+  }
+}
+
+function saveMessages(messages: Message[]) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(messages))
+  } catch {
+    // ignore quota / private mode
+  }
+}
 
 export function BeeAI() {
-  const [search, setSearch] = useState('')
-  const [selectedAgent, setSelectedAgent] = useState<AIAgent | null>(null)
-  const [mobileSelectedAgent, setMobileSelectedAgent] = useState<AIAgent | null>(
-    null
-  )
-  const [createConversationDialogOpened, setCreateConversationDialog] =
-    useState(false)
-  const [inputMessage, setInputMessage] = useState('')
+  const [messages, setMessages] = useState<Message[]>(loadMessages)
+  const [input, setInput] = useState('')
+  const [streaming, setStreaming] = useState(false)
+  const [streamContent, setStreamContent] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
 
-  // Filtered data based on the search query
-  const filteredAgentList = conversations.filter(({ fullName, category }) =>
-    `${fullName} ${category}`.toLowerCase().includes(search.trim().toLowerCase())
-  )
+  useEffect(() => {
+    saveMessages(messages)
+  }, [messages])
 
-  const currentMessages = selectedAgent?.messages.reduce(
-    (acc: Record<string, Message[]>, obj) => {
-      const key = format(obj.timestamp, 'd MMM, yyyy')
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
+  }, [messages, streamContent])
 
-      // Create an array for the category if it doesn't exist
-      if (!acc[key]) {
-        acc[key] = []
-      }
-
-      // Push the current object to the array
-      acc[key].push(obj)
-
-      return acc
-    },
-    {}
-  )
-
-  const agents = conversations.map(({ messages, ...agent }) => agent)
-
-  const handleSendMessage = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!inputMessage.trim() || !selectedAgent) return
-    
-    // 这里未来会连接到真实的 AI Agent API
-    // 目前只是模拟发送消息
-    console.log('发送消息:', inputMessage)
-    setInputMessage('')
+    const text = input.trim()
+    if (!text || streaming) return
+
+    setInput('')
+    setError(null)
+    setMessages((prev) => [
+      ...prev,
+      { role: 'user', content: text, timestamp: new Date().toISOString() },
+    ])
+    setStreaming(true)
+    setStreamContent('')
+
+    try {
+      const fullContent = await askStream(
+        text,
+        (chunk) => setStreamContent((c) => (c ?? '') + chunk),
+        undefined
+      )
+      setStreamContent('')
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: fullContent,
+          timestamp: new Date().toISOString(),
+        },
+      ])
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      setError(msg)
+      setStreamContent('')
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: `[请求失败] ${msg}`,
+          timestamp: new Date().toISOString(),
+        },
+      ])
+    } finally {
+      setStreaming(false)
+    }
   }
 
   return (
     <>
-      {/* ===== Top Heading ===== */}
       <Header>
         <Search />
         <div className='ms-auto flex items-center space-x-4'>
@@ -83,253 +190,141 @@ export function BeeAI() {
       </Header>
 
       <Main fixed>
-        <section className='flex h-full gap-6'>
-          {/* Left Side - AI Agents List */}
-          <div className='flex w-full flex-col gap-2 sm:w-56 lg:w-72 2xl:w-80'>
-            <div className='sticky top-0 z-10 -mx-4 bg-background px-4 pb-3 shadow-md sm:static sm:z-auto sm:mx-0 sm:p-0 sm:shadow-none'>
-              <div className='flex items-center justify-between py-2'>
-                <div className='flex gap-2'>
-                  <h1 className='text-2xl font-bold'>BeeAI</h1>
-                  <Sparkles size={20} className='text-primary' />
-                </div>
-
-                <Button
-                  size='icon'
-                  variant='ghost'
-                  onClick={() => setCreateConversationDialog(true)}
-                  className='rounded-lg'
-                >
-                  <Plus size={24} className='stroke-muted-foreground' />
-                </Button>
+        <div className='flex h-full flex-col'>
+          {/* 标题栏 */}
+          <div className='flex shrink-0 items-center gap-3 border-b bg-card px-4 py-3'>
+            <Avatar className='size-10'>
+              <AvatarFallback className='text-xl'>🔥</AvatarFallback>
+            </Avatar>
+            <div>
+              <div className='flex items-center gap-2'>
+                <h1 className='text-lg font-semibold'>BeeAI</h1>
+                <Sparkles size={18} className='text-primary' />
               </div>
-
-              <label
-                className={cn(
-                  'focus-within:ring-1 focus-within:ring-ring focus-within:outline-hidden',
-                  'flex h-10 w-full items-center space-x-0 rounded-md border border-border ps-2'
-                )}
-              >
-                <SearchIcon size={15} className='me-2 stroke-slate-500' />
-                <span className='sr-only'>搜索 AI Agent</span>
-                <input
-                  type='text'
-                  className='w-full flex-1 bg-inherit text-sm focus-visible:outline-hidden'
-                  placeholder='搜索 AI Agent...'
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
-              </label>
+              <p className='text-xs text-muted-foreground'>
+                {AGENT_NAME} · OpenClaw 个人助手
+              </p>
             </div>
-
-            <ScrollArea className='-mx-3 h-full overflow-scroll p-3'>
-              {filteredAgentList.map((agent) => {
-                const { id, profile, messages, fullName, category } = agent
-                const lastMessage = messages[0]
-                const lastMsg = lastMessage.message
-                return (
-                  <Fragment key={id}>
-                    <button
-                      type='button'
-                      className={cn(
-                        'group hover:bg-accent hover:text-accent-foreground',
-                        `flex w-full rounded-md px-2 py-2 text-start text-sm`,
-                        selectedAgent?.id === id && 'sm:bg-muted'
-                      )}
-                      onClick={() => {
-                        setSelectedAgent(agent)
-                        setMobileSelectedAgent(agent)
-                      }}
-                    >
-                      <div className='flex gap-2'>
-                        <Avatar>
-                          <AvatarFallback className='text-lg'>{profile}</AvatarFallback>
-                        </Avatar>
-                        <div className='flex-1 min-w-0'>
-                          <div className='flex items-center gap-2'>
-                            <span className='col-start-2 row-span-2 font-medium truncate'>
-                              {fullName}
-                            </span>
-                            {category && (
-                              <span className='text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground'>
-                                {category}
-                              </span>
-                            )}
-                          </div>
-                          <span className='col-start-2 row-span-2 row-start-2 line-clamp-2 text-ellipsis text-muted-foreground group-hover:text-accent-foreground/90 text-xs'>
-                            {lastMsg.substring(0, 50)}...
-                          </span>
-                        </div>
-                      </div>
-                    </button>
-                    <Separator className='my-1' />
-                  </Fragment>
-                )
-              })}
-            </ScrollArea>
           </div>
 
-          {/* Right Side - Chat Interface */}
-          {selectedAgent ? (
-            <div
-              className={cn(
-                'absolute inset-0 start-full z-50 hidden w-full flex-1 flex-col border bg-background shadow-xs sm:static sm:z-auto sm:flex sm:rounded-md',
-                mobileSelectedAgent && 'start-0 flex'
-              )}
-            >
-              {/* Top Part */}
-              <div className='mb-1 flex flex-none justify-between bg-card p-4 shadow-lg sm:rounded-t-md'>
-                {/* Left */}
-                <div className='flex gap-3'>
-                  <Button
-                    size='icon'
-                    variant='ghost'
-                    className='-ms-2 h-full sm:hidden'
-                    onClick={() => setMobileSelectedAgent(null)}
-                  >
-                    <ArrowLeft className='rtl:rotate-180' />
-                  </Button>
-                  <div className='flex items-center gap-2 lg:gap-4'>
-                    <Avatar className='size-9 lg:size-11'>
-                      <AvatarFallback className='text-xl'>{selectedAgent.profile}</AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <div className='flex items-center gap-2'>
-                        <span className='col-start-2 row-span-2 text-sm font-medium lg:text-base'>
-                          {selectedAgent.fullName}
-                        </span>
-                        {selectedAgent.category && (
-                          <span className='text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground'>
-                            {selectedAgent.category}
-                          </span>
-                        )}
-                      </div>
-                      <span className='col-start-2 row-span-2 row-start-2 line-clamp-1 block max-w-32 text-xs text-nowrap text-ellipsis text-muted-foreground lg:max-w-none lg:text-sm'>
-                        {selectedAgent.title}
+          {/* 消息区 */}
+          <div
+            ref={scrollRef}
+            className='flex-1 overflow-y-auto p-4 space-y-4'
+          >
+            {messages.length === 0 && !streamContent && (
+              <div className='flex flex-col items-center justify-center py-16 text-center text-muted-foreground'>
+                <Bot className='size-12 mb-4 opacity-50' />
+                <p className='text-sm'>和 {AGENT_NAME} 打个招呼吧</p>
+                <p className='text-xs mt-1'>消息将实时流式返回</p>
+              </div>
+            )}
+
+            {messages.map((msg) => (
+              <div
+                key={`${msg.role}-${msg.timestamp}`}
+                className={cn(
+                  'flex gap-3 max-w-[85%]',
+                  msg.role === 'user' && 'ml-auto flex-row-reverse'
+                )}
+              >
+                {msg.role === 'assistant' && (
+                  <Avatar className='size-8 shrink-0'>
+                    <AvatarFallback className='text-sm'>🔥</AvatarFallback>
+                  </Avatar>
+                )}
+                <div
+                  className={cn(
+                    'rounded-2xl px-4 py-2.5 shadow-sm',
+                    msg.role === 'user'
+                      ? 'bg-primary text-primary-foreground rounded-br-md'
+                      : 'bg-muted rounded-bl-md'
+                  )}
+                >
+                  {msg.role === 'assistant' && (
+                    <div className='flex items-center gap-1.5 mb-1.5'>
+                      <Bot size={14} className='text-primary' />
+                      <span className='text-xs font-medium text-muted-foreground'>
+                        {AGENT_NAME}
                       </span>
                     </div>
-                  </div>
-                </div>
-
-                {/* Right */}
-                <div className='-me-1 flex items-center gap-1 lg:gap-2'>
-                  <Button
-                    size='icon'
-                    variant='ghost'
-                    className='h-10 rounded-md sm:h-8 sm:w-4 lg:h-10 lg:w-6'
+                  )}
+                  {msg.role === 'user' ? (
+                    <div className='whitespace-pre-wrap'>{msg.content}</div>
+                  ) : (
+                    <ChatMarkdown content={msg.content} />
+                  )}
+                  <span
+                    className={cn(
+                      'mt-1.5 block text-xs',
+                      msg.role === 'user'
+                        ? 'text-primary-foreground/80'
+                        : 'text-muted-foreground'
+                    )}
                   >
-                    <MoreVertical className='stroke-muted-foreground sm:size-5' />
-                  </Button>
+                    {format(new Date(msg.timestamp), 'HH:mm')}
+                  </span>
                 </div>
               </div>
+            ))}
 
-              {/* Conversation */}
-              <div className='flex flex-1 flex-col gap-2 rounded-md px-4 pt-0 pb-4'>
-                <div className='flex size-full flex-1'>
-                  <div className='chat-text-container relative -me-4 flex flex-1 flex-col overflow-y-hidden'>
-                    <div className='chat-flex flex h-40 w-full grow flex-col-reverse justify-start gap-4 overflow-y-auto py-2 pe-4 pb-4'>
-                      {currentMessages &&
-                        Object.keys(currentMessages).map((key) => (
-                          <Fragment key={key}>
-                            {currentMessages[key].map((msg, index) => (
-                              <div
-                                key={`${msg.sender}-${msg.timestamp}-${index}`}
-                                className={cn(
-                                  'chat-box max-w-[85%] px-4 py-3 wrap-break-word shadow-lg rounded-lg',
-                                  msg.sender === 'You'
-                                    ? 'self-end rounded-[16px_16px_0_16px] bg-primary/90 text-primary-foreground'
-                                    : 'self-start rounded-[16px_16px_16px_0] bg-muted'
-                                )}
-                              >
-                                {msg.sender === 'BeeAI' && (
-                                  <div className='flex items-center gap-2 mb-2'>
-                                    <Bot size={16} className='text-primary' />
-                                    <span className='text-xs font-semibold text-muted-foreground'>
-                                      {selectedAgent.fullName}
-                                    </span>
-                                  </div>
-                                )}
-                                <div className='whitespace-pre-wrap text-sm leading-relaxed'>
-                                  {msg.message}
-                                </div>
-                                <span
-                                  className={cn(
-                                    'mt-2 block text-xs font-light italic',
-                                    msg.sender === 'You'
-                                      ? 'text-end text-primary-foreground/85'
-                                      : 'text-muted-foreground/70'
-                                  )}
-                                >
-                                  {format(msg.timestamp, 'h:mm a')}
-                                </span>
-                              </div>
-                            ))}
-                            <div className='text-center text-xs text-muted-foreground py-2'>
-                              {key}
-                            </div>
-                          </Fragment>
-                        ))}
-                    </div>
+            {streaming && (
+              <div className='flex gap-3 max-w-[85%]'>
+                <Avatar className='size-8 shrink-0'>
+                  <AvatarFallback className='text-sm'>🔥</AvatarFallback>
+                </Avatar>
+                <div className='rounded-2xl rounded-bl-md bg-muted px-4 py-2.5 shadow-sm'>
+                  <div className='flex items-center gap-1.5 mb-1.5'>
+                    <Loader2 size={14} className='text-primary animate-spin' />
+                    <span className='text-xs font-medium text-muted-foreground'>
+                      {AGENT_NAME}
+                    </span>
+                  </div>
+                  <div className='text-sm leading-relaxed'>
+                    <ChatMarkdown content={streamContent} />
+                    <span className='inline-block w-2 h-4 bg-primary/60 animate-pulse ml-0.5 align-middle' />
                   </div>
                 </div>
-                <form onSubmit={handleSendMessage} className='flex w-full flex-none gap-2'>
-                  <div className='flex flex-1 items-center gap-2 rounded-md border border-input bg-card px-2 py-1 focus-within:ring-1 focus-within:ring-ring focus-within:outline-hidden lg:gap-4'>
-                    <label className='flex-1'>
-                      <span className='sr-only'>输入消息</span>
-                      <input
-                        type='text'
-                        placeholder='输入您的问题...'
-                        className='h-8 w-full bg-inherit focus-visible:outline-hidden'
-                        value={inputMessage}
-                        onChange={(e) => setInputMessage(e.target.value)}
-                      />
-                    </label>
-                    <Button
-                      variant='ghost'
-                      size='icon'
-                      type='submit'
-                      className='hidden sm:inline-flex'
-                      disabled={!inputMessage.trim()}
-                    >
-                      <Send size={20} />
-                    </Button>
-                  </div>
-                  <Button className='h-full sm:hidden' type='submit' disabled={!inputMessage.trim()}>
-                    <Send size={18} /> 发送
-                  </Button>
-                </form>
               </div>
+            )}
+
+            {error && (
+              <p className='text-sm text-destructive px-1'>{error}</p>
+            )}
+          </div>
+
+          {/* 输入区 */}
+          <form
+            onSubmit={handleSubmit}
+            className='shrink-0 border-t bg-background p-4'
+          >
+            <div className='flex gap-2 rounded-lg border bg-card px-3 py-2 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2'>
+              <input
+                type='text'
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder='输入消息…'
+                className='min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground'
+                disabled={streaming}
+                autoComplete='off'
+              />
+              <Button
+                type='submit'
+                size='icon'
+                variant='ghost'
+                disabled={!input.trim() || streaming}
+                className='shrink-0'
+              >
+                {streaming ? (
+                  <Loader2 size={20} className='animate-spin' />
+                ) : (
+                  <Send size={20} />
+                )}
+              </Button>
             </div>
-          ) : (
-            <div
-              className={cn(
-                'absolute inset-0 start-full z-50 hidden w-full flex-1 flex-col justify-center rounded-md border bg-card shadow-xs sm:static sm:z-auto sm:flex'
-              )}
-            >
-              <div className='flex flex-col items-center space-y-6'>
-                <div className='flex size-16 items-center justify-center rounded-full border-2 border-border'>
-                  <Bot className='size-8' />
-                </div>
-                <div className='space-y-2 text-center'>
-                  <h1 className='text-xl font-semibold'>BeeAI 智能助手</h1>
-                  <p className='text-sm text-muted-foreground'>
-                    选择左侧的 AI Agent 开始对话，或创建新的对话
-                  </p>
-                </div>
-                <Button onClick={() => setCreateConversationDialog(true)}>
-                  <Plus size={18} className='mr-2' />
-                  新建对话
-                </Button>
-              </div>
-            </div>
-          )}
-        </section>
-        <NewAIChat
-          agents={agents}
-          onOpenChange={setCreateConversationDialog}
-          open={createConversationDialogOpened}
-        />
+          </form>
+        </div>
       </Main>
     </>
   )
 }
-

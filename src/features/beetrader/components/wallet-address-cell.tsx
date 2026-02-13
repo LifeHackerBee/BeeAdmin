@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { Link } from '@tanstack/react-router'
 import { Button } from '@/components/ui/button'
 import { Copy, Check, ExternalLink, Eye, EyeOff } from 'lucide-react'
 import { toast } from 'sonner'
@@ -58,7 +57,6 @@ export function WalletAddressCell({
     }
   }
 
-  const analyzerSearch = { address, autoAnalyze: '1' as const }
   const analyzerUrl = linkToAnalyzer
     ? `/beetrader/analyzer?address=${encodeURIComponent(address)}&autoAnalyze=1`
     : `${ANALYSIS_BASE_URL}/${address}`
@@ -66,15 +64,14 @@ export function WalletAddressCell({
   const addressNode = linkToAnalyzer ? (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Link
-          to='/beetrader/analyzer'
-          search={analyzerSearch}
+        <a
+          href={analyzerUrl}
           className='font-mono text-sm break-all text-primary hover:underline focus:outline-none focus:underline'
           title={address}
           onClick={(e) => e.stopPropagation()}
         >
           {displayAddress}
-        </Link>
+        </a>
       </TooltipTrigger>
       <TooltipContent>跳转 Trader 分析并自动分析</TooltipContent>
     </Tooltip>
