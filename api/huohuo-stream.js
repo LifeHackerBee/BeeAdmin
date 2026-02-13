@@ -1,13 +1,13 @@
 /**
  * Vercel Serverless：代理火火 /ask/stream，避免浏览器直连时的 CORS（Cloudflare 返回 403 无 CORS 头）
- * 环境变量（在 Vercel 项目 Settings → Environment Variables 中配置）：
- *   HUOHUO_API_URL  默认 https://huohuo.hackerbee.life
- *   CF_ACCESS_CLIENT_ID
- *   CF_ACCESS_CLIENT_SECRET
+ * 环境变量（与 .env 一致，在 Vercel Settings → Environment Variables 中配置）：
+ *   VITE_HUOHUO_API_URL  可选，默认 https://huohuo.hackerbee.life
+ *   VITE_CF_ACCESS_CLIENT_ID
+ *   VITE_CF_ACCESS_CLIENT_SECRET
  */
 
 const HUOHUO_BASE =
-  process.env.HUOHUO_API_URL || 'https://huohuo.hackerbee.life'
+  process.env.VITE_HUOHUO_API_URL || 'https://huohuo.hackerbee.life'
 const STREAM_URL = `${HUOHUO_BASE.replace(/\/$/, '')}/ask/stream`
 
 export default {
@@ -31,13 +31,13 @@ export default {
       })
     }
 
-    const clientId = process.env.CF_ACCESS_CLIENT_ID || ''
-    const clientSecret = process.env.CF_ACCESS_CLIENT_SECRET || ''
+    const clientId = process.env.VITE_CF_ACCESS_CLIENT_ID || ''
+    const clientSecret = process.env.VITE_CF_ACCESS_CLIENT_SECRET || ''
 
     if (!clientId || !clientSecret) {
       return new Response(
         JSON.stringify({
-          error: 'Missing CF_ACCESS_CLIENT_ID or CF_ACCESS_CLIENT_SECRET',
+          error: 'Missing VITE_CF_ACCESS_CLIENT_ID or VITE_CF_ACCESS_CLIENT_SECRET',
         }),
         { status: 500, headers: { 'Content-Type': 'application/json' } }
       )
