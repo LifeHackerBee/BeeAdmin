@@ -42,7 +42,7 @@ export function Events() {
     coin,
     setCoin,
   } = useEvents({ page, pageSize })
-  const { wallets } = useWalletsData()
+  const { wallets, loading: walletsLoading, refetch: refetchWallets } = useWalletsData()
   const walletNotes = useMemo(
     () => Object.fromEntries((wallets || []).map((w) => [w.address, w.note || ''])),
     [wallets]
@@ -65,12 +65,12 @@ export function Events() {
     isRefreshingRef.current = true
     setIsRefreshing(true)
     
-    // 同时刷新事件和价格
-    Promise.all([refetch(), refetchPrices()]).finally(() => {
+    // 同时刷新事件、价格和钱包备注
+    Promise.all([refetch(), refetchPrices(), refetchWallets()]).finally(() => {
       isRefreshingRef.current = false
       setIsRefreshing(false)
     })
-  }, [refetch, refetchPrices])
+  }, [refetch, refetchPrices, refetchWallets])
 
   // 自动刷新逻辑
   useEffect(() => {
@@ -217,7 +217,7 @@ export function Events() {
       </div>
 
       <div className='flex flex-col gap-4'>
-        {loading ? (
+        {loading || walletsLoading ? (
           <div className='space-y-4'>
             <Skeleton className='h-12 w-full' />
             <Skeleton className='h-64 w-full' />
