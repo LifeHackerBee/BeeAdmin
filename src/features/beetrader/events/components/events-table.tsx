@@ -226,13 +226,16 @@ export function EventsTable({ data, walletNotes = {}, currentPrices = {} }: Even
                     
                     if (isNaN(currentPrice) || isNaN(markPrice) || markPrice === 0) return '-'
                     
-                    const change = currentPrice - markPrice
-                    const changePct = (change / markPrice) * 100
-                    const isPositive = change > 0
+                    // 价格变化率：(当前价 - 参考价) / 参考价
+                    const priceChangePct = ((currentPrice - markPrice) / markPrice) * 100
+                    // 做多：价涨=盈利，价跌=亏损；做空：价涨=亏损，价跌=盈利。涨跌幅按持仓盈亏显示，绿=盈利、红=亏损。
+                    const side = nowSide ?? getSideFromSzi(event.now_szi)
+                    const changePct = side === 'SHORT' ? -priceChangePct : priceChangePct
+                    const isProfit = changePct > 0
                     
                     return (
-                      <span className={isPositive ? 'text-green-600' : 'text-red-600'}>
-                        {isPositive ? '+' : ''}{changePct.toFixed(2)}%
+                      <span className={isProfit ? 'text-green-600' : 'text-red-600'}>
+                        {isProfit ? '+' : ''}{changePct.toFixed(2)}%
                       </span>
                     )
                   })()}
