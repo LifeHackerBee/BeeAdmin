@@ -51,7 +51,7 @@ export function Events() {
   // 获取当前市场价格（每 5 秒刷新一次）
   const { prices: currentPrices, refetch: refetchPrices } = useMarketPrices(5000)
   const [autoRefresh, setAutoRefresh] = useState(true)
-  const refreshInterval = 60 // 默认 1 分钟
+  const refreshInterval = 180 // 默认 3 分钟
   const [isRefreshing, setIsRefreshing] = useState(false)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
   const isRefreshingRef = useRef(false)
