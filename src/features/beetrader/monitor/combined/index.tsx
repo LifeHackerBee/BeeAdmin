@@ -8,10 +8,8 @@ import { useWalletsData } from '../context/wallets-data-provider'
 import { type Wallet } from '../data/schema'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { AlertCircle, RefreshCw, TrendingUp, TrendingDown, ChevronDown, ChevronRight, LineChart as LineChartIcon, Filter } from 'lucide-react'
+import { AlertCircle, RefreshCw, TrendingUp, TrendingDown, ChevronDown, ChevronRight, LineChart as LineChartIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Label } from '@/components/ui/label'
-import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import { WalletAddressCell } from '../../components/wallet-address-cell'
@@ -111,7 +109,6 @@ function CombinedContent() {
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null)
   const [expandedWallets, setExpandedWallets] = useState<Set<string>>(new Set())
   const [curveDialogAddress, setCurveDialogAddress] = useState<string | null>(null)
-  const [filterByPositive3Day, setFilterByPositive3Day] = useState(true)
   const lastVisibilityRefetchAt = useRef<number>(0)
 
   // 当 refreshTrigger 变化时，重新获取钱包列表（后台刷新，不闪骨架屏）
@@ -373,23 +370,6 @@ function CombinedContent() {
     return wallets.map(w => w.address).sort().join(',')
   }, [wallets])
 
-  // 按「3 天 equity 增长为正」过滤：当前 equity 来自 clearinghouse，3 天前来自 portfolio.accountValueHistory
-  const filteredWallets = useMemo(() => {
-    if (!filterByPositive3Day) return wallets
-    return wallets.filter((wallet) => {
-      const positionData = positionsData[wallet.address]
-      const hist = equityHistory[wallet.address]
-      const threeDay = hist?.threeDay
-      if (!threeDay?.length) return false
-      const accountValue = positionData?.marginSummary
-        ? parseFloat(positionData.marginSummary.accountValue)
-        : 0
-      const startEquity = threeDay[0].v
-      const threeDayGrowth = accountValue - startEquity
-      return threeDayGrowth > 0
-    })
-  }, [wallets, positionsData, equityHistory, filterByPositive3Day])
-
   // 当钱包列表变化时，刷新持仓数据
   useEffect(() => {
     if (!walletsLoading) {
@@ -428,22 +408,6 @@ function CombinedContent() {
     <WalletsProvider>
       <div className='flex flex-col space-y-4'>
         <div className='flex items-center justify-end flex-shrink-0 flex-wrap gap-4'>
-          <div className='flex items-center gap-2'>
-            <Checkbox
-              id='filter-positive-3d'
-              checked={filterByPositive3Day}
-              onCheckedChange={(v) => setFilterByPositive3Day(v === true)}
-            />
-            <Label htmlFor='filter-positive-3d' className='text-sm font-normal cursor-pointer flex items-center gap-1.5'>
-              <Filter className='h-3.5 w-3.5' />
-              仅显示 3 天 equity 增长为正
-            </Label>
-            {filterByPositive3Day && (
-              <span className='text-xs text-muted-foreground'>
-                （显示 {filteredWallets.length}/{wallets.length}）
-              </span>
-            )}
-          </div>
           <div className='flex items-center gap-2'>
             {walletsRefreshing && (
               <span className='inline-flex items-center gap-1.5 text-xs text-muted-foreground'>
@@ -508,14 +472,7 @@ function CombinedContent() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filterByPositive3Day && filteredWallets.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={17} className='text-center py-8 text-muted-foreground'>
-                        当前无 3 天 equity 增长为正的钱包（共 {wallets.length} 个已加载）。取消勾选「仅显示 3 天 equity 增长为正」可查看全部。
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                  filteredWallets.map((wallet) => {
+                  {wallets.map((wallet) => {
                     const positionData = positionsData[wallet.address]
                     const isLoading = !positionData && loading
                     const isExpanded = expandedWallets.has(wallet.id)
@@ -805,8 +762,7 @@ function CombinedContent() {
                         )}
                       </>
                     )
-                  })
-                  )}
+                  })}
                 </TableBody>
               </Table>
             </div>
