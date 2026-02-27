@@ -1,6 +1,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   TrendingUp,
   Activity,
@@ -13,9 +15,12 @@ import {
   ArrowDownCircle,
   Minus,
   Clock,
+  Flame,
 } from 'lucide-react'
 import type { OrderRadarData } from '../hooks/use-order-radar'
+import { useLiquidationMap } from '../hooks/use-liquidation-map'
 import { WallChart } from './wall-chart'
+import { LiquidationMapChart } from './liquidation-map-chart'
 
 // ============================================
 // 子组件
@@ -60,6 +65,7 @@ function PriceField({ label, value, basis }: { label: string; value: number | nu
 export function SignalResult({ data }: { data: OrderRadarData }) {
   const { strategy, l1_trend, l2_bollinger, l3_rsi, l4_cvd, volume, vwap, consolidation, walls, key_levels } = data
   const cp = data.current_price
+  const liqMap = useLiquidationMap()
 
   const vegasPositionLabel: Record<string, string> = { above: '通道上方', below: '通道下方', inside: '通道内部' }
   const vegasTrendLabel: Record<string, string> = { expanding: '扩张', contracting: '收缩', stable: '平稳', insufficient_data: '数据不足' }
@@ -303,6 +309,43 @@ export function SignalResult({ data }: { data: OrderRadarData }) {
         vegasLower={l1_trend.vegas.lower}
         coin={data.coin}
       />
+
+      {/* 清算热力图 */}
+      {liqMap.data ? (
+        <LiquidationMapChart data={liqMap.data} coin={data.coin} />
+      ) : (
+        <Card>
+          <CardHeader className='pb-2'>
+            <CardTitle className='text-sm flex items-center gap-2'>
+              <Flame className='h-4 w-4' />
+              {data.coin} 清算热力图
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {liqMap.loading ? (
+              <div className='space-y-3'>
+                <div className='text-sm text-muted-foreground'>正在从 CoinGlass 抓取清算数据，约需 10-30 秒...</div>
+                <Skeleton className='h-[280px] w-full' />
+              </div>
+            ) : liqMap.error ? (
+              <div className='text-sm text-red-500'>{liqMap.error.message}</div>
+            ) : (
+              <div className='flex flex-col items-center py-6 gap-3'>
+                <span className='text-sm text-muted-foreground'>点击加载清算热力图（数据来源: CoinGlass，约需 10-30 秒）</span>
+                <Button
+                  variant='outline'
+                  size='sm'
+                  onClick={() => liqMap.fetch(data.coin)}
+                  className='gap-1'
+                >
+                  <Flame className='h-4 w-4' />
+                  加载清算图
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* 墙位明细 */}
       {walls.length > 0 && (
