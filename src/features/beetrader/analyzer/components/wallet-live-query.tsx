@@ -32,6 +32,7 @@ import {
 import { AlertCircle, RefreshCw, TrendingUp, ListOrdered, Sparkles } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useWalletLive, type WalletLiveData, type UserFill, type ClearinghouseStateInner } from '../hooks/use-wallet-live'
+import { calculateWinRateFromFills } from '../../utils/win-rate'
 import { useAnalyzer } from '../hooks/use-analyzer'
 import { AnalysisResult } from './analysis-result'
 import { format } from 'date-fns'
@@ -132,39 +133,14 @@ function BalanceChart({ data }: { data: WalletLiveData }) {
 const RECENT_WIN_RATE_TRADES = 1000
 
 /**
- * 【胜率计算说明】与后端 analyzer 对齐，便于对账
+ * 【胜率计算说明】基于 round trip（开仓→完全平仓为一笔），与 Python _aggregate_round_trips 逻辑一致
  *
- * 1. 数据来源
- *    - 前端：userFillsByTime(user, startTime, endTime, aggregateByTime: false)，固定 30 天
- *    - 后端：get_user_fills_by_time(..., aggregate_by_time=False)，时间窗口由请求的 days 决定（可为自适应）
- *
- * 2. 筛选条件
- *    - 只使用 closedPnl（平仓已实现盈亏的权威字段），不使用 pnl 回退
- *    - 只保留 closedPnl != null 且 closedPnl !== 0 的成交
- *
- * 3. 时间顺序与“最近 N 笔”
- *    - 按 time 升序排序（旧→新），与后端一致
- *    - 取数组最后 recentN 条 = 时间上最近的 N 笔（不足 N 笔则全部取）
- *
- * 4. 胜/负与胜率
- *    - 赢：closedPnl > 0；输：closedPnl < 0
- *    - 胜率 = (赢的笔数 / 总笔数) * 100，保留两位小数
+ * 1. 数据来源：userFillsByTime(user, startTime, endTime, aggregateByTime: false)
+ * 2. 聚合：按币种将 fills 聚合为完整 round trip，过滤 volume < 10 USD 的微额交易
+ * 3. 胜率 = round trip PnL > 0 的次数 / 总 round trip 次数
  */
 function getRecentWinRate(fills: UserFill[], recentN: number = RECENT_WIN_RATE_TRADES) {
-  const withPnl = fills
-    .filter((f) => f.closedPnl != null && parseFloat(String(f.closedPnl)) !== 0)
-    .map((f) => ({ time: f.time ?? 0, pnl: parseFloat(String(f.closedPnl!)) }))
-  const sorted = [...withPnl].sort((a, b) => a.time - b.time)
-  const recent = sorted.slice(-recentN)
-  if (recent.length === 0) return null
-  const wins = recent.filter((r) => r.pnl > 0).length
-  const losses = recent.length - wins
-  return {
-    recentTrades: recent.length,
-    winRate: Math.round((wins / recent.length) * 10000) / 100,
-    winCount: wins,
-    lossCount: losses,
-  }
+  return calculateWinRateFromFills(fills, recentN)
 }
 
 function RecentWinRateModule({ fills }: { fills: UserFill[] }) {
@@ -178,7 +154,7 @@ function RecentWinRateModule({ fills }: { fills: UserFill[] }) {
           </span>
         </CardTitle>
         <CardDescription>
-          按时间取最近最多 {RECENT_WIN_RATE_TRADES} 条有已实现盈亏的成交（不足则全部计入），胜率 = 盈利笔数 ÷ 总笔数
+          按币种聚合为 round trip（开仓→完全平仓为一笔），过滤 &lt;10 USD 微额交易，取最近最多 {RECENT_WIN_RATE_TRADES} 笔，胜率 = 盈利笔数 ÷ 总笔数
         </CardDescription>
       </CardHeader>
       <CardContent className="pt-0">

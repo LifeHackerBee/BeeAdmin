@@ -16,7 +16,18 @@ import { ModuleGuard } from '@/components/rbac/module-guard'
 import { BeeAdminModules } from '@/lib/rbac'
 
 export function Tracker() {
-  const { tasks, loading, error, refetch, createTask, startTask, stopTask, deleteTask } = useTracker()
+  const {
+    tasks,
+    loading,
+    error,
+    refetch,
+    createTask,
+    startTask,
+    stopTask,
+    deleteTask,
+    stopTasks,
+    deleteTasks,
+  } = useTracker()
   const { refetch: refetchStatistics } = useStatistics()
   const { wallets } = useWalletsData()
   const walletNotes = useMemo(
@@ -103,14 +114,6 @@ export function Tracker() {
     refetchStatistics()
   }
 
-  // 调试日志
-  console.log('Tracker 组件渲染:', { 
-    tasksCount: tasks.length, 
-    loading, 
-    error: error?.message,
-    tasks: tasks 
-  })
-
   return (
     <ModuleGuard module={BeeAdminModules.BEETRADER_TRACKER}>
       <div className='flex flex-col space-y-4'>
@@ -170,12 +173,14 @@ export function Tracker() {
             </AlertDescription>
           </Alert>
         ) : (
-          <TrackerTable 
-            data={tasks} 
+          <TrackerTable
+            data={tasks}
             walletNotes={walletNotes}
             onStart={(taskId) => handleTaskAction(() => startTask(taskId))}
             onStop={(taskId) => handleTaskAction(() => stopTask(taskId))}
             onDelete={(taskId) => handleTaskAction(() => deleteTask(taskId))}
+            onStopTasks={(taskIds) => handleTaskAction(() => stopTasks(taskIds))}
+            onDeleteTasks={(taskIds) => handleTaskAction(() => deleteTasks(taskIds))}
           />
         )}
       </div>

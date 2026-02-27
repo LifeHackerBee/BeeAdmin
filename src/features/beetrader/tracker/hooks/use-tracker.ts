@@ -172,6 +172,42 @@ export function useTracker() {
     }
   }, [])
 
+  // 批量停止任务
+  const stopTasks = useCallback(async (taskIds: string[]) => {
+    if (taskIds.length === 0) return
+    try {
+      setLoading(true)
+      setError(null)
+      await Promise.all(taskIds.map((id) => hyperliquidApiPost<MonitorTask>(`/api/monitor/tasks/${id}/stop`)))
+      await fetchTasks()
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error('批量停止任务失败')
+      setError(error)
+      console.error('Error stopping tasks:', err)
+      throw error
+    } finally {
+      setLoading(false)
+    }
+  }, [fetchTasks])
+
+  // 批量删除任务
+  const deleteTasks = useCallback(async (taskIds: string[]) => {
+    if (taskIds.length === 0) return
+    try {
+      setLoading(true)
+      setError(null)
+      await Promise.all(taskIds.map((id) => hyperliquidApiDelete(`/api/monitor/tasks/${id}`)))
+      setTasks((prev) => prev.filter((task) => !taskIds.includes(task.task_id)))
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error('批量删除任务失败')
+      setError(error)
+      console.error('Error deleting tasks:', err)
+      throw error
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
   // 组件挂载时获取任务列表
   useEffect(() => {
     fetchTasks()
@@ -186,5 +222,7 @@ export function useTracker() {
     startTask,
     stopTask,
     deleteTask,
+    stopTasks,
+    deleteTasks,
   }
 }

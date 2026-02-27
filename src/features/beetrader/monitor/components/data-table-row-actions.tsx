@@ -39,7 +39,7 @@ export function DataTableRowActions<TData>({
         <DropdownMenuItem
           onClick={() => {
             setCurrentRow(wallet)
-            setOpen('update')
+            setTimeout(() => setOpen('update'), 0)
           }}
         >
           编辑
@@ -48,7 +48,9 @@ export function DataTableRowActions<TData>({
         <DropdownMenuItem
           onClick={() => {
             setCurrentRow(wallet)
-            setOpen('delete')
+            // 延迟打开删除弹窗，避免 Radix DropdownMenu 与 AlertDialog 同时操作时的 pointer-events 冲突
+            // ref: https://github.com/radix-ui/primitives/issues/3317
+            setTimeout(() => setOpen('delete'), 0)
           }}
         >
           删除

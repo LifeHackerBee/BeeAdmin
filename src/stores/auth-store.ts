@@ -72,6 +72,9 @@ async function fetchUserProfile(userId: string): Promise<Partial<AuthUser> | nul
   }
 }
 
+// 防止 initialize 并发调用，多个调用者共享同一 Promise
+let initPromise: Promise<void> | null = null
+
 export const useAuthStore = create<AuthState>()((set) => ({
   user: null,
   session: null,
@@ -93,61 +96,60 @@ export const useAuthStore = create<AuthState>()((set) => ({
   },
   
   initialize: async () => {
-    try {
-      console.log('🚀 开始初始化 auth store')
-      
-      // 设置 loading 为 true
-      set({ loading: true })
+    if (initPromise) {
+      await initPromise
+      return
+    }
 
-      // 先尝试从存储中获取 session
-      const {
-        data: { session },
-        error: sessionError,
-      } = await supabase.auth.getSession()
+    const doInit = async () => {
+      try {
+        console.log('🚀 开始初始化 auth store')
+        set({ loading: true })
 
-      if (sessionError) {
-        console.error('Error getting session:', sessionError)
-        set({ user: null, session: null, loading: false })
-        return
-      }
+        const {
+          data: { session },
+          error: sessionError,
+        } = await supabase.auth.getSession()
 
-      // 检查 session 是否存在
-      if (session?.user) {
-        // 从 profiles 表获取完整的用户信息
-        const profile = await fetchUserProfile(session.user.id)
-        
-        const user: AuthUser = {
-          id: session.user.id,
-          email: session.user.email || '',
-          name: profile?.name || session.user.user_metadata?.name || session.user.user_metadata?.full_name,
-          avatar: profile?.avatar || session.user.user_metadata?.avatar_url,
-          role: profile?.role || ['user'],
-          customPermissions: profile?.customPermissions || [],
-          allowedModules: profile?.allowedModules || [],
-          isActive: profile?.isActive,
-          isVerified: profile?.isVerified,
-          bio: profile?.bio,
+        if (sessionError) {
+          console.error('Error getting session:', sessionError)
+          set({ user: null, session: null, loading: false })
+          return
         }
-        
-        console.log('👤 初始化 - 创建用户对象:', {
-          email: user.email,
-          role: user.role,
-          allowedModules: user.allowedModules,
-          hasProfile: !!profile,
-        })
-        
-        // 更新最后登录时间
-        if (profile) {
-          void supabase.rpc('update_last_login', { user_id: session.user.id })
-        }
-        
-        set({ user, session, loading: false })
-      } else {
-        set({ user: null, session: null, loading: false })
-      }
 
-      // 注册监听器（忽略 INITIAL_SESSION）
-      supabase.auth.onAuthStateChange(async (event, session) => {
+        if (session?.user) {
+          const profile = await fetchUserProfile(session.user.id)
+
+          const user: AuthUser = {
+            id: session.user.id,
+            email: session.user.email || '',
+            name: profile?.name || session.user.user_metadata?.name || session.user.user_metadata?.full_name,
+            avatar: profile?.avatar || session.user.user_metadata?.avatar_url,
+            role: profile?.role || ['user'],
+            customPermissions: profile?.customPermissions || [],
+            allowedModules: profile?.allowedModules || [],
+            isActive: profile?.isActive,
+            isVerified: profile?.isVerified,
+            bio: profile?.bio,
+          }
+
+          console.log('👤 初始化 - 创建用户对象:', {
+            email: user.email,
+            role: user.role,
+            allowedModules: user.allowedModules,
+            hasProfile: !!profile,
+          })
+
+          if (profile) {
+            void supabase.rpc('update_last_login', { user_id: session.user.id })
+          }
+
+          set({ user, session, loading: false })
+        } else {
+          set({ user: null, session: null, loading: false })
+        }
+
+        supabase.auth.onAuthStateChange(async (event, session) => {
         console.log('🔄 Auth state changed:', event, session?.user?.email)
         
         if (event === 'INITIAL_SESSION') {
@@ -184,10 +186,16 @@ export const useAuthStore = create<AuthState>()((set) => ({
           set({ user: null, session: null, loading: false })
         }
       })
-    } catch (error) {
-      console.error('Error initializing auth:', error)
-      set({ loading: false })
+      } catch (error) {
+        console.error('Error initializing auth:', error)
+        set({ loading: false })
+      } finally {
+        initPromise = null
+      }
     }
+
+    initPromise = doInit()
+    await initPromise
   },
 
   refreshProfile: async () => {

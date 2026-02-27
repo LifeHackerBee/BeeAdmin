@@ -1,4 +1,4 @@
-import { StrictMode, useEffect } from 'react'
+import { StrictMode, useEffect, useState } from 'react'
 import ReactDOM from 'react-dom/client'
 import { AxiosError } from 'axios'
 import {
@@ -101,17 +101,27 @@ declare module '@tanstack/react-router' {
   }
 }
 
-// Initialize auth on app start
+// 在渲染 Router 前完成 auth 初始化，避免权限相关页面首次加载时 user/loading 未就绪导致数据请求被 enabled:false 拦截
 function App() {
+  const [authReady, setAuthReady] = useState(false)
   const initializeAuth = useAuthStore((state) => state.initialize)
 
   useEffect(() => {
-    initializeAuth()
+    initializeAuth().finally(() => setAuthReady(true))
   }, [initializeAuth])
 
-  return (
-    <RouterProvider router={router} />
-  )
+  if (!authReady) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="flex flex-col items-center gap-2 text-muted-foreground">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-current border-t-transparent" />
+          <p>加载中...</p>
+        </div>
+      </div>
+    )
+  }
+
+  return <RouterProvider router={router} />
 }
 
 // Render the app

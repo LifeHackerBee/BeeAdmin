@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import {
   Table,
   TableBody,
@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Trash2, Play, Square } from 'lucide-react'
 import { WalletAddressCell } from '../../components/wallet-address-cell'
 import {
@@ -23,6 +24,9 @@ import {
 } from '@/components/ui/alert-dialog'
 import type { MonitorTask } from '../hooks/use-tracker'
 import { formatDateTime } from '@/lib/timezone'
+import { TrackerBulkActions } from './tracker-bulk-actions'
+import { TrackerMultiStopDialog } from './tracker-multi-stop-dialog'
+import { TrackerMultiDeleteDialog } from './tracker-multi-delete-dialog'
 
 interface TrackerTableProps {
   data: MonitorTask[]
@@ -31,11 +35,77 @@ interface TrackerTableProps {
   onStart: (taskId: string) => Promise<unknown>
   onStop: (taskId: string) => Promise<unknown>
   onDelete: (taskId: string) => Promise<void>
+  onStopTasks?: (taskIds: string[]) => Promise<void>
+  onDeleteTasks?: (taskIds: string[]) => Promise<void>
 }
 
-export function TrackerTable({ data, walletNotes = {}, onStart, onStop, onDelete }: TrackerTableProps) {
+export function TrackerTable({
+  data,
+  walletNotes = {},
+  onStart,
+  onStop,
+  onDelete,
+  onStopTasks,
+  onDeleteTasks,
+}: TrackerTableProps) {
   const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null)
   const [operatingTaskId, setOperatingTaskId] = useState<string | null>(null)
+  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set())
+  const [showBatchStopDialog, setShowBatchStopDialog] = useState(false)
+  const [showBatchDeleteDialog, setShowBatchDeleteDialog] = useState(false)
+  const [isBatchOperating, setIsBatchOperating] = useState(false)
+
+  const toggleSelect = useCallback((taskId: string) => {
+    setSelectedTaskIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(taskId)) next.delete(taskId)
+      else next.add(taskId)
+      return next
+    })
+  }, [])
+
+  const toggleSelectAll = useCallback(() => {
+    if (selectedTaskIds.size === data.length) {
+      setSelectedTaskIds(new Set())
+    } else {
+      setSelectedTaskIds(new Set(data.map((t) => t.task_id)))
+    }
+  }, [data, selectedTaskIds.size])
+
+  const clearSelection = useCallback(() => setSelectedTaskIds(new Set()), [])
+
+  const handleBatchStop = useCallback(() => setShowBatchStopDialog(true), [])
+  const handleBatchDelete = useCallback(() => setShowBatchDeleteDialog(true), [])
+
+  const handleBatchStopConfirm = useCallback(
+    async (taskIds: string[]) => {
+      if (!onStopTasks) return
+      setIsBatchOperating(true)
+      try {
+        await onStopTasks(taskIds)
+        clearSelection()
+      } finally {
+        setIsBatchOperating(false)
+      }
+    },
+    [onStopTasks, clearSelection]
+  )
+
+  const handleBatchDeleteConfirm = useCallback(
+    async (taskIds: string[]) => {
+      if (!onDeleteTasks) return
+      setIsBatchOperating(true)
+      try {
+        await onDeleteTasks(taskIds)
+        clearSelection()
+      } finally {
+        setIsBatchOperating(false)
+      }
+    },
+    [onDeleteTasks, clearSelection]
+  )
+
+  const hasBatchActions = Boolean(onStopTasks && onDeleteTasks)
 
   const handleStart = async (taskId: string) => {
     try {
@@ -75,8 +145,6 @@ export function TrackerTable({ data, walletNotes = {}, onStart, onStop, onDelete
     return <Badge variant={config.variant}>{config.label}</Badge>
   }
 
-  console.log('TrackerTable 渲染，数据数量:', data.length, '数据:', data)
-
   if (data.length === 0) {
     return (
       <div className='flex items-center justify-center h-full text-muted-foreground'>
@@ -97,6 +165,17 @@ export function TrackerTable({ data, walletNotes = {}, onStart, onStop, onDelete
         <Table>
           <TableHeader>
             <TableRow>
+              {hasBatchActions && (
+                <TableHead className='w-[48px]'>
+                  <Checkbox
+                    checked={
+                      data.length > 0 && selectedTaskIds.size === data.length
+                    }
+                    onCheckedChange={toggleSelectAll}
+                    aria-label='全选'
+                  />
+                </TableHead>
+              )}
               <TableHead>钱包地址</TableHead>
               <TableHead className='w-[140px]'>备注</TableHead>
               <TableHead>状态</TableHead>
@@ -111,7 +190,24 @@ export function TrackerTable({ data, walletNotes = {}, onStart, onStop, onDelete
           </TableHeader>
           <TableBody>
             {data.map((task) => (
-              <TableRow key={task.task_id}>
+              <TableRow
+                key={task.task_id}
+                data-state={selectedTaskIds.has(task.task_id) ? 'selected' : undefined}
+                className={
+                  selectedTaskIds.has(task.task_id)
+                    ? 'bg-muted/50'
+                    : undefined
+                }
+              >
+                {hasBatchActions && (
+                  <TableCell className='w-[48px]'>
+                    <Checkbox
+                      checked={selectedTaskIds.has(task.task_id)}
+                      onCheckedChange={() => toggleSelect(task.task_id)}
+                      aria-label={`选择任务 ${task.wallet_address}`}
+                    />
+                  </TableCell>
+                )}
                 <TableCell className='min-w-0'>
                   <WalletAddressCell address={task.wallet_address} />
                 </TableCell>
@@ -217,6 +313,32 @@ export function TrackerTable({ data, walletNotes = {}, onStart, onStop, onDelete
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {hasBatchActions && (
+        <>
+          <TrackerBulkActions
+            selectedCount={selectedTaskIds.size}
+            onClearSelection={clearSelection}
+            onBatchStop={handleBatchStop}
+            onBatchDelete={handleBatchDelete}
+            isOperating={isBatchOperating}
+          />
+          <TrackerMultiStopDialog
+            open={showBatchStopDialog}
+            onOpenChange={setShowBatchStopDialog}
+            selectedTaskIds={Array.from(selectedTaskIds)}
+            onConfirm={handleBatchStopConfirm}
+            onSuccess={clearSelection}
+          />
+          <TrackerMultiDeleteDialog
+            open={showBatchDeleteDialog}
+            onOpenChange={setShowBatchDeleteDialog}
+            selectedTaskIds={Array.from(selectedTaskIds)}
+            onConfirm={handleBatchDeleteConfirm}
+            onSuccess={clearSelection}
+          />
+        </>
+      )}
     </>
   )
 }

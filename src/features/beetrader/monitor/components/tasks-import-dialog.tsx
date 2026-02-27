@@ -22,6 +22,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { Download } from 'lucide-react'
 import { useWalletsData } from '../context/wallets-data-provider'
 import { useWallets as useWalletsContext } from './tasks-provider'
 
@@ -86,21 +87,44 @@ function parseCSV(text: string): Record<string, string>[] {
 
 const ETH_ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/
 
+const CSV_TEMPLATE_HEADER =
+  'remark,composite_score,ethAddress,displayName,accountValue,current_equity,equity_3d_ago,equity_3d_change_pct,pnl_3d,total_perp_pnl,trade_count_3d,trade_volume_3d,position_count,positions,sample_trades,win_rate,win_count,loss_count,win_sample_size'
+
+function downloadCsvTemplate() {
+  const content = CSV_TEMPLATE_HEADER + '\n' + '示例备注,0.5,0x0000000000000000000000000000000000000001,,100000,100000,95000,5.26,5000,10000,100,500000,0,-,-,60,60,40,100'
+  const blob = new Blob(['\ufeff' + content], { type: 'text/csv;charset=utf-8;' })
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = `wallet_import_template_${new Date().toISOString().slice(0, 10)}.csv`
+  a.click()
+  URL.revokeObjectURL(a.href)
+}
+
+/** 支持的地址列名（解析时表头统一转小写） */
+const ADDRESS_KEYS = ['ethaddress', 'eth_address', 'address', 'wallet'] as const
+/** 支持的备注列名，优先级：remark > displayname */
+const NOTE_KEYS = ['remark', 'displayname', 'display_name', 'note'] as const
+
 function extractWalletFromRow(row: Record<string, string>): { address: string; note: string } | null {
-  const addr =
-    row['ethaddress'] ??
-    row['eth_address'] ??
-    row['address'] ??
-    row['wallet'] ??
-    ''
-  const addrTrimmed = (addr || '').trim()
-  if (!addrTrimmed || !ETH_ADDRESS_REGEX.test(addrTrimmed)) return null
+  let addr = ''
+  for (const k of ADDRESS_KEYS) {
+    const v = (row[k] ?? '').trim()
+    if (v && ETH_ADDRESS_REGEX.test(v)) {
+      addr = v
+      break
+    }
+  }
+  if (!addr) return null
 
-  const note =
-    (row['displayname'] ?? row['display_name'] ?? row['note'] ?? row['remark'] ?? '').trim() ||
-    ''
-
-  return { address: addrTrimmed, note }
+  let note = ''
+  for (const k of NOTE_KEYS) {
+    const v = (row[k] ?? '').trim()
+    if (v) {
+      note = v
+      break
+    }
+  }
+  return { address: addr, note }
 }
 
 export function TasksImportDialog({ open, onOpenChange }: WalletsImportDialogProps) {
@@ -161,7 +185,7 @@ export function TasksImportDialog({ open, onOpenChange }: WalletsImportDialogPro
       if (parts.length > 0) {
         toast.success(parts.join('，'))
       } else if (invalid > 0) {
-        toast.error('未找到有效钱包地址，请确保 CSV 包含 ethAddress 列')
+        toast.error('未找到有效钱包地址，请确保 CSV 包含 ethAddress 列（或 address/wallet）')
       } else {
         toast.info('没有可导入的数据')
       }
@@ -185,8 +209,16 @@ export function TasksImportDialog({ open, onOpenChange }: WalletsImportDialogPro
       <DialogContent className='gap-2 sm:max-w-sm'>
         <DialogHeader className='text-start'>
           <DialogTitle>导入钱包</DialogTitle>
-          <DialogDescription>
-            支持 CSV 格式，需包含 ethAddress 列；displayName 可作为备注导入。也支持 analyzer result 导出的完整 CSV。
+          <DialogDescription className="space-y-1.5">
+            <span className="block">支持 analyzer rank 导出的完整 CSV，格式示例：</span>
+            <code className="block rounded bg-muted px-1.5 py-0.5 text-xs break-all">
+              remark,composite_score,ethAddress,displayName,accountValue,current_equity,equity_3d_ago,equity_3d_change_pct,pnl_3d,total_perp_pnl,trade_count_3d,trade_volume_3d,position_count,positions,sample_trades,win_rate,win_count,loss_count,win_sample_size
+            </code>
+            <span className="block text-muted-foreground">必填：ethAddress；可选：remark 或 displayName 作为备注。</span>
+            <Button type="button" variant="link" className="h-auto p-0 text-xs" onClick={downloadCsvTemplate}>
+              <Download className="mr-1 h-3 w-3" />
+              下载导入模板
+            </Button>
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>

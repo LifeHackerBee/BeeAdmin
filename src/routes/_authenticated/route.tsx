@@ -6,15 +6,8 @@ import { hasPermission } from '@/lib/rbac'
 export const Route = createFileRoute('/_authenticated')({
   beforeLoad: async ({ location }) => {
     const { user, session, loading, initialize } = useAuthStore.getState()
-    
-    // 页面刷新时，store 状态会丢失，需要重新初始化
-    // 如果 loading 为 true，说明正在初始化，等待完成
-    // 如果 loading 为 false 但没有 user 和 session，说明可能是刷新后的状态丢失，需要重新初始化
-    if (loading) {
-      // 等待初始化完成
-      await initialize()
-    } else if (!user || !session) {
-      // 状态丢失，重新初始化
+    // App 已在 main.tsx 中阻塞 Router 渲染直至 auth 就绪，此处仅做兜底（如多 tab 登出等）
+    if (loading || !user || !session) {
       await initialize()
     }
 

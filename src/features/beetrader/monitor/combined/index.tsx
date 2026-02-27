@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useRef } from 'react'
+import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
 import { WalletsProvider, useWallets as useWalletsContext } from '../components/tasks-provider'
 import { WalletsPrimaryButtons } from '../components/tasks-primary-buttons'
 import { WalletsDialogs } from '../components/tasks-dialogs'
@@ -16,6 +16,11 @@ import { WalletAddressCell } from '../../components/wallet-address-cell'
 import { getWalletTypeLabel } from '../data/data'
 import { format } from 'date-fns'
 import { zhCN } from 'date-fns/locale'
+import { Switch } from '@/components/ui/switch'
+import { Label } from '@/components/ui/label'
+import { Checkbox } from '@/components/ui/checkbox'
+import { WalletsBulkActions } from '../components/wallets-bulk-actions'
+import { WalletsMultiDeleteDialog } from '../components/wallets-multi-delete-dialog'
 import {
   Table,
   TableBody,
@@ -26,6 +31,7 @@ import {
 } from '@/components/ui/table'
 import { EquityCurveDialog, type EquityPoint } from './equity-curve-dialog'
 import { EquitySparkline } from './equity-sparkline'
+import { calculateWinRateFromFills } from '../../utils/win-rate'
 
 interface PositionData {
   address: string
@@ -75,28 +81,25 @@ export type EquityHistory = {
 const HYPERLIQUID_API_URL = 'https://api.hyperliquid.xyz/info'
 const THREE_DAY_MS = 3 * 24 * 60 * 60 * 1000
 const VISIBILITY_REFETCH_DEBOUNCE_MS = 15_000
-const AUTO_REFRESH_INTERVAL_MS = 15_000
+const AUTO_REFRESH_INTERVAL_MS = 3 * 60 * 1000 // 3 分钟
 const RECENT_WIN_RATE_TRADES = 1000
 
-type UserFillLike = { time?: number; closedPnl?: string }
+type UserFillLike = {
+  time?: number
+  closedPnl?: string
+  coin?: string
+  startPosition?: string
+  sz?: string
+  px?: string
+  dir?: string
+  [key: string]: unknown
+}
+
 function getRecentWinRateFromFills(
   fills: UserFillLike[],
   recentN: number = RECENT_WIN_RATE_TRADES
 ): { winRate: number; recentTrades: number; winCount: number; lossCount: number } | null {
-  const withPnl = fills
-    .filter((f) => f.closedPnl != null && parseFloat(String(f.closedPnl)) !== 0)
-    .map((f) => ({ time: f.time ?? 0, pnl: parseFloat(String(f.closedPnl!)) }))
-  const sorted = [...withPnl].sort((a, b) => a.time - b.time)
-  const recent = sorted.slice(-recentN)
-  if (recent.length === 0) return null
-  const wins = recent.filter((r) => r.pnl > 0).length
-  const losses = recent.length - wins
-  return {
-    winRate: Math.round((wins / recent.length) * 10000) / 100,
-    recentTrades: recent.length,
-    winCount: wins,
-    lossCount: losses,
-  }
+  return calculateWinRateFromFills(fills, recentN)
 }
 
 function CombinedContent() {
@@ -109,7 +112,33 @@ function CombinedContent() {
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null)
   const [expandedWallets, setExpandedWallets] = useState<Set<string>>(new Set())
   const [curveDialogAddress, setCurveDialogAddress] = useState<string | null>(null)
+  const [autoRefresh, setAutoRefresh] = useState(false)
+  const [selectedWalletIds, setSelectedWalletIds] = useState<Set<string>>(new Set())
+  const [showBatchDeleteDialog, setShowBatchDeleteDialog] = useState(false)
   const lastVisibilityRefetchAt = useRef<number>(0)
+
+  const toggleSelect = useCallback((walletId: string) => {
+    setSelectedWalletIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(walletId)) next.delete(walletId)
+      else next.add(walletId)
+      return next
+    })
+  }, [])
+
+  const toggleSelectAll = useCallback(() => {
+    if (selectedWalletIds.size === wallets.length) {
+      setSelectedWalletIds(new Set())
+    } else {
+      setSelectedWalletIds(new Set(wallets.map((w) => w.id)))
+    }
+  }, [wallets, selectedWalletIds.size])
+
+  const clearSelection = useCallback(() => setSelectedWalletIds(new Set()), [])
+
+  const handleBatchDeleteSuccess = useCallback(() => {
+    clearSelection()
+  }, [clearSelection])
 
   // 当 refreshTrigger 变化时，重新获取钱包列表（后台刷新，不闪骨架屏）
   useEffect(() => {
@@ -119,8 +148,9 @@ function CombinedContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshTrigger])
 
-  // 页面/标签重新可见时刷新钱包列表（后台刷新）；钱包更新后会触发下方 effect 自动刷新持仓
+  // 页面/标签重新可见时刷新钱包列表（仅在开启自动更新时）
   useEffect(() => {
+    if (!autoRefresh) return
     const onVisible = () => {
       if (document.visibilityState !== 'visible') return
       const now = Date.now()
@@ -130,16 +160,16 @@ function CombinedContent() {
     }
     document.addEventListener('visibilitychange', onVisible)
     return () => document.removeEventListener('visibilitychange', onVisible)
-  }, [refetch])
+  }, [autoRefresh, refetch])
 
-  // 有钱包列表时每 15 秒自动刷新数据（后台刷新，不刷新页面）
+  // 有钱包列表且开启自动更新时，每 15 秒刷新数据（默认关闭，避免与删除等操作冲突）
   useEffect(() => {
-    if (wallets.length === 0) return
+    if (!autoRefresh || wallets.length === 0) return
     const timer = setInterval(() => {
       refetch({ backgroundRefresh: true })
     }, AUTO_REFRESH_INTERVAL_MS)
     return () => clearInterval(timer)
-  }, [wallets.length, refetch])
+  }, [autoRefresh, wallets.length, refetch])
 
   const toggleWallet = (walletId: string) => {
     setExpandedWallets((prev) => {
@@ -408,6 +438,23 @@ function CombinedContent() {
     <WalletsProvider>
       <div className='flex flex-col space-y-4'>
         <div className='flex items-center justify-end flex-shrink-0 flex-wrap gap-4'>
+          <div className='flex items-center gap-4'>
+            <div className='flex items-center gap-2'>
+              <Switch
+                id='auto-refresh-wallets'
+                checked={autoRefresh}
+                onCheckedChange={setAutoRefresh}
+              />
+              <Label htmlFor='auto-refresh-wallets' className='text-sm cursor-pointer'>
+                自动更新
+              </Label>
+              {autoRefresh && (
+                <span className='text-xs text-muted-foreground'>
+                  (每3分钟)
+                </span>
+              )}
+            </div>
+          </div>
           <div className='flex items-center gap-2'>
             {walletsRefreshing && (
               <span className='inline-flex items-center gap-1.5 text-xs text-muted-foreground'>
@@ -452,6 +499,16 @@ function CombinedContent() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className='w-[48px]'>
+                      <Checkbox
+                        checked={
+                          wallets.length > 0 &&
+                          selectedWalletIds.size === wallets.length
+                        }
+                        onCheckedChange={toggleSelectAll}
+                        aria-label='全选'
+                      />
+                    </TableHead>
                     <TableHead className='w-[40px]'></TableHead>
                     <TableHead className='sticky left-0 bg-background z-10'>钱包地址</TableHead>
                     <TableHead>备注</TableHead>
@@ -499,11 +556,23 @@ function CombinedContent() {
 
                     return (
                       <>
-                        <TableRow 
+                        <TableRow
                           key={wallet.id}
-                          className='cursor-pointer hover:bg-muted/50'
+                          className={`cursor-pointer hover:bg-muted/50 ${
+                            selectedWalletIds.has(wallet.id) ? 'bg-muted/50' : ''
+                          }`}
                           onClick={() => toggleWallet(wallet.id)}
                         >
+                          <TableCell
+                            className='w-[48px]'
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Checkbox
+                              checked={selectedWalletIds.has(wallet.id)}
+                              onCheckedChange={() => toggleSelect(wallet.id)}
+                              aria-label={`选择 ${wallet.address}`}
+                            />
+                          </TableCell>
                           <TableCell>
                             {positionData?.positions.length > 0 ? (
                               isExpanded ? (
@@ -655,7 +724,7 @@ function CombinedContent() {
                         {/* 展开的持仓明细 */}
                         {isExpanded && positionData && positionData.positions.length > 0 && (
                           <TableRow>
-                            <TableCell colSpan={17} className='p-0'>
+                            <TableCell colSpan={18} className='p-0'>
                               <div className='p-4 bg-muted/30'>
                                 <div className='text-sm font-semibold mb-3'>持仓明细（按仓位占比排序）</div>
                                 <div className='rounded-md border overflow-x-auto'>
@@ -769,6 +838,17 @@ function CombinedContent() {
           )}
         </div>
         <WalletsDialogs />
+        <WalletsBulkActions
+          selectedCount={selectedWalletIds.size}
+          onClearSelection={clearSelection}
+          onBatchDelete={() => setShowBatchDeleteDialog(true)}
+        />
+        <WalletsMultiDeleteDialog
+          open={showBatchDeleteDialog}
+          onOpenChange={setShowBatchDeleteDialog}
+          selectedWalletIds={Array.from(selectedWalletIds)}
+          onSuccess={handleBatchDeleteSuccess}
+        />
         {curveDialogAddress && (
           <EquityCurveDialog
             open={!!curveDialogAddress}
