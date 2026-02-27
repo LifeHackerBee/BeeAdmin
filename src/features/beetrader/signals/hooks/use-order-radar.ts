@@ -109,6 +109,17 @@ export interface StrategyInfo {
   short_advice: TradeAdvice | null
 }
 
+export interface ChartData {
+  volume_profile: {
+    '1h': { price: number; volume: number }[]
+    '4h': { price: number; volume: number }[]
+  }
+  l2_walls: {
+    bids: { price: number; size: number }[]
+    asks: { price: number; size: number }[]
+  }
+}
+
 export interface OrderRadarData {
   coin: string
   current_price: number
@@ -118,6 +129,7 @@ export interface OrderRadarData {
   l3_rsi: RsiInfo
   l4_cvd: CvdInfo
   walls: WallInfo[]
+  chart_data: ChartData
   volume: VolumeInfo
   vwap: VwapInfo
   consolidation: ConsolidationInfo

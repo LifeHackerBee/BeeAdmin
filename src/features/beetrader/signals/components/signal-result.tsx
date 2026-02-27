@@ -15,6 +15,7 @@ import {
   Clock,
 } from 'lucide-react'
 import type { OrderRadarData } from '../hooks/use-order-radar'
+import { WallChart } from './wall-chart'
 
 // ============================================
 // 子组件
@@ -292,13 +293,24 @@ export function SignalResult({ data }: { data: OrderRadarData }) {
         </Card>
       </div>
 
-      {/* 挂单墙 */}
+      {/* 挂单墙 & 量能墙图表 */}
+      <WallChart
+        chartData={data.chart_data}
+        currentPrice={cp}
+        bollUpper={l2_bollinger.upper}
+        bollLower={l2_bollinger.lower}
+        vegasUpper={l1_trend.vegas.upper}
+        vegasLower={l1_trend.vegas.lower}
+        coin={data.coin}
+      />
+
+      {/* 墙位明细 */}
       {walls.length > 0 && (
         <Card>
           <CardHeader className='pb-2'>
             <CardTitle className='text-sm flex items-center gap-2'>
               <ShieldAlert className='h-4 w-4' />
-              挂单墙 & 量能墙
+              墙位明细
             </CardTitle>
           </CardHeader>
           <CardContent>
