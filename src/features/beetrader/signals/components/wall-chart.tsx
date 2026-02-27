@@ -107,10 +107,10 @@ export function WallChart({ chartData, currentPrice, bollUpper, bollLower, vegas
     // ── 4. 参考线 ──
     const lines = [
       { price: currentPrice, color: 'hsl(45, 93%, 58%)', label: `当前价 $${formatPriceShort(currentPrice)}`, width: 2 },
-      { price: bollUpper, color: '#818cf8', label: '布林上轨', width: 1 },
-      { price: bollLower, color: '#818cf8', label: '布林下轨', width: 1 },
-      { price: vegasUpper, color: '#fbbf24', label: 'Vegas 上', width: 1 },
-      { price: vegasLower, color: '#fbbf24', label: 'Vegas 下', width: 1 },
+      { price: bollUpper, color: '#818cf8', label: '1H 布林上轨', width: 1 },
+      { price: bollLower, color: '#818cf8', label: '1H 布林下轨', width: 1 },
+      { price: vegasUpper, color: '#fbbf24', label: '4H Vegas 上', width: 1 },
+      { price: vegasLower, color: '#fbbf24', label: '4H Vegas 下', width: 1 },
     ]
 
     return { points: sorted, absMax: am, refLines: lines }
@@ -229,7 +229,7 @@ export function WallChart({ chartData, currentPrice, bollUpper, bollLower, vegas
           </span>
           <span className='flex items-center gap-1'>
             <span className='inline-block w-3 h-3 rounded-sm bg-green-500' />
-            量能支撑
+            1H/4H 量能支撑
           </span>
           <span className='flex items-center gap-1'>
             <span className='inline-block w-3 h-3 rounded-sm bg-red-600' />
@@ -237,7 +237,7 @@ export function WallChart({ chartData, currentPrice, bollUpper, bollLower, vegas
           </span>
           <span className='flex items-center gap-1'>
             <span className='inline-block w-3 h-3 rounded-sm bg-red-500' />
-            量能压力
+            1H/4H 量能压力
           </span>
           <span className='flex items-center gap-1'>
             <span className='inline-block w-4 border-t-2 border-dashed' style={{ borderColor: 'hsl(45, 93%, 58%)' }} />
@@ -245,11 +245,11 @@ export function WallChart({ chartData, currentPrice, bollUpper, bollLower, vegas
           </span>
           <span className='flex items-center gap-1'>
             <span className='inline-block w-4 border-t border-dashed border-indigo-400' />
-            布林
+            1H 布林
           </span>
           <span className='flex items-center gap-1'>
             <span className='inline-block w-4 border-t border-dashed border-amber-400' />
-            Vegas
+            4H Vegas
           </span>
         </div>
       </CardContent>
