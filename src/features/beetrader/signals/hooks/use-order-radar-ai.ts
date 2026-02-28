@@ -46,16 +46,30 @@ export function useOrderRadarAI() {
 
         for (const line of lines) {
           if (line.startsWith('data: ')) {
-            const chunk = line.slice(6)
-            if (chunk === '[DONE]') {
-              setStreaming(false)
-              return
-            }
-            if (chunk.startsWith('[ERROR]')) {
-              throw new Error(chunk.slice(8))
-            }
-            if (chunk) {
-              setContent((prev) => prev + chunk)
+            const raw = line.slice(6).trim()
+            if (!raw) continue
+            try {
+              const msg = JSON.parse(raw) as { t?: string; done?: boolean; error?: string }
+              if (msg.done) {
+                setStreaming(false)
+                return
+              }
+              if (msg.error) {
+                throw new Error(msg.error)
+              }
+              if (msg.t) {
+                setContent((prev) => prev + msg.t)
+              }
+            } catch (parseErr) {
+              // 兼容非 JSON 格式（纯文本 fallback）
+              if (raw === '[DONE]') {
+                setStreaming(false)
+                return
+              }
+              if (raw.startsWith('[ERROR]')) {
+                throw new Error(raw.slice(8))
+              }
+              setContent((prev) => prev + raw)
             }
           }
         }
