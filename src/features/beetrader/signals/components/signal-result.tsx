@@ -21,6 +21,7 @@ import type { OrderRadarData, ChartData } from '../hooks/use-order-radar'
 import { useLiquidationMap } from '../hooks/use-liquidation-map'
 import { WallChart } from './wall-chart'
 import { LiquidationMapChart } from './liquidation-map-chart'
+import { AIAnalysis } from './ai-analysis'
 
 // ============================================
 // 向后兼容：旧 API 没有 chart_data.bollinger / vegas 时，从顶层字段构造
@@ -124,6 +125,9 @@ export function SignalResult({ data }: { data: OrderRadarData }) {
 
       {/* 策略建议 */}
       <StrategyCard strategy={strategy} volume={volume} consolidation={consolidation} vegas={l1_trend.vegas} />
+
+      {/* AI 交易建议 */}
+      <AIAnalysis data={data} />
 
       {/* 四层共振 */}
       <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
