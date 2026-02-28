@@ -17,10 +17,40 @@ import {
   Clock,
   Flame,
 } from 'lucide-react'
-import type { OrderRadarData } from '../hooks/use-order-radar'
+import type { OrderRadarData, ChartData } from '../hooks/use-order-radar'
 import { useLiquidationMap } from '../hooks/use-liquidation-map'
 import { WallChart } from './wall-chart'
 import { LiquidationMapChart } from './liquidation-map-chart'
+
+// ============================================
+// 向后兼容：旧 API 没有 chart_data.bollinger / vegas 时，从顶层字段构造
+// ============================================
+
+function patchChartData(data: OrderRadarData): ChartData {
+  const cd = data.chart_data
+
+  // 如果后端已返回新格式，直接使用
+  if (cd.bollinger && cd.vegas) return cd
+
+  return {
+    ...cd,
+    volume_profile: {
+      '1h': cd.volume_profile?.['1h'] ?? [],
+      '4h': cd.volume_profile?.['4h'] ?? [],
+      '1d': cd.volume_profile?.['1d'] ?? [],
+    },
+    bollinger: cd.bollinger ?? {
+      '1h': data.l2_bollinger,           // 1H 布林（始终存在）
+      '4h': null,
+      '1d': null,
+    },
+    vegas: cd.vegas ?? {
+      '1h': null,
+      '4h': data.l1_trend.vegas,         // 4H Vegas（始终存在）
+      '1d': null,
+    },
+  }
+}
 
 // ============================================
 // 子组件
@@ -301,12 +331,8 @@ export function SignalResult({ data }: { data: OrderRadarData }) {
 
       {/* 挂单墙 & 量能墙图表 */}
       <WallChart
-        chartData={data.chart_data}
+        chartData={patchChartData(data)}
         currentPrice={cp}
-        bollUpper={l2_bollinger.upper}
-        bollLower={l2_bollinger.lower}
-        vegasUpper={l1_trend.vegas.upper}
-        vegasLower={l1_trend.vegas.lower}
         coin={data.coin}
       />
 

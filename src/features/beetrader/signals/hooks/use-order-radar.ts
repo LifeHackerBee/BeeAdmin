@@ -109,14 +109,35 @@ export interface StrategyInfo {
   short_advice: TradeAdvice | null
 }
 
+export interface BollBand {
+  upper: number
+  lower: number
+}
+
+export interface VegasBand {
+  upper: number
+  lower: number
+}
+
 export interface ChartData {
   volume_profile: {
     '1h': { price: number; volume: number }[]
     '4h': { price: number; volume: number }[]
+    '1d': { price: number; volume: number }[]
   }
   l2_walls: {
     bids: { price: number; size: number }[]
     asks: { price: number; size: number }[]
+  }
+  bollinger: {
+    '1h': BollBand
+    '4h': BollBand | null
+    '1d': BollBand | null
+  }
+  vegas: {
+    '1h': VegasBand | null
+    '4h': VegasBand
+    '1d': VegasBand | null
   }
 }
 
