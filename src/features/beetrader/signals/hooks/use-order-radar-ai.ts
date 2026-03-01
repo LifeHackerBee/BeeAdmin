@@ -2,11 +2,51 @@ import { useState, useCallback, useRef } from 'react'
 import { hyperliquidApiFetch } from '@/lib/hyperliquid-api-client'
 import type { OrderRadarData } from './use-order-radar'
 
+export interface SimSignal {
+  action: 'long' | 'short' | 'wait'
+  confidence: number
+  entry_price: number
+  take_profit: number
+  stop_loss: number
+  validity_minutes: number
+  risk_reward_ratio: number
+  reason: string
+}
+
 export function useOrderRadarAI() {
   const [streaming, setStreaming] = useState(false)
   const [content, setContent] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [signal, setSignal] = useState<SimSignal | null>(null)
+  const [signalLoading, setSignalLoading] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
+
+  const fetchSignal = useCallback(async (coin: string, data: OrderRadarData) => {
+    setSignalLoading(true)
+    setSignal(null)
+    try {
+      const response = await hyperliquidApiFetch('/api/order_radar/ai-signal', {
+        method: 'POST',
+        body: JSON.stringify({ coin, data }),
+      })
+      if (!response.ok) {
+        const text = await response.text()
+        throw new Error(text || `请求失败: ${response.status}`)
+      }
+      const result = await response.json()
+      if (!result.success) {
+        throw new Error(result.error || '信号生成失败')
+      }
+      setSignal(result.signal as SimSignal)
+      return result.signal as SimSignal
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '信号请求失败'
+      setError(msg)
+      return null
+    } finally {
+      setSignalLoading(false)
+    }
+  }, [])
 
   const analyze = useCallback(async (coin: string, data: OrderRadarData) => {
     abortRef.current?.abort()
@@ -93,7 +133,9 @@ export function useOrderRadarAI() {
     setContent('')
     setError(null)
     setStreaming(false)
+    setSignal(null)
+    setSignalLoading(false)
   }, [])
 
-  return { analyze, streaming, content, error, abort, reset }
+  return { analyze, fetchSignal, streaming, content, error, abort, reset, signal, signalLoading }
 }
