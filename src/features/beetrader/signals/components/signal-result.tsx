@@ -93,7 +93,7 @@ function PriceField({ label, value, basis }: { label: string; value: number | nu
 // 主组件
 // ============================================
 
-export function SignalResult({ data }: { data: OrderRadarData }) {
+export function SignalResult({ data, autoAnalyze }: { data: OrderRadarData; autoAnalyze?: boolean }) {
   const { strategy, l1_trend, l2_bollinger, l3_rsi, l4_cvd, volume, vwap, consolidation, walls, key_levels } = data
   const cp = data.current_price
   const liqMap = useLiquidationMap()
@@ -127,7 +127,7 @@ export function SignalResult({ data }: { data: OrderRadarData }) {
       <StrategyCard strategy={strategy} volume={volume} consolidation={consolidation} vegas={l1_trend.vegas} />
 
       {/* AI 交易建议 */}
-      <AIAnalysis data={data} />
+      <AIAnalysis data={data} autoAnalyze={autoAnalyze} />
 
       {/* 四层共振 */}
       <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>

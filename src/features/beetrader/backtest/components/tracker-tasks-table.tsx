@@ -1,6 +1,6 @@
 import { ColumnDef } from '@tanstack/react-table'
 import { Button } from '@/components/ui/button'
-import { Play, Square, Trash2, TrendingUp } from 'lucide-react'
+import { Play, Square, Trash2, TrendingUp, Radar } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import type { BacktestTrackerTask } from '../hooks/use-backtest-tracker'
 import {
@@ -42,7 +42,14 @@ export function TrackerTasksTable({ data, onStart, onStop, onDelete, onViewChart
       accessorKey: 'task_name',
       header: '任务名称',
       cell: ({ row }) => {
-        return <div className='font-medium'>{row.original.task_name}</div>
+        return (
+          <div className='flex items-center gap-1.5'>
+            {row.original.source === 'order_radar' && (
+              <Radar className='h-3.5 w-3.5 text-blue-500 flex-shrink-0' />
+            )}
+            <span className='font-medium'>{row.original.task_name}</span>
+          </div>
+        )
       },
     },
     {
@@ -63,19 +70,32 @@ export function TrackerTasksTable({ data, onStart, onStop, onDelete, onViewChart
       accessorKey: 'status',
       header: '状态',
       cell: ({ row }) => {
-        const status = row.original.status
+        const { status, exit_reason, final_pnl } = row.original
+
+        if (status === 'completed' && exit_reason) {
+          const isWin = final_pnl != null && final_pnl > 0
+          const exitLabels: Record<string, string> = {
+            tp_hit: '止盈',
+            sl_hit: '止损',
+            timeout: '超时',
+          }
+          return (
+            <Badge variant={isWin ? 'default' : 'destructive'} className='text-xs'>
+              {exitLabels[exit_reason] || exit_reason}
+            </Badge>
+          )
+        }
+
         const variants = {
           running: 'default',
           stopped: 'secondary',
           completed: 'outline',
         } as const
-
         const labels = {
           running: '运行中',
           stopped: '已停止',
           completed: '已完成',
         }
-
         return <Badge variant={variants[status]}>{labels[status]}</Badge>
       },
     },
@@ -112,31 +132,34 @@ export function TrackerTasksTable({ data, onStart, onStop, onDelete, onViewChart
     },
     {
       accessorKey: 'unrealized_pnl',
-      header: '当前盈亏',
+      header: '盈亏',
       cell: ({ row }) => {
-        const entry = row.original.entry_price
-        const current = row.original.last_tracked_price
-        const direction = row.original.entry_direction
-        const amount = row.original.test_amount
-        const leverage = row.original.test_leverage
-        
-        if (!entry || !current || !direction) return '-'
-        
-        // 计算价格变化百分比
-        const priceChangePct = ((current - entry) / entry)
-        
-        // 根据方向计算盈亏
-        // 做多: (当前价 - 开仓价) / 开仓价 * 本金 * 杠杆
-        // 做空: (开仓价 - 当前价) / 开仓价 * 本金 * 杠杆
-        const pnl = direction === 'long' 
-          ? priceChangePct * amount * leverage
-          : -priceChangePct * amount * leverage
-        
-        // 计算ROI (收益率)
-        const roi = (pnl / amount) * 100
-        
+        const { entry_price, last_tracked_price, entry_direction, test_amount, test_leverage, status, final_pnl, final_roi } = row.original
+
+        // 已结算的任务直接显示最终结果
+        if (status === 'completed' && final_pnl != null && final_roi != null) {
+          const isPositive = final_pnl >= 0
+          return (
+            <div className='flex flex-col'>
+              <span className={`font-semibold ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
+                {isPositive ? '+' : ''}{final_pnl.toFixed(2)} USDC
+              </span>
+              <span className={`text-xs ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
+                {isPositive ? '+' : ''}{final_roi.toFixed(2)}%
+              </span>
+            </div>
+          )
+        }
+
+        if (!entry_price || !last_tracked_price || !entry_direction) return '-'
+
+        const priceChangePct = ((last_tracked_price - entry_price) / entry_price)
+        const pnl = entry_direction === 'long'
+          ? priceChangePct * test_amount * test_leverage
+          : -priceChangePct * test_amount * test_leverage
+        const roi = (pnl / test_amount) * 100
         const isPositive = pnl >= 0
-        
+
         return (
           <div className='flex flex-col'>
             <span className={`font-semibold ${isPositive ? 'text-green-600' : 'text-red-600'}`}>

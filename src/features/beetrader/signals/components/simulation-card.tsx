@@ -176,7 +176,7 @@ export function SimulationHistory({ history }: { history: SimHistory }) {
           <div className='space-y-1 border-t pt-2'>
             <div className='text-xs text-muted-foreground mb-1'>最近记录</div>
             {history.records.slice(0, 5).map((r) => (
-              <div key={r.sim_id} className='flex items-center justify-between text-xs'>
+              <div key={r.task_id} className='flex items-center justify-between text-xs'>
                 <div className='flex items-center gap-1.5'>
                   <span className='font-medium'>{r.coin}</span>
                   <Badge variant='outline' className='text-[10px] px-1 py-0'>

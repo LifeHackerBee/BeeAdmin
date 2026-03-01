@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
-import { AlertCircle, Radar, RefreshCw, Timer, TimerOff } from 'lucide-react'
+import { AlertCircle, Radar, RefreshCw, Timer, TimerOff, Sparkles } from 'lucide-react'
 import { useOrderRadar } from './hooks/use-order-radar'
 import { SignalResult } from './components/signal-result'
 
@@ -15,6 +15,7 @@ export function TradingSignals() {
   const [coin, setCoin] = useState('BTC')
   const { analyze, loading, error, data, reset } = useOrderRadar()
   const [autoRefresh, setAutoRefresh] = useState(false)
+  const [autoAI, setAutoAI] = useState(false)
   const [countdown, setCountdown] = useState(AUTO_REFRESH_INTERVAL)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -123,6 +124,24 @@ export function TradingSignals() {
               </>
             )}
           </Button>
+          <Button
+            variant={autoAI ? 'default' : 'outline'}
+            size='sm'
+            onClick={() => {
+              setAutoAI((v) => !v)
+              // 开启自动 AI 时同时开启自动刷新
+              if (!autoAI && !autoRefresh) {
+                if (!data) {
+                  handleAnalyze()
+                }
+                setAutoRefresh(true)
+              }
+            }}
+            className='gap-1'
+          >
+            <Sparkles className='h-4 w-4' />
+            {autoAI ? '停止自动 AI' : '自动 AI'}
+          </Button>
           {autoRefresh && data && (
             <Badge variant='secondary' className='text-xs tabular-nums'>
               {countdown}s 后刷新
@@ -173,7 +192,7 @@ export function TradingSignals() {
           </div>
         )}
 
-        {data && <SignalResult data={data} />}
+        {data && <SignalResult data={data} autoAnalyze={autoAI} />}
 
         {!loading && !data && !error && (
           <div className='flex flex-col items-center justify-center py-20 text-muted-foreground'>

@@ -3,7 +3,7 @@ import { hyperliquidApiFetch } from '@/lib/hyperliquid-api-client'
 import type { SimSignal } from './use-order-radar-ai'
 
 export interface SimStatus {
-  sim_id: string
+  task_id: number
   status: 'running' | 'tp_hit' | 'sl_hit' | 'timeout' | 'cancelled' | 'error'
   coin: string
   direction: string
@@ -27,7 +27,7 @@ export interface SimStatus {
 }
 
 export interface SimRecord {
-  sim_id: string
+  task_id: number
   coin: string
   direction: string
   entry_price: number
@@ -68,9 +68,9 @@ export function useSimulation() {
   }, [])
 
   // 轮询模拟状态
-  const pollStatus = useCallback(async (simId: string) => {
+  const pollStatus = useCallback(async (taskId: number) => {
     try {
-      const response = await hyperliquidApiFetch(`/api/order_radar/simulate/${simId}`)
+      const response = await hyperliquidApiFetch(`/api/order_radar/simulate/${taskId}`)
       if (!response.ok) return
       const data = await response.json() as SimStatus
       setSimStatus(data)
@@ -125,11 +125,11 @@ export function useSimulation() {
         throw new Error(result.error || '启动模拟失败')
       }
 
-      const simId = result.sim_id as string
+      const taskId = result.task_id as number
 
       // 初始状态
       setSimStatus({
-        sim_id: simId,
+        task_id: taskId,
         status: 'running',
         coin,
         direction: signal.action,
@@ -146,7 +146,7 @@ export function useSimulation() {
       })
 
       // 开始轮询
-      pollRef.current = setInterval(() => pollStatus(simId), POLL_INTERVAL)
+      pollRef.current = setInterval(() => pollStatus(taskId), POLL_INTERVAL)
     } catch (err) {
       const msg = err instanceof Error ? err.message : '模拟启动失败'
       setError(msg)

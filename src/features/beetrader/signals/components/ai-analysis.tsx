@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -26,6 +26,7 @@ import { SimulationStatus, SimulationHistory } from './simulation-card'
 
 interface AIAnalysisProps {
   data: OrderRadarData
+  autoAnalyze?: boolean
 }
 
 /** 从 AI 输出中提取有效期小时数 */
@@ -149,7 +150,7 @@ function SignalCard({
 // 主组件
 // ============================================
 
-export function AIAnalysis({ data }: AIAnalysisProps) {
+export function AIAnalysis({ data, autoAnalyze }: AIAnalysisProps) {
   const {
     analyze, fetchSignal, streaming, content, error, abort, reset,
     signal, signalLoading,
@@ -157,6 +158,11 @@ export function AIAnalysis({ data }: AIAnalysisProps) {
   const sim = useSimulation()
   const [generatedAt, setGeneratedAt] = useState<Date | null>(null)
   const [, setTick] = useState(0)
+
+  // 追踪 data 变化，用于自动触发 AI 分析
+  const prevDataRef = useRef<OrderRadarData | null>(null)
+  const autoAnalyzeRef = useRef(autoAnalyze)
+  autoAnalyzeRef.current = autoAnalyze
 
   const validHours = content ? parseValidityHours(content) : null
 
@@ -174,9 +180,33 @@ export function AIAnalysis({ data }: AIAnalysisProps) {
     return () => clearInterval(timer)
   }, [generatedAt, validHours])
 
+  // 自动 AI 分析：data 变化时自动触发
+  useEffect(() => {
+    if (!autoAnalyzeRef.current) {
+      prevDataRef.current = data
+      return
+    }
+    // 首次 data 或 data 引用变化 → 触发 AI
+    if (data && data !== prevDataRef.current) {
+      prevDataRef.current = data
+      reset()
+      sim.resetSim()
+      setGeneratedAt(null)
+      analyze(data.coin, data)
+      fetchSignal(data.coin, data)
+    }
+  }, [data]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 自动模拟：信号出来后如果是 long/short 且没有正在运行的模拟，自动启动
+  useEffect(() => {
+    if (!autoAnalyzeRef.current) return
+    if (!signal || signal.action === 'wait') return
+    if (sim.simStatus?.status === 'running' || sim.loading) return
+    sim.startSim(data.coin, signal, data as unknown as Record<string, unknown>)
+  }, [signal]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleAnalyze = () => {
     setGeneratedAt(null)
-    // 同时发起流式分析和结构化信号
     analyze(data.coin, data)
     fetchSignal(data.coin, data)
   }

@@ -19,6 +19,15 @@ export interface BacktestTrackerTask {
   last_tracked_price: number | null
   total_tracks: number
   metadata: Record<string, unknown> | null
+  source: 'manual' | 'order_radar'
+  take_profit: number | null
+  stop_loss: number | null
+  exit_reason: 'tp_hit' | 'sl_hit' | 'timeout' | null
+  exit_price: number | null
+  final_pnl: number | null
+  final_roi: number | null
+  final_fee: number | null
+  ended_at: string | null
   created_at: string
   updated_at: string
 }
