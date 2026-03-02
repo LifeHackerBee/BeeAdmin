@@ -4,9 +4,11 @@ import { Input } from '@/components/ui/input'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { AlertCircle, Radar, RefreshCw, Timer, TimerOff, Sparkles } from 'lucide-react'
 import { useOrderRadar } from './hooks/use-order-radar'
 import { SignalResult } from './components/signal-result'
+import { RadarJobsTab } from './components/radar-jobs-tab'
 
 const POPULAR_COINS = ['BTC', 'ETH', 'SOL', 'HYPE', 'SUI', 'DOGE']
 const AUTO_REFRESH_INTERVAL = 60 // 秒
@@ -86,121 +88,134 @@ export function TradingSignals() {
             </span>
           )}
         </div>
-
-        {/* 输入区 */}
-        <div className='flex flex-wrap items-center gap-2'>
-          <Input
-            value={coin}
-            onChange={(e) => setCoin(e.target.value.toUpperCase())}
-            onKeyDown={(e) => e.key === 'Enter' && handleAnalyze()}
-            placeholder='输入币种，如 BTC'
-            className='w-32'
-          />
-          <Button onClick={handleAnalyze} disabled={loading || !coin.trim()}>
-            {loading ? (
-              <>
-                <RefreshCw className='h-4 w-4 mr-1 animate-spin' />
-                分析中...
-              </>
-            ) : (
-              '分析'
-            )}
-          </Button>
-          <Button
-            variant={autoRefresh ? 'default' : 'outline'}
-            size='sm'
-            onClick={toggleAutoRefresh}
-            className='gap-1'
-          >
-            {autoRefresh ? (
-              <>
-                <TimerOff className='h-4 w-4' />
-                停止刷新
-              </>
-            ) : (
-              <>
-                <Timer className='h-4 w-4' />
-                自动刷新
-              </>
-            )}
-          </Button>
-          <Button
-            variant={autoAI ? 'default' : 'outline'}
-            size='sm'
-            onClick={() => {
-              setAutoAI((v) => !v)
-              // 开启自动 AI 时同时开启自动刷新
-              if (!autoAI && !autoRefresh) {
-                if (!data) {
-                  handleAnalyze()
-                }
-                setAutoRefresh(true)
-              }
-            }}
-            className='gap-1'
-          >
-            <Sparkles className='h-4 w-4' />
-            {autoAI ? '停止自动 AI' : '自动 AI'}
-          </Button>
-          {autoRefresh && data && (
-            <Badge variant='secondary' className='text-xs tabular-nums'>
-              {countdown}s 后刷新
-            </Badge>
-          )}
-          <div className='flex items-center gap-1'>
-            {POPULAR_COINS.map((c) => (
-              <Button
-                key={c}
-                variant={coin === c ? 'default' : 'outline'}
-                size='sm'
-                className='text-xs h-7 px-2'
-                onClick={() => {
-                  setCoin(c)
-                  reset()
-                  doAnalyze(c)
-                  setCountdown(AUTO_REFRESH_INTERVAL)
-                }}
-                disabled={loading}
-              >
-                {c}
-              </Button>
-            ))}
-          </div>
-        </div>
       </div>
 
-      {/* 内容区 */}
-      <div className='flex-1 min-h-0 overflow-y-auto'>
-        {error && (
-          <Alert variant='destructive'>
-            <AlertCircle className='h-4 w-4' />
-            <AlertTitle>分析失败</AlertTitle>
-            <AlertDescription>{error.message}</AlertDescription>
-          </Alert>
-        )}
+      <Tabs defaultValue='radar' className='w-full'>
+        <TabsList>
+          <TabsTrigger value='radar'>手动分析</TabsTrigger>
+          <TabsTrigger value='jobs'>后台任务</TabsTrigger>
+        </TabsList>
 
-        {loading && !data && (
-          <div className='space-y-4'>
-            <Skeleton className='h-20 w-full' />
-            <Skeleton className='h-40 w-full' />
-            <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
-              <Skeleton className='h-48' />
-              <Skeleton className='h-48' />
-              <Skeleton className='h-48' />
-              <Skeleton className='h-48' />
+        <TabsContent value='radar' className='space-y-3'>
+          {/* 输入区 */}
+          <div className='flex flex-wrap items-center gap-2'>
+            <Input
+              value={coin}
+              onChange={(e) => setCoin(e.target.value.toUpperCase())}
+              onKeyDown={(e) => e.key === 'Enter' && handleAnalyze()}
+              placeholder='输入币种，如 BTC'
+              className='w-32'
+            />
+            <Button onClick={handleAnalyze} disabled={loading || !coin.trim()}>
+              {loading ? (
+                <>
+                  <RefreshCw className='h-4 w-4 mr-1 animate-spin' />
+                  分析中...
+                </>
+              ) : (
+                '分析'
+              )}
+            </Button>
+            <Button
+              variant={autoRefresh ? 'default' : 'outline'}
+              size='sm'
+              onClick={toggleAutoRefresh}
+              className='gap-1'
+            >
+              {autoRefresh ? (
+                <>
+                  <TimerOff className='h-4 w-4' />
+                  停止刷新
+                </>
+              ) : (
+                <>
+                  <Timer className='h-4 w-4' />
+                  自动刷新
+                </>
+              )}
+            </Button>
+            <Button
+              variant={autoAI ? 'default' : 'outline'}
+              size='sm'
+              onClick={() => {
+                setAutoAI((v) => !v)
+                // 开启自动 AI 时同时开启自动刷新
+                if (!autoAI && !autoRefresh) {
+                  if (!data) {
+                    handleAnalyze()
+                  }
+                  setAutoRefresh(true)
+                }
+              }}
+              className='gap-1'
+            >
+              <Sparkles className='h-4 w-4' />
+              {autoAI ? '停止自动 AI' : '自动 AI'}
+            </Button>
+            {autoRefresh && data && (
+              <Badge variant='secondary' className='text-xs tabular-nums'>
+                {countdown}s 后刷新
+              </Badge>
+            )}
+            <div className='flex items-center gap-1'>
+              {POPULAR_COINS.map((c) => (
+                <Button
+                  key={c}
+                  variant={coin === c ? 'default' : 'outline'}
+                  size='sm'
+                  className='text-xs h-7 px-2'
+                  onClick={() => {
+                    setCoin(c)
+                    reset()
+                    doAnalyze(c)
+                    setCountdown(AUTO_REFRESH_INTERVAL)
+                  }}
+                  disabled={loading}
+                >
+                  {c}
+                </Button>
+              ))}
             </div>
           </div>
-        )}
 
-        {data && <SignalResult data={data} autoAnalyze={autoAI} />}
+          {/* 内容区 */}
+          <div className='flex-1 min-h-0 overflow-y-auto'>
+            {error && (
+              <Alert variant='destructive'>
+                <AlertCircle className='h-4 w-4' />
+                <AlertTitle>分析失败</AlertTitle>
+                <AlertDescription>{error.message}</AlertDescription>
+              </Alert>
+            )}
 
-        {!loading && !data && !error && (
-          <div className='flex flex-col items-center justify-center py-12 text-muted-foreground'>
-            <Radar className='h-12 w-12 mb-3 opacity-30' />
-            <p>选择币种并点击分析</p>
+            {loading && !data && (
+              <div className='space-y-4'>
+                <Skeleton className='h-20 w-full' />
+                <Skeleton className='h-40 w-full' />
+                <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+                  <Skeleton className='h-48' />
+                  <Skeleton className='h-48' />
+                  <Skeleton className='h-48' />
+                  <Skeleton className='h-48' />
+                </div>
+              </div>
+            )}
+
+            {data && <SignalResult data={data} autoAnalyze={autoAI} />}
+
+            {!loading && !data && !error && (
+              <div className='flex flex-col items-center justify-center py-12 text-muted-foreground'>
+                <Radar className='h-12 w-12 mb-3 opacity-30' />
+                <p>选择币种并点击分析</p>
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        </TabsContent>
+
+        <TabsContent value='jobs'>
+          <RadarJobsTab />
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

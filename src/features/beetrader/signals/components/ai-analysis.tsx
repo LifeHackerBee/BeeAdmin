@@ -22,7 +22,7 @@ import type { OrderRadarData } from '../hooks/use-order-radar'
 import { useOrderRadarAI } from '../hooks/use-order-radar-ai'
 import type { SimSignal } from '../hooks/use-order-radar-ai'
 import { useSimulation } from '../hooks/use-simulation'
-import { SimulationStatus, SimulationHistory } from './simulation-card'
+import { SimulationStatus } from './simulation-card'
 
 interface AIAnalysisProps {
   data: OrderRadarData
@@ -310,9 +310,6 @@ export function AIAnalysis({ data, autoAnalyze }: AIAnalysisProps) {
 
       {/* 模拟状态 */}
       {sim.simStatus && <SimulationStatus sim={sim.simStatus} />}
-
-      {/* 模拟历史统计 */}
-      {sim.history && <SimulationHistory history={sim.history} />}
     </div>
   )
 }

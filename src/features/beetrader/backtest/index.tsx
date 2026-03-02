@@ -54,20 +54,31 @@ export function BacktestModule() {
     setChartDialogOpen(true)
   }
 
+  // 计算单个任务的盈亏（兼容 final_pnl 为 null 的旧数据）
+  const calcPnl = (t: BacktestTrackerTask): number | null => {
+    if (t.final_pnl != null) return t.final_pnl
+    if (!t.entry_price || !t.last_tracked_price || !t.entry_direction) return null
+    const change = (t.last_tracked_price - t.entry_price) / t.entry_price
+    return t.entry_direction === 'long'
+      ? change * t.test_amount * t.test_leverage
+      : -change * t.test_amount * t.test_leverage
+  }
+
   // Order Radar 信号任务统计
   const signalStats = useMemo(() => {
     const signalTasks = tasks.filter((t) => t.source === 'order_radar')
-    const completed = signalTasks.filter((t) => t.status === 'completed' && t.exit_reason)
-    const wins = completed.filter((t) => t.final_pnl != null && t.final_pnl > 0)
+    const completed = signalTasks.filter((t) => t.status === 'completed')
+    const pnls = completed.map((t) => calcPnl(t)).filter((v): v is number => v != null)
+    const wins = pnls.filter((v) => v > 0)
     const running = signalTasks.filter((t) => t.status === 'running')
-    const totalPnl = completed.reduce((sum, t) => sum + (t.final_pnl ?? 0), 0)
+    const totalPnl = pnls.reduce((sum, v) => sum + v, 0)
     return {
       total: signalTasks.length,
-      completed: completed.length,
+      settled: pnls.length,
       wins: wins.length,
-      losses: completed.length - wins.length,
+      losses: pnls.length - wins.length,
       running: running.length,
-      winRate: completed.length > 0 ? (wins.length / completed.length) * 100 : 0,
+      winRate: pnls.length > 0 ? (wins.length / pnls.length) * 100 : 0,
       totalPnl,
     }
   }, [tasks])
@@ -121,7 +132,7 @@ export function BacktestModule() {
           </div>
 
           {/* Order Radar 信号统计 */}
-          {signalStats.completed > 0 && (
+          {signalStats.total > 0 && (
             <Card>
               <CardContent className='pt-4 pb-3'>
                 <div className='flex items-center gap-6'>
@@ -129,7 +140,7 @@ export function BacktestModule() {
                     <Radar className='h-4 w-4 text-blue-500' />
                     <span className='text-sm font-medium'>AI 信号测试</span>
                     <Badge variant='outline' className='text-xs'>
-                      {signalStats.completed} 次
+                      {signalStats.total} 次
                     </Badge>
                     {signalStats.running > 0 && (
                       <Badge variant='secondary' className='text-xs animate-pulse'>
@@ -137,19 +148,21 @@ export function BacktestModule() {
                       </Badge>
                     )}
                   </div>
-                  <div className='flex items-center gap-4 text-sm'>
-                    <div className='flex items-center gap-1'>
-                      <Trophy className='h-3.5 w-3.5' />
-                      <span className='font-mono font-bold'>
-                        {signalStats.winRate.toFixed(1)}%
+                  {signalStats.settled > 0 && (
+                    <div className='flex items-center gap-4 text-sm'>
+                      <div className='flex items-center gap-1'>
+                        <Trophy className='h-3.5 w-3.5' />
+                        <span className='font-mono font-bold'>
+                          {signalStats.winRate.toFixed(1)}%
+                        </span>
+                      </div>
+                      <span className='text-green-500 font-mono'>{signalStats.wins}W</span>
+                      <span className='text-red-500 font-mono'>{signalStats.losses}L</span>
+                      <span className={`font-mono font-bold ${signalStats.totalPnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                        {signalStats.totalPnl >= 0 ? '+' : ''}${signalStats.totalPnl.toFixed(2)}
                       </span>
                     </div>
-                    <span className='text-green-500 font-mono'>{signalStats.wins}W</span>
-                    <span className='text-red-500 font-mono'>{signalStats.losses}L</span>
-                    <span className={`font-mono font-bold ${signalStats.totalPnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                      {signalStats.totalPnl >= 0 ? '+' : ''}${signalStats.totalPnl.toFixed(2)}
-                    </span>
-                  </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
