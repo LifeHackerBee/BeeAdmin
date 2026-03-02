@@ -1,10 +1,14 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { getCookie, setCookie } from '@/lib/cookies'
-import { type Language } from '@/lib/i18n/translations'
+import { type Language, translations } from '@/lib/i18n/translations'
 
 const DEFAULT_LANGUAGE: Language = 'zh'
 const LANGUAGE_COOKIE_NAME = 'vite-ui-language'
 const LANGUAGE_COOKIE_MAX_AGE = 60 * 60 * 24 * 365 // 1 year
+
+function isValidLanguage(val: unknown): val is Language {
+  return typeof val === 'string' && val in translations
+}
 
 type LanguageProviderProps = {
   children: React.ReactNode
@@ -32,9 +36,10 @@ export function LanguageProvider({
   storageKey = LANGUAGE_COOKIE_NAME,
   ...props
 }: LanguageProviderProps) {
-  const [language, _setLanguage] = useState<Language>(
-    () => (getCookie(storageKey) as Language) || defaultLanguage
-  )
+  const [language, _setLanguage] = useState<Language>(() => {
+    const cookie = getCookie(storageKey)
+    return isValidLanguage(cookie) ? cookie : defaultLanguage
+  })
 
   useEffect(() => {
     // Set language attribute on html element for potential CSS-based language switching

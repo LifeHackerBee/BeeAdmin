@@ -1,12 +1,10 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { useBacktestTracker, type BacktestTrackerTask } from './hooks/use-backtest-tracker'
 import { TrackerTasksTable } from './components/tracker-tasks-table'
 import { TrackerTaskDialog } from './components/tracker-task-dialog'
 import { TrackerChartDialog } from './components/tracker-chart-dialog'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Plus, RefreshCw, Radar, Trophy } from 'lucide-react'
+import { Plus, RefreshCw } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { AlertCircle } from 'lucide-react'
@@ -54,34 +52,8 @@ export function BacktestModule() {
     setChartDialogOpen(true)
   }
 
-  // 计算单个任务的盈亏（兼容 final_pnl 为 null 的旧数据）
-  const calcPnl = (t: BacktestTrackerTask): number | null => {
-    if (t.final_pnl != null) return t.final_pnl
-    if (!t.entry_price || !t.last_tracked_price || !t.entry_direction) return null
-    const change = (t.last_tracked_price - t.entry_price) / t.entry_price
-    return t.entry_direction === 'long'
-      ? change * t.test_amount * t.test_leverage
-      : -change * t.test_amount * t.test_leverage
-  }
-
-  // Order Radar 信号任务统计
-  const signalStats = useMemo(() => {
-    const signalTasks = tasks.filter((t) => t.source === 'order_radar')
-    const completed = signalTasks.filter((t) => t.status === 'completed')
-    const pnls = completed.map((t) => calcPnl(t)).filter((v): v is number => v != null)
-    const wins = pnls.filter((v) => v > 0)
-    const running = signalTasks.filter((t) => t.status === 'running')
-    const totalPnl = pnls.reduce((sum, v) => sum + v, 0)
-    return {
-      total: signalTasks.length,
-      settled: pnls.length,
-      wins: wins.length,
-      losses: pnls.length - wins.length,
-      running: running.length,
-      winRate: pnls.length > 0 ? (wins.length / pnls.length) * 100 : 0,
-      totalPnl,
-    }
-  }, [tasks])
+  // 仅显示手动跟单任务（Order Radar 信号任务已迁移到 signals 页面）
+  const manualTasks = tasks.filter((t) => t.source !== 'order_radar')
 
   return (
     <div className='space-y-6'>
@@ -131,43 +103,6 @@ export function BacktestModule() {
             </div>
           </div>
 
-          {/* Order Radar 信号统计 */}
-          {signalStats.total > 0 && (
-            <Card>
-              <CardContent className='pt-4 pb-3'>
-                <div className='flex items-center gap-6'>
-                  <div className='flex items-center gap-2'>
-                    <Radar className='h-4 w-4 text-blue-500' />
-                    <span className='text-sm font-medium'>AI 信号测试</span>
-                    <Badge variant='outline' className='text-xs'>
-                      {signalStats.total} 次
-                    </Badge>
-                    {signalStats.running > 0 && (
-                      <Badge variant='secondary' className='text-xs animate-pulse'>
-                        {signalStats.running} 运行中
-                      </Badge>
-                    )}
-                  </div>
-                  {signalStats.settled > 0 && (
-                    <div className='flex items-center gap-4 text-sm'>
-                      <div className='flex items-center gap-1'>
-                        <Trophy className='h-3.5 w-3.5' />
-                        <span className='font-mono font-bold'>
-                          {signalStats.winRate.toFixed(1)}%
-                        </span>
-                      </div>
-                      <span className='text-green-500 font-mono'>{signalStats.wins}W</span>
-                      <span className='text-red-500 font-mono'>{signalStats.losses}L</span>
-                      <span className={`font-mono font-bold ${signalStats.totalPnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                        {signalStats.totalPnl >= 0 ? '+' : ''}${signalStats.totalPnl.toFixed(2)}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
           {loading && !isRefreshing ? (
             <div className='space-y-4'>
               <Skeleton className='h-12 w-full' />
@@ -187,7 +122,7 @@ export function BacktestModule() {
             </Alert>
           ) : (
             <TrackerTasksTable
-              data={tasks}
+              data={manualTasks}
               onStart={startTask}
               onStop={stopTask}
               onDelete={deleteTask}

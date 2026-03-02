@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useOrderRadarJobs, type OrderRadarJob } from '../hooks/use-order-radar-jobs'
+import { useSignalTasks, calcPnl, type BacktestTrackerTask } from '../hooks/use-signal-tasks'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -40,6 +41,8 @@ import {
   Minus,
   RefreshCw,
   Activity,
+  Radar,
+  Trophy,
 } from 'lucide-react'
 
 // ============================================
@@ -190,12 +193,13 @@ function CreateJobDialog({
 export function RadarJobsTab() {
   const { jobs, loading, error, createJob, startJob, pauseJob, deleteJob, fetchJobs } =
     useOrderRadarJobs()
+  const signalTasks = useSignalTasks()
   const [dialogOpen, setDialogOpen] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
 
   const handleRefresh = async () => {
     setRefreshing(true)
-    await fetchJobs()
+    await Promise.all([fetchJobs(), signalTasks.refetch()])
     setRefreshing(false)
   }
 
@@ -281,6 +285,74 @@ export function RadarJobsTab() {
         </Card>
       )}
 
+      {/* ============================================ */}
+      {/* 信号模拟统计 + 任务列表 */}
+      {/* ============================================ */}
+
+      {/* 信号统计卡片 */}
+      {signalTasks.stats.total > 0 && (
+        <Card>
+          <CardContent className='pt-4 pb-3'>
+            <div className='flex items-center gap-6'>
+              <div className='flex items-center gap-2'>
+                <Radar className='h-4 w-4 text-blue-500' />
+                <span className='text-sm font-medium'>AI 信号测试</span>
+                <Badge variant='outline' className='text-xs'>
+                  {signalTasks.stats.total} 次
+                </Badge>
+                {signalTasks.stats.running > 0 && (
+                  <Badge variant='secondary' className='text-xs animate-pulse'>
+                    {signalTasks.stats.running} 运行中
+                  </Badge>
+                )}
+              </div>
+              {signalTasks.stats.settled > 0 && (
+                <div className='flex items-center gap-4 text-sm'>
+                  <div className='flex items-center gap-1'>
+                    <Trophy className='h-3.5 w-3.5' />
+                    <span className='font-mono font-bold'>
+                      {signalTasks.stats.winRate.toFixed(1)}%
+                    </span>
+                  </div>
+                  <span className='text-green-500 font-mono'>{signalTasks.stats.wins}W</span>
+                  <span className='text-red-500 font-mono'>{signalTasks.stats.losses}L</span>
+                  <span
+                    className={`font-mono font-bold ${signalTasks.stats.totalPnl >= 0 ? 'text-green-500' : 'text-red-500'}`}
+                  >
+                    {signalTasks.stats.totalPnl >= 0 ? '+' : ''}$
+                    {signalTasks.stats.totalPnl.toFixed(2)}
+                  </span>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 信号任务列表 */}
+      {signalTasks.tasks.length > 0 && (
+        <Card>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className='w-24'>币种</TableHead>
+                <TableHead className='w-24'>状态</TableHead>
+                <TableHead>入场价</TableHead>
+                <TableHead>当前/退出价</TableHead>
+                <TableHead>盈亏</TableHead>
+                <TableHead>ROI</TableHead>
+                <TableHead>时间</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {signalTasks.tasks.map((task) => (
+                <SignalTaskRow key={task.id} task={task} />
+              ))}
+            </TableBody>
+          </Table>
+        </Card>
+      )}
+
       <CreateJobDialog open={dialogOpen} onOpenChange={setDialogOpen} onCreate={createJob} />
     </div>
   )
@@ -358,6 +430,92 @@ function JobRow({
             <Trash2 className='h-3.5 w-3.5' />
           </Button>
         </div>
+      </TableCell>
+    </TableRow>
+  )
+}
+
+// ============================================
+// 信号任务行
+// ============================================
+
+function SignalTaskRow({ task }: { task: BacktestTrackerTask }) {
+  const pnl = calcPnl(task)
+  const currentPrice = task.exit_price ?? task.last_tracked_price
+  const roi = task.final_roi != null ? task.final_roi : pnl != null && task.test_amount > 0
+    ? (pnl / task.test_amount) * 100
+    : null
+
+  const statusLabel = task.status === 'running'
+    ? '运行中'
+    : task.exit_reason === 'tp_hit'
+      ? '止盈'
+      : task.exit_reason === 'sl_hit'
+        ? '止损'
+        : task.exit_reason === 'timeout'
+          ? '超时'
+          : task.status
+
+  const statusColor = task.status === 'running'
+    ? ''
+    : task.exit_reason === 'tp_hit'
+      ? 'text-green-500'
+      : task.exit_reason === 'sl_hit'
+        ? 'text-red-500'
+        : 'text-yellow-500'
+
+  const dirColor = task.entry_direction === 'long' ? 'text-green-500' : 'text-red-500'
+  const DirIcon = task.entry_direction === 'long' ? TrendingUp : TrendingDown
+
+  return (
+    <TableRow>
+      <TableCell>
+        <div className='flex items-center gap-1'>
+          <span className='font-medium text-xs'>{task.coin}</span>
+          <span className={`flex items-center gap-0.5 text-xs ${dirColor}`}>
+            <DirIcon className='h-3 w-3' />
+            {task.entry_direction === 'long' ? '多' : '空'}
+          </span>
+        </div>
+      </TableCell>
+      <TableCell>
+        {task.status === 'running' ? (
+          <Badge variant='secondary' className='text-xs animate-pulse'>运行中</Badge>
+        ) : (
+          <span className={`text-xs font-medium ${statusColor}`}>{statusLabel}</span>
+        )}
+      </TableCell>
+      <TableCell className='text-xs font-mono'>
+        {task.entry_price != null ? `$${task.entry_price.toFixed(2)}` : '-'}
+      </TableCell>
+      <TableCell className='text-xs font-mono'>
+        {currentPrice != null ? `$${currentPrice.toFixed(2)}` : '-'}
+      </TableCell>
+      <TableCell>
+        {pnl != null ? (
+          <span className={`text-xs font-mono font-bold ${pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+            {pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}
+          </span>
+        ) : (
+          <span className='text-xs text-muted-foreground'>-</span>
+        )}
+      </TableCell>
+      <TableCell>
+        {roi != null ? (
+          <span className={`text-xs font-mono ${roi >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+            {roi >= 0 ? '+' : ''}{roi.toFixed(2)}%
+          </span>
+        ) : (
+          <span className='text-xs text-muted-foreground'>-</span>
+        )}
+      </TableCell>
+      <TableCell className='text-xs text-muted-foreground'>
+        {new Date(task.created_at).toLocaleString('zh-CN', {
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+        })}
       </TableCell>
     </TableRow>
   )

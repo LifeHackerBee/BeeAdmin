@@ -5,7 +5,7 @@ export function useTranslation() {
   const { language } = useLanguage()
 
   const t = (key: TranslationKey): string => {
-    return translations[language][key] || key
+    return translations[language]?.[key] ?? translations['zh'][key] ?? key
   }
 
   return { t, language }
