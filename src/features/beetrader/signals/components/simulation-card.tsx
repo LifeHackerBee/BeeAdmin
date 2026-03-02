@@ -68,7 +68,7 @@ export function SimulationStatus({ sim }: { sim: SimStatus }) {
           </span>
         </div>
       </CardHeader>
-      <CardContent className='space-y-3'>
+      <CardContent className='space-y-2'>
         {/* 价格行 */}
         <div className='grid grid-cols-4 gap-2 text-xs'>
           <div>
@@ -146,7 +146,7 @@ export function SimulationHistory({ history }: { history: SimHistory }) {
           </Badge>
         </CardTitle>
       </CardHeader>
-      <CardContent className='space-y-3'>
+      <CardContent className='space-y-2'>
         {/* 统计摘要 */}
         <div className='grid grid-cols-4 gap-2 text-center text-xs'>
           <div>

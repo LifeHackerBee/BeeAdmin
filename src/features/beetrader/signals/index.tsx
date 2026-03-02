@@ -73,12 +73,12 @@ export function TradingSignals() {
   }
 
   return (
-    <div className='flex flex-col space-y-6'>
+    <div className='flex flex-col space-y-3'>
       {/* 头部 */}
-      <div className='flex-shrink-0 space-y-4'>
+      <div className='flex-shrink-0 space-y-2'>
         <div className='flex items-center gap-2'>
-          <Radar className='h-6 w-6' />
-          <h1 className='text-2xl font-bold'>Order Radar</h1>
+          <Radar className='h-5 w-5' />
+          <h1 className='text-xl font-bold'>Order Radar</h1>
           <span className='text-sm text-muted-foreground'>多层共振分析</span>
           {lastUpdated && (
             <span className='text-xs text-muted-foreground ml-auto'>
@@ -195,8 +195,8 @@ export function TradingSignals() {
         {data && <SignalResult data={data} autoAnalyze={autoAI} />}
 
         {!loading && !data && !error && (
-          <div className='flex flex-col items-center justify-center py-20 text-muted-foreground'>
-            <Radar className='h-16 w-16 mb-4 opacity-30' />
+          <div className='flex flex-col items-center justify-center py-12 text-muted-foreground'>
+            <Radar className='h-12 w-12 mb-3 opacity-30' />
             <p>选择币种并点击分析</p>
           </div>
         )}

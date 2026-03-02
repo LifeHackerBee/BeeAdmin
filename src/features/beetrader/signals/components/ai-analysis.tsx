@@ -77,7 +77,7 @@ function SignalCard({
 
   return (
     <Card className={`${dirColor} border`}>
-      <CardContent className='pt-4 pb-3 space-y-3'>
+      <CardContent className='pt-3 pb-2 space-y-2'>
         {/* 头部：方向 + 信心度 */}
         <div className='flex items-center justify-between'>
           <div className='flex items-center gap-2'>
@@ -231,9 +231,9 @@ export function AIAnalysis({ data, autoAnalyze }: AIAnalysisProps) {
   const isAnalyzing = streaming || signalLoading
 
   return (
-    <div className='space-y-4'>
+    <div className='space-y-2'>
       <Card>
-        <CardHeader className='pb-3'>
+        <CardHeader className='pb-2'>
           <div className='flex items-center justify-between'>
             <CardTitle className='text-sm flex items-center gap-2'>
               <Sparkles className='h-4 w-4' />
@@ -285,7 +285,7 @@ export function AIAnalysis({ data, autoAnalyze }: AIAnalysisProps) {
           <CardContent>
             {error && <div className='text-sm text-destructive'>{error}</div>}
             {content && (
-              <div className='prose prose-sm dark:prose-invert max-w-none text-sm leading-relaxed [&_p]:my-1.5 [&_h2]:mt-4 [&_h2]:mb-2 [&_h2]:text-sm [&_h2]:font-semibold [&_h3]:mt-3 [&_h3]:mb-1.5 [&_h3]:text-sm [&_h3]:font-medium [&_ul]:my-1.5 [&_ul]:pl-5 [&_ul]:list-disc [&_ol]:my-1.5 [&_ol]:pl-5 [&_ol]:list-decimal [&_li]:my-0.5 [&_strong]:font-semibold [&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-xs [&_code]:font-mono'>
+              <div className='prose prose-sm dark:prose-invert max-w-none text-sm leading-normal [&_p]:my-1 [&_h2]:mt-3 [&_h2]:mb-1.5 [&_h2]:text-sm [&_h2]:font-semibold [&_h3]:mt-2 [&_h3]:mb-1 [&_h3]:text-sm [&_h3]:font-medium [&_ul]:my-1 [&_ul]:pl-5 [&_ul]:list-disc [&_ol]:my-1 [&_ol]:pl-5 [&_ol]:list-decimal [&_li]:my-0.5 [&_strong]:font-semibold [&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-xs [&_code]:font-mono'>
                 <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>
                   {content}
                 </ReactMarkdown>

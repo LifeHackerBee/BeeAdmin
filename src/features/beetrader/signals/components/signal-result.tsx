@@ -102,17 +102,17 @@ export function SignalResult({ data, autoAnalyze }: { data: OrderRadarData; auto
   const vegasTrendLabel: Record<string, string> = { expanding: '扩张', contracting: '收缩', stable: '平稳', insufficient_data: '数据不足' }
 
   return (
-    <div className='space-y-4'>
+    <div className='space-y-3'>
       {/* 价格 & 总览 */}
       <Card>
-        <CardHeader className='pb-3'>
+        <CardHeader className='pb-2'>
           <div className='flex items-center justify-between flex-wrap gap-2'>
-            <CardTitle className='text-xl flex items-center gap-2'>
-              <Activity className='h-5 w-5' />
+            <CardTitle className='text-base flex items-center gap-2'>
+              <Activity className='h-4 w-4' />
               {data.coin} 分析报告
             </CardTitle>
             <div className='flex items-center gap-2'>
-              <span className='font-mono text-2xl font-bold'>${cp.toFixed(2)}</span>
+              <span className='font-mono text-xl font-bold'>${cp.toFixed(2)}</span>
               {data.boll_pct != null && (
                 <Badge variant='outline' className='text-xs'>
                   布林 {data.boll_pct}%
@@ -130,7 +130,7 @@ export function SignalResult({ data, autoAnalyze }: { data: OrderRadarData; auto
       <AIAnalysis data={data} autoAnalyze={autoAnalyze} />
 
       {/* 四层共振 */}
-      <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+      <div className='grid grid-cols-1 md:grid-cols-2 gap-3'>
         {/* L1: 趋势 */}
         <Card>
           <CardHeader className='pb-2'>
@@ -276,7 +276,7 @@ export function SignalResult({ data, autoAnalyze }: { data: OrderRadarData; auto
       </div>
 
       {/* 成交量 & VWAP */}
-      <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+      <div className='grid grid-cols-1 md:grid-cols-2 gap-3'>
         <Card>
           <CardHeader className='pb-2'>
             <CardTitle className='text-sm flex items-center gap-2'>
@@ -353,14 +353,14 @@ export function SignalResult({ data, autoAnalyze }: { data: OrderRadarData; auto
           </CardHeader>
           <CardContent>
             {liqMap.loading ? (
-              <div className='space-y-3'>
+              <div className='space-y-2'>
                 <div className='text-sm text-muted-foreground'>正在从 CoinGlass 抓取清算数据，约需 10-30 秒...</div>
                 <Skeleton className='h-[280px] w-full' />
               </div>
             ) : liqMap.error ? (
               <div className='text-sm text-red-500'>{liqMap.error.message}</div>
             ) : (
-              <div className='flex flex-col items-center py-6 gap-3'>
+              <div className='flex flex-col items-center py-4 gap-2'>
                 <span className='text-sm text-muted-foreground'>点击加载清算热力图（数据来源: CoinGlass，约需 10-30 秒）</span>
                 <Button
                   variant='outline'
@@ -489,13 +489,13 @@ function StrategyCard({
 
   return (
     <Card className={`border-2 ${cfg.color}`}>
-      <CardHeader className='pb-3'>
-        <CardTitle className='text-lg flex items-center gap-2'>
-          <Icon className='h-5 w-5' />
+      <CardHeader className='pb-2'>
+        <CardTitle className='text-base flex items-center gap-2'>
+          <Icon className='h-4 w-4' />
           策略建议: {cfg.label}
         </CardTitle>
       </CardHeader>
-      <CardContent className='space-y-4'>
+      <CardContent className='space-y-2'>
         {/* 共振亮灯 */}
         <div className='space-y-2'>
           <div className='flex items-center gap-3'>
@@ -567,7 +567,7 @@ function AdviceBlock({
   }
 
   return (
-    <div className={`rounded-lg border p-3 space-y-2 ${isLong ? 'border-green-500/30' : 'border-red-500/30'}`}>
+    <div className={`rounded-lg border p-2 space-y-1 ${isLong ? 'border-green-500/30' : 'border-red-500/30'}`}>
       <div className='flex items-center gap-2'>
         <span className='font-medium'>{strength}{label}信号 ({layers.count}/4)</span>
         {missing.length > 0 && (
