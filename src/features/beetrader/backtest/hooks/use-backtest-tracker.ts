@@ -22,7 +22,7 @@ export interface BacktestTrackerTask {
   source: 'manual' | 'order_radar'
   take_profit: number | null
   stop_loss: number | null
-  exit_reason: 'tp_hit' | 'sl_hit' | 'timeout' | null
+  exit_reason: 'tp_hit' | 'sl_hit' | 'timeout' | 'ai_close' | null
   exit_price: number | null
   final_pnl: number | null
   final_roi: number | null

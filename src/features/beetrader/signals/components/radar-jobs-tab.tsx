@@ -43,6 +43,7 @@ import {
   Activity,
   Radar,
   Trophy,
+  RotateCcw,
 } from 'lucide-react'
 
 // ============================================
@@ -88,14 +89,30 @@ function SignalBadge({
 }) {
   if (!action) return <span className='text-muted-foreground text-xs'>-</span>
 
-  const Icon = action === 'long' ? TrendingUp : action === 'short' ? TrendingDown : Minus
+  const Icon =
+    action === 'long'
+      ? TrendingUp
+      : action === 'short'
+        ? TrendingDown
+        : action === 'close'
+          ? RotateCcw
+          : Minus
   const color =
     action === 'long'
       ? 'text-green-500'
       : action === 'short'
         ? 'text-red-500'
-        : 'text-yellow-500'
-  const label = action === 'long' ? '做多' : action === 'short' ? '做空' : '观望'
+        : action === 'close'
+          ? 'text-orange-500'
+          : 'text-yellow-500'
+  const label =
+    action === 'long'
+      ? '做多'
+      : action === 'short'
+        ? '做空'
+        : action === 'close'
+          ? '平仓'
+          : '观望'
 
   return (
     <span className={`flex items-center gap-1 text-xs font-medium ${color}`}>
@@ -119,19 +136,26 @@ function CreateJobDialog({
 }: {
   open: boolean
   onOpenChange: (v: boolean) => void
-  onCreate: (coin: string, interval: number, autoSim: boolean) => Promise<unknown>
+  onCreate: (
+    coin: string,
+    interval: number,
+    autoSim: boolean,
+    balance: number,
+  ) => Promise<unknown>
 }) {
   const [coin, setCoin] = useState('')
   const [interval, setInterval] = useState(60)
   const [autoSim, setAutoSim] = useState(true)
+  const [balance, setBalance] = useState(10000)
   const [creating, setCreating] = useState(false)
 
   const handleCreate = async () => {
     if (!coin.trim()) return
     setCreating(true)
     try {
-      await onCreate(coin.trim(), interval, autoSim)
+      await onCreate(coin.trim(), interval, autoSim, balance)
       setCoin('')
+      setBalance(10000)
       onOpenChange(false)
     } catch {
       // error handled by hook
@@ -155,6 +179,18 @@ function CreateJobDialog({
               placeholder='如 BTC、ETH、SOL'
               onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
             />
+          </div>
+          <div className='space-y-1'>
+            <Label>虚拟账户额度 ($)</Label>
+            <Input
+              type='number'
+              value={balance}
+              onChange={(e) => setBalance(Number(e.target.value))}
+              min={100}
+              max={1000000}
+              step={1000}
+            />
+            <p className='text-[10px] text-muted-foreground'>每笔交易使用全部余额开仓</p>
           </div>
           <div className='space-y-1'>
             <Label>分析间隔 (秒)</Label>
@@ -191,8 +227,17 @@ function CreateJobDialog({
 // ============================================
 
 export function RadarJobsTab() {
-  const { jobs, loading, error, createJob, startJob, pauseJob, deleteJob, fetchJobs } =
-    useOrderRadarJobs()
+  const {
+    jobs,
+    loading,
+    error,
+    createJob,
+    startJob,
+    pauseJob,
+    deleteJob,
+    resetAccount,
+    fetchJobs,
+  } = useOrderRadarJobs()
   const signalTasks = useSignalTasks()
   const [dialogOpen, setDialogOpen] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
@@ -206,33 +251,91 @@ export function RadarJobsTab() {
   const runningCount = jobs.filter((j) => j.status === 'running').length
   const totalAnalyses = jobs.reduce((sum, j) => sum + j.total_analyses, 0)
   const totalSignals = jobs.reduce((sum, j) => sum + j.total_signals, 0)
+  const totalBalance = jobs.reduce((sum, j) => sum + (j.account_balance ?? 0), 0)
+  const totalInitial = jobs.reduce((sum, j) => sum + (j.account_initial_balance ?? 0), 0)
+  const aggPnl = jobs.reduce((sum, j) => sum + (j.total_pnl ?? 0), 0)
+  const aggWins = jobs.reduce((sum, j) => sum + (j.win_count ?? 0), 0)
+  const aggLosses = jobs.reduce((sum, j) => sum + (j.loss_count ?? 0), 0)
+  const aggTrades = aggWins + aggLosses
+  const aggWinRate = aggTrades > 0 ? (aggWins / aggTrades) * 100 : 0
+  const openPositions = jobs.filter((j) => j.has_open_position).length
 
   return (
     <div className='space-y-3'>
       {/* 顶部操作栏 */}
-      <div className='flex items-center justify-between'>
-        <div className='flex items-center gap-3'>
-          {jobs.length > 0 && (
-            <div className='flex items-center gap-3 text-xs text-muted-foreground'>
-              <span>
-                {runningCount}/{jobs.length} 运行中
-              </span>
-              <span>共分析 {totalAnalyses} 次</span>
-              <span>信号 {totalSignals} 次</span>
-            </div>
-          )}
-        </div>
-        <div className='flex items-center gap-2'>
-          <Button variant='outline' size='sm' onClick={handleRefresh} disabled={refreshing}>
-            <RefreshCw className={`h-4 w-4 mr-1 ${refreshing ? 'animate-spin' : ''}`} />
-            刷新
-          </Button>
-          <Button size='sm' onClick={() => setDialogOpen(true)}>
-            <Plus className='h-4 w-4 mr-1' />
-            添加监控
-          </Button>
-        </div>
+      <div className='flex items-center justify-end gap-2'>
+        <Button variant='outline' size='sm' onClick={handleRefresh} disabled={refreshing}>
+          <RefreshCw className={`h-4 w-4 mr-1 ${refreshing ? 'animate-spin' : ''}`} />
+          刷新
+        </Button>
+        <Button size='sm' onClick={() => setDialogOpen(true)}>
+          <Plus className='h-4 w-4 mr-1' />
+          添加监控
+        </Button>
       </div>
+
+      {/* 概览统计卡片 */}
+      {jobs.length > 0 && (
+        <div className='grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-6'>
+          <Card>
+            <CardContent className='px-3 py-2'>
+              <p className='text-[10px] text-muted-foreground'>运行状态</p>
+              <p className='text-lg font-bold tabular-nums'>
+                <span className={runningCount > 0 ? 'text-green-500' : ''}>{runningCount}</span>
+                <span className='text-sm text-muted-foreground font-normal'>/{jobs.length}</span>
+              </p>
+              {openPositions > 0 && (
+                <p className='text-[10px] text-blue-500'>{openPositions} 个持仓中</p>
+              )}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className='px-3 py-2'>
+              <p className='text-[10px] text-muted-foreground'>总分析</p>
+              <p className='text-lg font-bold tabular-nums'>{totalAnalyses.toLocaleString()}</p>
+              <p className='text-[10px] text-muted-foreground'>信号 {totalSignals} 次</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className='px-3 py-2'>
+              <p className='text-[10px] text-muted-foreground'>总资产</p>
+              <p className='text-lg font-bold tabular-nums'>${totalBalance.toFixed(0)}</p>
+              {totalInitial > 0 && (
+                <p className={`text-[10px] font-mono ${totalBalance - totalInitial >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                  {totalBalance - totalInitial >= 0 ? '+' : ''}{((totalBalance - totalInitial) / totalInitial * 100).toFixed(1)}%
+                </p>
+              )}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className='px-3 py-2'>
+              <p className='text-[10px] text-muted-foreground'>总盈亏</p>
+              <p className={`text-lg font-bold tabular-nums ${aggPnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                {aggPnl >= 0 ? '+' : ''}${aggPnl.toFixed(2)}
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className='px-3 py-2'>
+              <p className='text-[10px] text-muted-foreground'>胜率</p>
+              <p className='text-lg font-bold tabular-nums'>
+                {aggTrades > 0 ? `${aggWinRate.toFixed(0)}%` : '-'}
+              </p>
+              {aggTrades > 0 && (
+                <p className='text-[10px] text-muted-foreground'>
+                  <span className='text-green-500'>{aggWins}W</span> / <span className='text-red-500'>{aggLosses}L</span>
+                </p>
+              )}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className='px-3 py-2'>
+              <p className='text-[10px] text-muted-foreground'>总交易</p>
+              <p className='text-lg font-bold tabular-nums'>{aggTrades}</p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* 错误提示 */}
       {error && (
@@ -263,10 +366,11 @@ export function RadarJobsTab() {
               <TableRow>
                 <TableHead className='w-20'>币种</TableHead>
                 <TableHead className='w-24'>状态</TableHead>
-                <TableHead className='w-16'>间隔</TableHead>
-                <TableHead>上次分析</TableHead>
+                <TableHead>余额</TableHead>
+                <TableHead>仓位</TableHead>
+                <TableHead>总盈亏</TableHead>
+                <TableHead>胜率</TableHead>
                 <TableHead>最新信号</TableHead>
-                <TableHead className='w-20'>分析/信号</TableHead>
                 <TableHead className='w-28 text-right'>操作</TableHead>
               </TableRow>
             </TableHeader>
@@ -278,6 +382,7 @@ export function RadarJobsTab() {
                   onStart={() => startJob(job.id)}
                   onPause={() => pauseJob(job.id)}
                   onDelete={() => deleteJob(job.id)}
+                  onReset={() => resetAccount(job.id)}
                 />
               ))}
             </TableBody>
@@ -359,7 +464,7 @@ export function RadarJobsTab() {
 }
 
 // ============================================
-// 单行
+// 单行 — 含账户信息
 // ============================================
 
 function JobRow({
@@ -367,15 +472,23 @@ function JobRow({
   onStart,
   onPause,
   onDelete,
+  onReset,
 }: {
   job: OrderRadarJob
   onStart: () => void
   onPause: () => void
   onDelete: () => void
+  onReset: () => void
 }) {
-  const lastAnalyzed = job.last_analyzed_at
-    ? new Date(job.last_analyzed_at).toLocaleTimeString()
-    : '-'
+  const balance = job.account_balance ?? 10000
+  const initialBalance = job.account_initial_balance ?? 10000
+  const pnlFromBalance = balance - initialBalance
+  const totalPnl = job.total_pnl ?? 0
+  const winCount = job.win_count ?? 0
+  const lossCount = job.loss_count ?? 0
+  const totalTrades = job.total_trades ?? 0
+  const winRate = totalTrades > 0 ? (winCount / totalTrades) * 100 : 0
+  const canReset = job.status !== 'running' && !job.has_open_position && totalTrades > 0
 
   return (
     <TableRow>
@@ -402,13 +515,65 @@ function JobRow({
           )}
         </div>
       </TableCell>
-      <TableCell className='text-xs font-mono'>{job.analyze_interval_seconds}s</TableCell>
-      <TableCell className='text-xs'>{lastAnalyzed}</TableCell>
+      <TableCell>
+        <div className='flex flex-col'>
+          <span className='text-xs font-mono font-medium'>${balance.toFixed(0)}</span>
+          {pnlFromBalance !== 0 && (
+            <span
+              className={`text-[10px] font-mono ${pnlFromBalance >= 0 ? 'text-green-500' : 'text-red-500'}`}
+            >
+              {pnlFromBalance >= 0 ? '+' : ''}
+              {((pnlFromBalance / initialBalance) * 100).toFixed(1)}%
+            </span>
+          )}
+        </div>
+      </TableCell>
+      <TableCell>
+        {job.has_open_position ? (
+          <Badge variant='outline' className='text-xs text-blue-500 border-blue-500/30'>
+            持仓中
+          </Badge>
+        ) : (
+          <span className='text-xs text-muted-foreground'>空仓</span>
+        )}
+      </TableCell>
+      <TableCell>
+        {totalTrades > 0 ? (
+          <span
+            className={`text-xs font-mono font-bold ${totalPnl >= 0 ? 'text-green-500' : 'text-red-500'}`}
+          >
+            {totalPnl >= 0 ? '+' : ''}${totalPnl.toFixed(2)}
+          </span>
+        ) : (
+          <span className='text-xs text-muted-foreground'>-</span>
+        )}
+      </TableCell>
+      <TableCell>
+        {totalTrades > 0 ? (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className='text-xs font-mono cursor-help'>
+                  {winRate.toFixed(0)}%
+                  <span className='text-muted-foreground ml-1'>
+                    ({winCount}W/{lossCount}L)
+                  </span>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p className='text-xs'>
+                  共 {totalTrades} 笔交易 | 分析 {job.total_analyses} 次 | 信号{' '}
+                  {job.total_signals} 次
+                </p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        ) : (
+          <span className='text-xs text-muted-foreground'>-</span>
+        )}
+      </TableCell>
       <TableCell>
         <SignalBadge action={job.last_signal_action} confidence={job.last_signal_confidence} />
-      </TableCell>
-      <TableCell className='text-xs font-mono'>
-        {job.total_analyses}/{job.total_signals}
       </TableCell>
       <TableCell className='text-right'>
         <div className='flex items-center justify-end gap-1'>
@@ -420,6 +585,18 @@ function JobRow({
             <Button variant='ghost' size='icon' className='h-7 w-7' onClick={onStart}>
               <Play className='h-3.5 w-3.5' />
             </Button>
+          )}
+          {canReset && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant='ghost' size='icon' className='h-7 w-7' onClick={onReset}>
+                    <RotateCcw className='h-3.5 w-3.5' />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>重置账户余额和统计</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           )}
           <Button
             variant='ghost'
@@ -442,27 +619,36 @@ function JobRow({
 function SignalTaskRow({ task }: { task: BacktestTrackerTask }) {
   const pnl = calcPnl(task)
   const currentPrice = task.exit_price ?? task.last_tracked_price
-  const roi = task.final_roi != null ? task.final_roi : pnl != null && task.test_amount > 0
-    ? (pnl / task.test_amount) * 100
-    : null
+  const roi =
+    task.final_roi != null
+      ? task.final_roi
+      : pnl != null && task.test_amount > 0
+        ? (pnl / task.test_amount) * 100
+        : null
 
-  const statusLabel = task.status === 'running'
-    ? '运行中'
-    : task.exit_reason === 'tp_hit'
-      ? '止盈'
-      : task.exit_reason === 'sl_hit'
-        ? '止损'
-        : task.exit_reason === 'timeout'
-          ? '超时'
-          : task.status
+  const statusLabel =
+    task.status === 'running'
+      ? '运行中'
+      : task.exit_reason === 'tp_hit'
+        ? '止盈'
+        : task.exit_reason === 'sl_hit'
+          ? '止损'
+          : task.exit_reason === 'ai_close'
+            ? 'AI平仓'
+            : task.exit_reason === 'timeout'
+              ? '超时'
+              : task.status
 
-  const statusColor = task.status === 'running'
-    ? ''
-    : task.exit_reason === 'tp_hit'
-      ? 'text-green-500'
-      : task.exit_reason === 'sl_hit'
-        ? 'text-red-500'
-        : 'text-yellow-500'
+  const statusColor =
+    task.status === 'running'
+      ? ''
+      : task.exit_reason === 'tp_hit'
+        ? 'text-green-500'
+        : task.exit_reason === 'sl_hit'
+          ? 'text-red-500'
+          : task.exit_reason === 'ai_close'
+            ? 'text-orange-500'
+            : 'text-yellow-500'
 
   const dirColor = task.entry_direction === 'long' ? 'text-green-500' : 'text-red-500'
   const DirIcon = task.entry_direction === 'long' ? TrendingUp : TrendingDown
@@ -480,7 +666,9 @@ function SignalTaskRow({ task }: { task: BacktestTrackerTask }) {
       </TableCell>
       <TableCell>
         {task.status === 'running' ? (
-          <Badge variant='secondary' className='text-xs animate-pulse'>运行中</Badge>
+          <Badge variant='secondary' className='text-xs animate-pulse'>
+            运行中
+          </Badge>
         ) : (
           <span className={`text-xs font-medium ${statusColor}`}>{statusLabel}</span>
         )}
@@ -493,7 +681,9 @@ function SignalTaskRow({ task }: { task: BacktestTrackerTask }) {
       </TableCell>
       <TableCell>
         {pnl != null ? (
-          <span className={`text-xs font-mono font-bold ${pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+          <span
+            className={`text-xs font-mono font-bold ${pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}
+          >
             {pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}
           </span>
         ) : (
@@ -503,7 +693,8 @@ function SignalTaskRow({ task }: { task: BacktestTrackerTask }) {
       <TableCell>
         {roi != null ? (
           <span className={`text-xs font-mono ${roi >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-            {roi >= 0 ? '+' : ''}{roi.toFixed(2)}%
+            {roi >= 0 ? '+' : ''}
+            {roi.toFixed(2)}%
           </span>
         ) : (
           <span className='text-xs text-muted-foreground'>-</span>

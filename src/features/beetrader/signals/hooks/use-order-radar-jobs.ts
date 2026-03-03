@@ -19,6 +19,15 @@ export interface OrderRadarJob {
   consecutive_errors: number
   total_analyses: number
   total_signals: number
+  // 虚拟账户
+  account_balance: number
+  account_initial_balance: number
+  has_open_position: boolean
+  open_task_id: number | null
+  total_trades: number
+  total_pnl: number
+  win_count: number
+  loss_count: number
   created_at: string
   updated_at: string
 }
@@ -74,12 +83,13 @@ export function useOrderRadarJobs() {
   }, [jobs, fetchJobs])
 
   const createJob = useCallback(
-    async (coin: string, interval: number = 60, autoSimulate: boolean = true) => {
+    async (coin: string, interval: number = 60, autoSimulate: boolean = true, accountBalance: number = 10000) => {
       try {
         const res = await hyperliquidApiPost<JobResponse>(API_PREFIX, {
           coin,
           analyze_interval_seconds: interval,
           auto_simulate: autoSimulate,
+          account_balance: accountBalance,
         })
         await fetchJobs()
         return res.job
@@ -130,6 +140,19 @@ export function useOrderRadarJobs() {
     [fetchJobs],
   )
 
+  const resetAccount = useCallback(
+    async (jobId: number) => {
+      try {
+        await hyperliquidApiPost(`${API_PREFIX}/${jobId}/reset-account`)
+        await fetchJobs()
+      } catch (e) {
+        setError(e instanceof Error ? e : new Error(String(e)))
+        throw e
+      }
+    },
+    [fetchJobs],
+  )
+
   return {
     jobs,
     loading,
@@ -139,5 +162,6 @@ export function useOrderRadarJobs() {
     startJob,
     pauseJob,
     deleteJob,
+    resetAccount,
   }
 }
