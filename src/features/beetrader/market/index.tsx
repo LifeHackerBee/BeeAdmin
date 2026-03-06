@@ -1,5 +1,6 @@
 import { Macroscopic } from '../macroscopic'
 import { Candles } from '../candles'
+import { MarketDepth } from './components/market-depth'
 
 export function Market() {
   return (
@@ -15,25 +16,33 @@ export function Market() {
 
       <div className='flex-1 overflow-y-auto overflow-x-hidden px-8 pb-8'>
         <div className='flex flex-col gap-8'>
-          {/* 宏观市场模块 - 内容可滚动 */}
+
+          {/* 宏观市场 */}
           <div className='flex flex-col bg-card rounded-lg border p-6 shadow-sm'>
             <div className='mb-4'>
               <h3 className='text-xl font-semibold'>宏观市场</h3>
             </div>
-            <div>
-              <Macroscopic />
-            </div>
+            <Macroscopic />
           </div>
 
-          {/* K线观察模块 - 固定高度显示 */}
-          <div className='flex flex-col bg-card rounded-lg border p-6 shadow-sm' style={{ height: '600px', minHeight: '500px' }}>
-            <div className='mb-4'>
+          {/* K线观察 */}
+          <div
+            className='flex flex-col bg-card rounded-lg border p-6 shadow-sm'
+            style={{ height: '560px', minHeight: '480px' }}
+          >
+            <div className='mb-4 flex-shrink-0'>
               <h3 className='text-xl font-semibold'>K线观察</h3>
             </div>
             <div className='flex-1 min-h-0 overflow-hidden'>
               <Candles />
             </div>
           </div>
+
+          {/* 市场深度分析：筹码分布 + 大额成交 */}
+          <div className='flex flex-col bg-card rounded-lg border p-6 shadow-sm'>
+            <MarketDepth />
+          </div>
+
         </div>
       </div>
     </div>
