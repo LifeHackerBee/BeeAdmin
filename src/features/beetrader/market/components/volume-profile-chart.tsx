@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge'
 import { RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useVolumeProfile } from '../hooks/use-volume-profile'
+import { coinLabel } from '../coins'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -44,31 +45,57 @@ type Timeframe = (typeof TIMEFRAMES)[number]
 
 const TF_LABELS: Record<Timeframe, string> = { '1h': '1H', '4h': '4H', '1d': '1D' }
 
-const NUM_BUCKETS = 28
+// 每个币种对应的固定价格桶大小
+const COIN_BUCKET_SIZES: Record<string, number> = {
+  BTC: 1000,
+  ETH: 50,
+  SOL: 5,
+  'xyz:BRENTOIL': 1,
+  'xyz:GOLD': 50,
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+/** 根据价格范围自动计算"好看"的桶大小（仅用于未在 COIN_BUCKET_SIZES 中配置的币种） */
+function autoBucketSize(range: number): number {
+  const raw = range / 25
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)))
+  const n = raw / mag
+  if (n <= 2) return 2 * mag
+  if (n <= 5) return 5 * mag
+  return 10 * mag
+}
+
 function fmtPriceShort(p: number): string {
-  if (p >= 10_000) return `${(p / 1_000).toFixed(1)}k`
+  if (p >= 10_000) {
+    const k = p / 1_000
+    return k === Math.floor(k) ? `${k}k` : `${k.toFixed(1)}k`
+  }
   if (p >= 1_000) return `${p.toFixed(0)}`
   if (p >= 100) return `${p.toFixed(1)}`
   return `${p.toFixed(2)}`
 }
 
-function buildBars(data: VolumePoint[], currentPrice: number): VolumeBar[] {
+function buildBars(data: VolumePoint[], currentPrice: number, coin: string): VolumeBar[] {
   if (!data || data.length === 0) return []
 
   const prices = data.map((d) => d.price)
-  const minP = Math.min(...prices)
-  const maxP = Math.max(...prices)
-  const range = maxP - minP
-  if (range === 0) return []
+  const rawMin = Math.min(...prices)
+  const rawMax = Math.max(...prices)
+  if (rawMax === rawMin) return []
 
-  const bucketSize = range / NUM_BUCKETS
-  const buckets: number[] = new Array(NUM_BUCKETS).fill(0)
+  const bucketSize = COIN_BUCKET_SIZES[coin] ?? autoBucketSize(rawMax - rawMin)
+
+  // 对齐到整数桶边界，让价格标签更整齐
+  const minP = Math.floor(rawMin / bucketSize) * bucketSize
+  const maxP = Math.ceil(rawMax / bucketSize) * bucketSize
+  const numBuckets = Math.round((maxP - minP) / bucketSize)
+  if (numBuckets <= 0) return []
+
+  const buckets: number[] = new Array(numBuckets).fill(0)
 
   for (const { price, volume } of data) {
-    const idx = Math.min(Math.floor((price - minP) / bucketSize), NUM_BUCKETS - 1)
+    const idx = Math.min(Math.floor((price - minP) / bucketSize), numBuckets - 1)
     buckets[idx] += volume
   }
 
@@ -77,17 +104,17 @@ function buildBars(data: VolumePoint[], currentPrice: number): VolumeBar[] {
 
   const currentBucketIdx =
     currentPrice > 0 && currentPrice >= minP && currentPrice <= maxP
-      ? Math.min(Math.floor((currentPrice - minP) / bucketSize), NUM_BUCKETS - 1)
+      ? Math.min(Math.floor((currentPrice - minP) / bucketSize), numBuckets - 1)
       : -1
 
   const result: VolumeBar[] = []
-  for (let i = NUM_BUCKETS - 1; i >= 0; i--) {
+  for (let i = numBuckets - 1; i >= 0; i--) {
     if (buckets[i] === 0) continue
     const priceLow = minP + i * bucketSize
     const priceHigh = priceLow + bucketSize
     const priceCenter = (priceLow + priceHigh) / 2
     result.push({
-      priceLabel: `$${fmtPriceShort(priceCenter)}`,
+      priceLabel: `$${fmtPriceShort(priceLow)}`,
       priceCenter,
       priceLow,
       priceHigh,
@@ -146,20 +173,20 @@ export function VolumeProfileChart({ coin }: VolumeProfileChartProps) {
   const { data, loading, error, refetch } = useVolumeProfile(coin)
 
   const bars = useMemo(
-    () => buildBars(data?.profile[tf] ?? [], data?.currentPrice ?? 0),
-    [data, tf]
+    () => buildBars(data?.profile[tf] ?? [], data?.currentPrice ?? 0, coin),
+    [data, tf, coin]
   )
 
   const poc = bars.find((b) => b.isPOC)
   const hasPriceData = (data?.currentPrice ?? 0) > 0
-  const chartHeight = Math.min(Math.max(bars.length * 13 + 40, 280), 400)
+  const chartHeight = Math.min(Math.max(bars.length * 18 + 40, 280), 560)
 
   return (
     <Card className='h-full flex flex-col'>
       <CardHeader className='pb-2 flex-shrink-0'>
         <CardTitle className='text-sm flex items-center justify-between'>
           <span className='flex items-center gap-2'>
-            {coin} 筹码分布
+            {coinLabel(coin)} 筹码分布
             {poc && (
               <span className='text-[10px] font-normal text-yellow-600 dark:text-yellow-400'>
                 POC ${fmtPriceShort(poc.priceCenter)}

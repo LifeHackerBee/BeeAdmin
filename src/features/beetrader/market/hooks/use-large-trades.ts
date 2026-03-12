@@ -63,7 +63,7 @@ export function useLargeTrades(coin: string) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: 'recentTrades',
-          coin: coin.toUpperCase(),
+          coin,
         }),
       })
 

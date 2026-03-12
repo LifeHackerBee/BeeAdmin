@@ -9,16 +9,12 @@ import {
 import { VolumeProfileChart } from './volume-profile-chart'
 import { LargeTradesPanel } from './large-trades-panel'
 import { VolumeFlowChart } from './volume-flow-chart'
-
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-const COINS = ['BTC', 'ETH', 'SOL'] as const
-type Coin = (typeof COINS)[number]
+import { COINS, coinLabel } from '../coins'
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function MarketDepth() {
-  const [selectedCoin, setSelectedCoin] = useState<Coin>('BTC')
+  const [selectedCoin, setSelectedCoin] = useState(COINS[0].value)
 
   return (
     <div className='flex flex-col gap-4'>
@@ -30,15 +26,15 @@ export function MarketDepth() {
         </div>
         <Select
           value={selectedCoin}
-          onValueChange={(v) => setSelectedCoin(v as Coin)}
+          onValueChange={setSelectedCoin}
         >
-          <SelectTrigger className='w-[100px]'>
-            <SelectValue />
+          <SelectTrigger className='w-[120px]'>
+            <SelectValue>{coinLabel(selectedCoin)}</SelectValue>
           </SelectTrigger>
           <SelectContent>
-            {COINS.map((coin) => (
-              <SelectItem key={coin} value={coin}>
-                {coin}
+            {COINS.map((c) => (
+              <SelectItem key={c.value} value={c.value}>
+                {c.label}
               </SelectItem>
             ))}
           </SelectContent>

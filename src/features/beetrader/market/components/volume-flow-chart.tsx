@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Zap, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useVolumeFlow, type VolumeBar } from '../hooks/use-volume-flow'
+import { coinLabel } from '../coins'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -95,7 +96,7 @@ export function VolumeFlowChart({ coin }: VolumeFlowChartProps) {
     <Card className='flex flex-col'>
       <CardHeader className='pb-2 flex-shrink-0'>
         <CardTitle className='text-sm flex items-center justify-between'>
-          <span>{coin} 5分钟量级变化</span>
+          <span>{coinLabel(coin)} 5分钟量级变化</span>
           <div className='flex items-center gap-3'>
             {/* Stats */}
             {data && (

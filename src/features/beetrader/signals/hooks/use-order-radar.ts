@@ -2,119 +2,118 @@ import { useState, useCallback } from 'react'
 import { hyperliquidApiGet } from '@/lib/hyperliquid-api-client'
 
 // ============================================
-// 类型定义
+// 类型定义 — 入场触发
 // ============================================
 
-export interface VegasInfo {
-  upper: number
-  lower: number
-  mid: number
-  width: number
-  width_pct: number
-  position: 'above' | 'below' | 'inside'
-  trend: 'expanding' | 'contracting' | 'stable' | 'insufficient_data'
-  signal_bullish: boolean
-  signal_bearish: boolean
+export interface SrLevel {
+  price: number
+  source: string
+  strength: 'strong' | 'moderate' | 'weak'
 }
 
-export interface L1Trend {
-  is_bullish: boolean
-  ema12: number
-  ema144: number
-  vegas: VegasInfo
+export interface SrTier {
+  supports: SrLevel[]
+  resistances: SrLevel[]
 }
 
-export interface RsiInfo {
-  rsi: number | null
-  oversold: boolean
-  overbought: boolean
+export interface SrLevels {
+  short_term: SrTier   // ±5%
+  medium_term: SrTier  // 5%~10%
+  long_term: SrTier    // 10%~20%
+  hint: string
+}
+
+export interface OrderBlock {
+  high: number
+  low: number
+  strength: number
+}
+
+export interface OrderBlockData {
+  bullish: OrderBlock[]
+  bearish: OrderBlock[]
+  hint: string
+}
+
+export interface CvdData {
+  trend: string
+  value: number
   bull_divergence: boolean
   bear_divergence: boolean
+  hint: string
 }
 
-export interface CvdInfo {
-  cvd_trend: string
-  cvd_confirmed: boolean
-  cvd_declining: boolean
-  cvd_rising: boolean
+export interface OiData {
+  open_interest: number | null
+  funding_rate: number | null
+  funding_8h: number[]
+  funding_trend: 'positive' | 'negative' | 'neutral'
+  hint: string
 }
 
-export interface WallInfo {
-  label: string
-  price: number
-  size: number
-  dist_pct: number
+export interface EntryTrigger {
+  sr_levels: SrLevels
+  order_blocks: OrderBlockData
+  cvd: CvdData
+  oi: OiData
 }
 
-export interface VolumeInfo {
-  recent: number
-  ma20: number
-  ratio: number
-  low_volume: boolean
-}
+// ============================================
+// 类型定义 — 趋势过滤
+// ============================================
 
-export interface VwapInfo {
+export interface VwapData {
   value: number | null
-  intraday: boolean
   dist_pct: number | null
+  intraday: boolean
+  hint: string
 }
 
-export interface ConsolidationSignal {
-  active: boolean
-  reason: string
-  [key: string]: unknown
+export interface EmaData {
+  ema12: number
+  slope: 'up' | 'down' | 'flat'
+  price_vs_ema: 'above' | 'below'
+  hint: string
 }
 
-export interface ConsolidationInfo {
-  is_consolidation: boolean
-  signal_count: number
-  signals: {
-    ema_twist: ConsolidationSignal
-    bb_squeeze: ConsolidationSignal
-    rsi_deadzone: ConsolidationSignal
-    wall_sandwich: ConsolidationSignal
-  }
+export interface TrendFilter {
+  vwap: VwapData
+  ema: EmaData
 }
 
-export interface KeyLevel {
-  name: string
-  price: number
-  is_resistance: boolean
-  dist_pct: number
-  status: string
-}
+// ============================================
+// 类型定义 — 止盈止损参考
+// ============================================
 
-export interface TradeAdvice {
-  entry: number
-  stop: number
-  take_profit: number | null
-  entry_basis: string
-  tp_basis: string
-}
-
-export interface StrategyLayers {
-  l1: boolean
-  l2: boolean
-  l3: boolean
-  l4: boolean
-  count: number
-}
-
-export interface StrategyInfo {
-  resonance_threshold: number
-  long: StrategyLayers
-  short: StrategyLayers
-  recommendation: 'long' | 'short' | 'neutral' | 'wait'
-  long_advice: TradeAdvice | null
-  short_advice: TradeAdvice | null
-}
-
-export interface BollBand {
+export interface BollingerData {
   upper: number
   lower: number
+  pct: number | null
+  upper_4h: number | null
+  lower_4h: number | null
+  hint: string
 }
 
-export interface VegasBand {
+export interface MacdData {
+  macd: number
+  signal: number
+  histogram: number
+  cross: 'golden' | 'death' | null
+  histogram_trend: 'expanding' | 'contracting'
+  hint: string
+}
+
+export interface TpSlReference {
+  sr_levels: SrLevels
+  bollinger: BollingerData
+  macd: MacdData
+}
+
+// ============================================
+// 类型定义 — 图表数据
+// ============================================
+
+export interface BollBand {
   upper: number
   lower: number
 }
@@ -132,30 +131,20 @@ export interface ChartData {
   bollinger: {
     '1h': BollBand
     '4h': BollBand | null
-    '1d': BollBand | null
-  }
-  vegas: {
-    '1h': VegasBand | null
-    '4h': VegasBand
-    '1d': VegasBand | null
   }
 }
+
+// ============================================
+// 组合类型
+// ============================================
 
 export interface OrderRadarData {
   coin: string
   current_price: number
-  boll_pct: number | null
-  l1_trend: L1Trend
-  l2_bollinger: { upper: number; lower: number }
-  l3_rsi: RsiInfo
-  l4_cvd: CvdInfo
-  walls: WallInfo[]
+  entry_trigger: EntryTrigger
+  trend_filter: TrendFilter
+  tp_sl_reference: TpSlReference
   chart_data: ChartData
-  volume: VolumeInfo
-  vwap: VwapInfo
-  consolidation: ConsolidationInfo
-  key_levels: KeyLevel[]
-  strategy: StrategyInfo
 }
 
 interface OrderRadarResponse {
@@ -180,7 +169,7 @@ export function useOrderRadar() {
       setError(null)
 
       const result = await hyperliquidApiGet<OrderRadarResponse>(
-        `/api/order_radar/analyze?coin=${encodeURIComponent(coin.toUpperCase())}`
+        `/api/order_radar/analyze?coin=${encodeURIComponent(coin)}`
       )
 
       if (!result.success || !result.data) {

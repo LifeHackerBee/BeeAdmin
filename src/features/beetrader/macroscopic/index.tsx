@@ -22,22 +22,17 @@ import {
   TableRow,
 } from '@/components/ui/table'
 
-// 所有币种列表
-const ALL_COINS = ['BTC', 'ETH', 'SOL', 'BNB', 'AVAX', 'MATIC', 'ADA', 'DOT', 'LINK', 'UNI', 'ATOM']
+// 观察目标
+const ALL_COINS = ['BTC', 'ETH', 'SOL', 'xyz:GOLD', 'xyz:BRENTOIL', 'xyz:SILVER']
 
 const getCoinName = (symbol: string) => {
   const names: Record<string, string> = {
     BTC: '比特币',
     ETH: '以太坊',
     SOL: 'Solana',
-    BNB: '币安币',
-    AVAX: 'Avalanche',
-    MATIC: 'Polygon',
-    ADA: 'Cardano',
-    DOT: 'Polkadot',
-    LINK: 'Chainlink',
-    UNI: 'Uniswap',
-    ATOM: 'Cosmos',
+    'xyz:GOLD': '黄金',
+    'xyz:BRENTOIL': '布伦特原油',
+    'xyz:SILVER': '白银',
   }
   return names[symbol] || symbol
 }
@@ -68,7 +63,7 @@ const formatPrice = (p: number) => {
 }
 
 export function Macroscopic() {
-  const { prices, loading, error, refetch } = useMarketPrices(5000) // 每5秒刷新一次
+  const { prices, loading, error, refetch } = useMarketPrices(5000, ALL_COINS) // 每5秒刷新一次
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date())
   const [isManualRefreshing, setIsManualRefreshing] = useState(false)
   const [timeFrame, setTimeFrame] = useState<TimeFrame>('15m')
@@ -155,7 +150,8 @@ export function Macroscopic() {
                   </TableRow>
                 ) : (
                   ALL_COINS.map((symbol) => {
-                    const price = prices[symbol] || 0
+                    // allMids 返回的 key 可能不带 xyz: 前缀
+                    const price = prices[symbol] || prices[symbol.replace('xyz:', '')] || 0
                     const priceChange = priceChanges[symbol]
                     const isPositive = priceChange && priceChange.changePercent > 0
                     const isNegative = priceChange && priceChange.changePercent < 0
@@ -167,7 +163,7 @@ export function Macroscopic() {
 
                     return (
                       <TableRow key={symbol} className='hover:bg-muted/50'>
-                        <TableCell className='font-semibold'>{symbol}</TableCell>
+                        <TableCell className='font-semibold'>{symbol.replace('xyz:', '')}</TableCell>
                         <TableCell className='text-muted-foreground'>{getCoinName(symbol)}</TableCell>
                         <TableCell className='text-right font-mono font-medium'>
                           {price > 0 ? formatPrice(price) : '-'}

@@ -81,7 +81,7 @@ export function TradingSignals() {
         <div className='flex items-center gap-2'>
           <Radar className='h-5 w-5' />
           <h1 className='text-xl font-bold'>Order Radar</h1>
-          <span className='text-sm text-muted-foreground'>多层共振分析</span>
+          <span className='text-sm text-muted-foreground'>交易指标分析</span>
           {lastUpdated && (
             <span className='text-xs text-muted-foreground ml-auto'>
               更新于 {lastUpdated.toLocaleTimeString()}

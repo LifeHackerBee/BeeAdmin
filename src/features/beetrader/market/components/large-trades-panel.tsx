@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { RefreshCw, TrendingUp, TrendingDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useTradeFlow, type FlowBucket, type FlowInterval } from '../hooks/use-trade-flow'
+import { coinLabel } from '../coins'
 import { cn } from '@/lib/utils'
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -118,7 +119,7 @@ export function LargeTradesPanel({ coin }: LargeTradesPanelProps) {
     <Card className='h-full flex flex-col'>
       <CardHeader className='pb-1 flex-shrink-0'>
         <CardTitle className='text-sm flex items-center justify-between'>
-          <span>{coin} 多空流向</span>
+          <span>{coinLabel(coin)} 多空流向</span>
           <div className='flex items-center gap-1.5'>
             {/* Interval tabs */}
             <div className='flex rounded-md border bg-muted/50 p-0.5'>

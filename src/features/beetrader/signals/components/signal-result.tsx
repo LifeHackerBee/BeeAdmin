@@ -1,92 +1,51 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
-  TrendingUp,
   Activity,
-  BarChart3,
-  Layers,
-  AlertTriangle,
+  TrendingUp,
+  TrendingDown,
   Target,
   ShieldAlert,
+  Layers,
+  Flame,
+  BarChart3,
   ArrowUpCircle,
   ArrowDownCircle,
-  Minus,
-  Clock,
-  Flame,
+  AlertTriangle,
 } from 'lucide-react'
-import type { OrderRadarData, ChartData } from '../hooks/use-order-radar'
+import type { OrderRadarData } from '../hooks/use-order-radar'
 import { useLiquidationMap } from '../hooks/use-liquidation-map'
 import { WallChart } from './wall-chart'
 import { LiquidationMapChart } from './liquidation-map-chart'
 import { AIAnalysis } from './ai-analysis'
 
 // ============================================
-// 向后兼容：旧 API 没有 chart_data.bollinger / vegas 时，从顶层字段构造
+// 辅助函数
 // ============================================
 
-function patchChartData(data: OrderRadarData): ChartData {
-  const cd = data.chart_data
-
-  // 如果后端已返回新格式，直接使用
-  if (cd.bollinger && cd.vegas) return cd
-
-  return {
-    ...cd,
-    volume_profile: {
-      '1h': cd.volume_profile?.['1h'] ?? [],
-      '4h': cd.volume_profile?.['4h'] ?? [],
-      '1d': cd.volume_profile?.['1d'] ?? [],
-    },
-    bollinger: cd.bollinger ?? {
-      '1h': data.l2_bollinger,           // 1H 布林（始终存在）
-      '4h': null,
-      '1d': null,
-    },
-    vegas: cd.vegas ?? {
-      '1h': null,
-      '4h': data.l1_trend.vegas,         // 4H Vegas（始终存在）
-      '1d': null,
-    },
-  }
+function fmtPrice(v: number): string {
+  if (v >= 10_000) return `$${v.toLocaleString('en-US', { maximumFractionDigits: 0 })}`
+  if (v >= 100) return `$${v.toFixed(2)}`
+  return `$${v.toFixed(4)}`
 }
 
-// ============================================
-// 子组件
-// ============================================
-
-function ResonanceDots({ layers, icon }: { layers: { l1: boolean; l2: boolean; l3: boolean; l4: boolean; count: number }; icon: 'long' | 'short' }) {
-  const labels = ['EMA', '共振', 'RSI', 'CVD']
-  const keys = ['l1', 'l2', 'l3', 'l4'] as const
-  const activeColor = icon === 'long' ? 'bg-green-500' : 'bg-red-500'
-  return (
-    <div className='flex items-center gap-2'>
-      {keys.map((k, i) => (
-        <div key={k} className='flex items-center gap-1'>
-          <div className={`w-2.5 h-2.5 rounded-full ${layers[k] ? activeColor : 'bg-muted-foreground/30'}`} />
-          <span className='text-xs text-muted-foreground'>{labels[i]}</span>
-        </div>
-      ))}
-      <Badge variant='outline' className='ml-1 text-xs'>
-        {layers.count}/4
-      </Badge>
-    </div>
-  )
+function fmtLargeNum(v: number): string {
+  if (v >= 1_000_000_000) return `$${(v / 1_000_000_000).toFixed(2)}B`
+  if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(2)}M`
+  if (v >= 1_000) return `$${(v / 1_000).toFixed(1)}K`
+  return `$${v.toFixed(0)}`
 }
 
-function PriceField({ label, value, basis }: { label: string; value: number | null; basis?: string }) {
-  if (value == null) return null
-  return (
-    <div className='flex items-center justify-between text-sm'>
-      <span className='text-muted-foreground'>{label}</span>
-      <span className='font-mono font-medium'>
-        {value.toFixed(2)}
-        {basis && <span className='text-xs text-muted-foreground ml-1'>({basis})</span>}
-      </span>
-    </div>
-  )
+function fmtPct(v: number | null | undefined, signed = true): string {
+  if (v == null) return '-'
+  const prefix = signed && v > 0 ? '+' : ''
+  return `${prefix}${v.toFixed(2)}%`
+}
+
+function HintText({ text }: { text: string }) {
+  return <p className='text-[11px] text-muted-foreground/70 mt-1.5 leading-relaxed'>{text}</p>
 }
 
 // ============================================
@@ -94,12 +53,9 @@ function PriceField({ label, value, basis }: { label: string; value: number | nu
 // ============================================
 
 export function SignalResult({ data, autoAnalyze }: { data: OrderRadarData; autoAnalyze?: boolean }) {
-  const { strategy, l1_trend, l2_bollinger, l3_rsi, l4_cvd, volume, vwap, consolidation, walls, key_levels } = data
+  const { entry_trigger, trend_filter, tp_sl_reference } = data
   const cp = data.current_price
   const liqMap = useLiquidationMap()
-
-  const vegasPositionLabel: Record<string, string> = { above: '通道上方', below: '通道下方', inside: '通道内部' }
-  const vegasTrendLabel: Record<string, string> = { expanding: '扩张', contracting: '收缩', stable: '平稳', insufficient_data: '数据不足' }
 
   return (
     <div className='space-y-3'>
@@ -111,231 +67,148 @@ export function SignalResult({ data, autoAnalyze }: { data: OrderRadarData; auto
               <Activity className='h-4 w-4' />
               {data.coin} 分析报告
             </CardTitle>
-            <div className='flex items-center gap-2'>
-              <span className='font-mono text-xl font-bold'>${cp.toFixed(2)}</span>
-              {data.boll_pct != null && (
-                <Badge variant='outline' className='text-xs'>
-                  布林 {data.boll_pct}%
-                </Badge>
-              )}
-            </div>
+            <span className='font-mono text-xl font-bold'>{fmtPrice(cp)}</span>
           </div>
         </CardHeader>
       </Card>
 
-      {/* 策略建议 */}
-      <StrategyCard strategy={strategy} volume={volume} consolidation={consolidation} vegas={l1_trend.vegas} />
+      {/* ── 趋势过滤 ── */}
+      <TrendFilterCard trendFilter={trend_filter} />
 
       {/* AI 交易建议 */}
       <AIAnalysis data={data} autoAnalyze={autoAnalyze} />
 
-      {/* 四层共振 */}
+      {/* ── 入场触发 ── */}
+
+      {/* S/R 位 — 三档展示 */}
+      <SrLevelsCard srLevels={entry_trigger.sr_levels} currentPrice={cp} />
+
       <div className='grid grid-cols-1 md:grid-cols-2 gap-3'>
-        {/* L1: 趋势 */}
-        <Card>
-          <CardHeader className='pb-2'>
-            <CardTitle className='text-sm flex items-center gap-2'>
-              <TrendingUp className='h-4 w-4' />
-              L1: 4H EMA + Vegas
-            </CardTitle>
-          </CardHeader>
-          <CardContent className='space-y-2 text-sm'>
-            <div className='flex items-center justify-between'>
-              <span className='text-muted-foreground'>趋势方向</span>
-              <Badge className={l1_trend.is_bullish ? 'bg-green-500' : 'bg-red-500'}>
-                {l1_trend.is_bullish ? '多头' : '空头'}
-              </Badge>
-            </div>
-            <div className='flex items-center justify-between'>
-              <span className='text-muted-foreground'>EMA12</span>
-              <span className='font-mono'>{l1_trend.ema12.toFixed(2)}</span>
-            </div>
-            <div className='flex items-center justify-between'>
-              <span className='text-muted-foreground'>EMA144</span>
-              <span className='font-mono'>{l1_trend.ema144.toFixed(2)}</span>
-            </div>
-            <div className='flex items-center justify-between'>
-              <span className='text-muted-foreground'>Vegas 通道</span>
-              <span className='font-mono text-xs'>
-                {l1_trend.vegas.lower.toFixed(2)} ~ {l1_trend.vegas.upper.toFixed(2)}
-              </span>
-            </div>
-            <div className='flex items-center justify-between'>
-              <span className='text-muted-foreground'>通道宽度</span>
-              <span>{l1_trend.vegas.width_pct}%</span>
-            </div>
-            <div className='flex items-center justify-between'>
-              <span className='text-muted-foreground'>价格位置</span>
-              <span>{vegasPositionLabel[l1_trend.vegas.position] ?? l1_trend.vegas.position}</span>
-            </div>
-            <div className='flex items-center justify-between'>
-              <span className='text-muted-foreground'>通道趋势</span>
-              <span>{vegasTrendLabel[l1_trend.vegas.trend] ?? l1_trend.vegas.trend}</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* L2: 布林 */}
-        <Card>
-          <CardHeader className='pb-2'>
-            <CardTitle className='text-sm flex items-center gap-2'>
-              <BarChart3 className='h-4 w-4' />
-              L2: 1H 布林带
-            </CardTitle>
-          </CardHeader>
-          <CardContent className='space-y-2 text-sm'>
-            <div className='flex items-center justify-between'>
-              <span className='text-muted-foreground'>上轨</span>
-              <span className='font-mono'>{l2_bollinger.upper.toFixed(2)}</span>
-            </div>
-            <div className='flex items-center justify-between'>
-              <span className='text-muted-foreground'>下轨</span>
-              <span className='font-mono'>{l2_bollinger.lower.toFixed(2)}</span>
-            </div>
-            {data.boll_pct != null && (
-              <div className='mt-2'>
-                <div className='flex justify-between text-xs text-muted-foreground mb-1'>
-                  <span>下轨 0%</span>
-                  <span>上轨 100%</span>
-                </div>
-                <div className='h-2 bg-muted rounded-full overflow-hidden'>
-                  <div
-                    className='h-full bg-blue-500 rounded-full transition-all'
-                    style={{ width: `${Math.max(0, Math.min(100, data.boll_pct))}%` }}
-                  />
-                </div>
-                <div className='text-center text-xs text-muted-foreground mt-1'>
-                  当前: {data.boll_pct}%
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* L3: RSI */}
-        <Card>
-          <CardHeader className='pb-2'>
-            <CardTitle className='text-sm flex items-center gap-2'>
-              <Activity className='h-4 w-4' />
-              L3: 15m RSI
-            </CardTitle>
-          </CardHeader>
-          <CardContent className='space-y-2 text-sm'>
-            {l3_rsi.rsi != null ? (
-              <>
-                <div className='flex items-center justify-between'>
-                  <span className='text-muted-foreground'>RSI(14)</span>
-                  <span className='font-mono font-medium'>{l3_rsi.rsi.toFixed(1)}</span>
-                </div>
-                <div className='flex items-center justify-between'>
-                  <span className='text-muted-foreground'>状态</span>
-                  <Badge className={l3_rsi.oversold ? 'bg-green-500' : l3_rsi.overbought ? 'bg-red-500' : 'bg-gray-500'}>
-                    {l3_rsi.oversold ? '超卖' : l3_rsi.overbought ? '超买' : '中性'}
-                  </Badge>
-                </div>
-                {l3_rsi.bull_divergence && (
-                  <div className='flex items-center gap-2 text-green-500'>
-                    <ArrowUpCircle className='h-4 w-4' />
-                    <span>底背离（做多信号）</span>
-                  </div>
-                )}
-                {l3_rsi.bear_divergence && (
-                  <div className='flex items-center gap-2 text-red-500'>
-                    <ArrowDownCircle className='h-4 w-4' />
-                    <span>顶背离（做空信号）</span>
-                  </div>
-                )}
-              </>
-            ) : (
-              <span className='text-muted-foreground'>RSI 数据不足</span>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* L4: CVD */}
+        {/* 订单块 */}
         <Card>
           <CardHeader className='pb-2'>
             <CardTitle className='text-sm flex items-center gap-2'>
               <Layers className='h-4 w-4' />
-              L4: CVD 盘口
+              订单块
+            </CardTitle>
+          </CardHeader>
+          <CardContent className='space-y-2 text-sm'>
+            {entry_trigger.order_blocks.bullish.length > 0 && (
+              <div>
+                <div className='text-xs text-muted-foreground mb-1'>看涨订单块</div>
+                {entry_trigger.order_blocks.bullish.map((ob, i) => (
+                  <div key={i} className='flex items-center justify-between py-0.5'>
+                    <span className='font-mono text-green-500'>
+                      {fmtPrice(ob.low)} – {fmtPrice(ob.high)}
+                    </span>
+                    <span className='text-xs text-muted-foreground'>
+                      强度 {(ob.strength * 100).toFixed(0)}%
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {entry_trigger.order_blocks.bearish.length > 0 && (
+              <div>
+                <div className='text-xs text-muted-foreground mb-1'>看跌订单块</div>
+                {entry_trigger.order_blocks.bearish.map((ob, i) => (
+                  <div key={i} className='flex items-center justify-between py-0.5'>
+                    <span className='font-mono text-red-500'>
+                      {fmtPrice(ob.low)} – {fmtPrice(ob.high)}
+                    </span>
+                    <span className='text-xs text-muted-foreground'>
+                      强度 {(ob.strength * 100).toFixed(0)}%
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {entry_trigger.order_blocks.bullish.length === 0 &&
+              entry_trigger.order_blocks.bearish.length === 0 && (
+                <span className='text-muted-foreground'>暂无明显订单块</span>
+              )}
+            <HintText text={entry_trigger.order_blocks.hint} />
+          </CardContent>
+        </Card>
+
+        {/* CVD 背离 */}
+        <Card>
+          <CardHeader className='pb-2'>
+            <CardTitle className='text-sm flex items-center gap-2'>
+              <BarChart3 className='h-4 w-4' />
+              CVD 背离
             </CardTitle>
           </CardHeader>
           <CardContent className='space-y-2 text-sm'>
             <div className='flex items-center justify-between'>
               <span className='text-muted-foreground'>CVD 趋势</span>
-              <span>{l4_cvd.cvd_trend}</span>
+              <span>{entry_trigger.cvd.trend}</span>
             </div>
             <div className='flex items-center justify-between'>
-              <span className='text-muted-foreground'>买盘确认</span>
-              <Badge variant='outline' className={l4_cvd.cvd_confirmed ? 'border-green-500 text-green-500' : ''}>
-                {l4_cvd.cvd_confirmed ? '是' : '否'}
-              </Badge>
+              <span className='text-muted-foreground'>CVD 值</span>
+              <span className='font-mono'>{entry_trigger.cvd.value.toFixed(1)}</span>
             </div>
+            {entry_trigger.cvd.bull_divergence && (
+              <div className='flex items-center gap-2 text-green-500'>
+                <ArrowUpCircle className='h-4 w-4' />
+                <span>底背离（多头信号）</span>
+              </div>
+            )}
+            {entry_trigger.cvd.bear_divergence && (
+              <div className='flex items-center gap-2 text-red-500'>
+                <ArrowDownCircle className='h-4 w-4' />
+                <span>顶背离（空头信号）</span>
+              </div>
+            )}
+            {!entry_trigger.cvd.bull_divergence && !entry_trigger.cvd.bear_divergence && (
+              <div className='text-muted-foreground text-xs'>无背离信号</div>
+            )}
+            <HintText text={entry_trigger.cvd.hint} />
           </CardContent>
         </Card>
-      </div>
 
-      {/* 成交量 & VWAP */}
-      <div className='grid grid-cols-1 md:grid-cols-2 gap-3'>
+        {/* OI & 资金费率 */}
         <Card>
           <CardHeader className='pb-2'>
             <CardTitle className='text-sm flex items-center gap-2'>
-              <BarChart3 className='h-4 w-4' />
-              成交量
+              <ShieldAlert className='h-4 w-4' />
+              OI & 资金费率
             </CardTitle>
           </CardHeader>
           <CardContent className='space-y-2 text-sm'>
             <div className='flex items-center justify-between'>
-              <span className='text-muted-foreground'>最新量</span>
-              <span className='font-mono'>{volume.recent.toFixed(1)}</span>
-            </div>
-            <div className='flex items-center justify-between'>
-              <span className='text-muted-foreground'>20 期均量</span>
-              <span className='font-mono'>{volume.ma20.toFixed(1)}</span>
-            </div>
-            <div className='flex items-center justify-between'>
-              <span className='text-muted-foreground'>量比</span>
-              <span className={volume.low_volume ? 'text-yellow-500 font-medium' : ''}>
-                {(volume.ratio * 100).toFixed(0)}%
-                {volume.low_volume && ' (薄盘)'}
+              <span className='text-muted-foreground'>持仓量 (OI)</span>
+              <span className='font-mono'>
+                {entry_trigger.oi.open_interest != null
+                  ? fmtLargeNum(entry_trigger.oi.open_interest)
+                  : '-'}
               </span>
             </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className='pb-2'>
-            <CardTitle className='text-sm flex items-center gap-2'>
-              <Target className='h-4 w-4' />
-              VWAP
-            </CardTitle>
-          </CardHeader>
-          <CardContent className='space-y-2 text-sm'>
-            {vwap.value != null ? (
-              <>
-                <div className='flex items-center justify-between'>
-                  <span className='text-muted-foreground'>{vwap.intraday ? '当日 VWAP' : 'VWAP (多日)'}</span>
-                  <span className='font-mono'>{vwap.value.toFixed(2)}</span>
-                </div>
-                {vwap.dist_pct != null && (
-                  <div className='flex items-center justify-between'>
-                    <span className='text-muted-foreground'>距价格</span>
-                    <span className={`font-mono ${vwap.dist_pct > 0 ? 'text-green-500' : 'text-red-500'}`}>
-                      {vwap.dist_pct > 0 ? '+' : ''}{vwap.dist_pct.toFixed(2)}%
-                    </span>
-                  </div>
-                )}
-              </>
-            ) : (
-              <span className='text-muted-foreground'>VWAP 数据不可用</span>
-            )}
+            <div className='flex items-center justify-between'>
+              <span className='text-muted-foreground'>当前费率</span>
+              <span className={`font-mono ${
+                (entry_trigger.oi.funding_rate ?? 0) > 0 ? 'text-green-500' : 'text-red-500'
+              }`}>
+                {entry_trigger.oi.funding_rate != null
+                  ? `${(entry_trigger.oi.funding_rate * 100).toFixed(4)}%`
+                  : '-'}
+              </span>
+            </div>
+            <div className='flex items-center justify-between'>
+              <span className='text-muted-foreground'>费率趋势 (8h)</span>
+              <FundingTrendBadge trend={entry_trigger.oi.funding_trend} />
+            </div>
+            <HintText text={entry_trigger.oi.hint} />
           </CardContent>
         </Card>
       </div>
+
+      {/* ── 止盈止损参考 ── */}
+      <TpSlCard tpSl={tp_sl_reference} />
 
       {/* 挂单墙 & 量能墙图表 */}
       <WallChart
-        chartData={patchChartData(data)}
+        chartData={data.chart_data}
         currentPrice={cp}
         coin={data.coin}
       />
@@ -376,270 +249,273 @@ export function SignalResult({ data, autoAnalyze }: { data: OrderRadarData; auto
           </CardContent>
         </Card>
       )}
-
-      {/* 墙位明细 */}
-      {walls.length > 0 && (
-        <Card>
-          <CardHeader className='pb-2'>
-            <CardTitle className='text-sm flex items-center gap-2'>
-              <ShieldAlert className='h-4 w-4' />
-              墙位明细
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className='space-y-1.5'>
-              {walls.map((w, i) => (
-                <div key={i} className='flex items-center justify-between text-sm'>
-                  <span className='text-muted-foreground'>{w.label}</span>
-                  <span className='font-mono'>
-                    {w.price.toFixed(2)}{' '}
-                    <span className='text-xs text-muted-foreground'>
-                      ({w.dist_pct > 0 ? '+' : ''}{w.dist_pct.toFixed(2)}%)
-                    </span>
-                  </span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* 盘整检测 */}
-      <Card>
-        <CardHeader className='pb-2'>
-          <CardTitle className='text-sm flex items-center gap-2'>
-            <AlertTriangle className='h-4 w-4' />
-            盘整检测
-            <Badge variant='outline' className='ml-1'>
-              {consolidation.signal_count}/4
-            </Badge>
-            {consolidation.is_consolidation && (
-              <Badge className='bg-yellow-500 ml-1'>盘整确认</Badge>
-            )}
-            {!consolidation.is_consolidation && consolidation.signal_count >= 3 && (
-              <Badge className='bg-yellow-500/70 ml-1'>盘整预警</Badge>
-            )}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className='space-y-1.5'>
-            {(
-              [
-                ['ema_twist', 'EMA 拧麻花'],
-                ['bb_squeeze', '布林收缩'],
-                ['rsi_deadzone', 'RSI 死区'],
-                ['wall_sandwich', '墙夹 + 缩量'],
-              ] as const
-            ).map(([key, label]) => {
-              const sig = consolidation.signals[key]
-              return (
-                <div key={key} className='flex items-start gap-2 text-sm'>
-                  <div className={`w-2.5 h-2.5 rounded-full mt-1 flex-shrink-0 ${sig.active ? 'bg-yellow-500' : 'bg-muted-foreground/30'}`} />
-                  <span className='text-muted-foreground min-w-[80px]'>{label}</span>
-                  <span className='text-xs'>{sig.reason}</span>
-                </div>
-              )
-            })}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* 关键位置 */}
-      <Card>
-        <CardHeader className='pb-2'>
-          <CardTitle className='text-sm flex items-center gap-2'>
-            <Layers className='h-4 w-4' />
-            关键位置
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <KeyLevelsTable levels={key_levels} currentPrice={cp} />
-        </CardContent>
-      </Card>
     </div>
   )
 }
 
 // ============================================
-// 策略卡片
+// S/R 位卡片 — 短期/中期/长期三档
 // ============================================
 
-function StrategyCard({
-  strategy,
-  volume,
-  consolidation,
-  vegas,
+function SrLevelsCard({
+  srLevels,
+  currentPrice,
 }: {
-  strategy: OrderRadarData['strategy']
-  volume: OrderRadarData['volume']
-  consolidation: OrderRadarData['consolidation']
-  vegas: OrderRadarData['l1_trend']['vegas']
+  srLevels: OrderRadarData['entry_trigger']['sr_levels']
+  currentPrice: number
 }) {
-  const rec = strategy.recommendation
-
-  const recConfig = {
-    long: { label: '做多', icon: ArrowUpCircle, color: 'border-green-500 bg-green-500/5' },
-    short: { label: '做空', icon: ArrowDownCircle, color: 'border-red-500 bg-red-500/5' },
-    neutral: { label: '多空胶着', icon: Minus, color: 'border-yellow-500 bg-yellow-500/5' },
-    wait: { label: '观望', icon: Clock, color: 'border-muted-foreground/50 bg-muted/30' },
-  }
-
-  const cfg = recConfig[rec]
-  const Icon = cfg.icon
+  const tiers = [
+    { key: 'short_term' as const, label: '短期 (±5%)', data: srLevels.short_term },
+    { key: 'medium_term' as const, label: '中期 (5%~10%)', data: srLevels.medium_term },
+    { key: 'long_term' as const, label: '长期 (10%~20%)', data: srLevels.long_term },
+  ]
 
   return (
-    <Card className={`border-2 ${cfg.color}`}>
+    <Card>
       <CardHeader className='pb-2'>
-        <CardTitle className='text-base flex items-center gap-2'>
-          <Icon className='h-4 w-4' />
-          策略建议: {cfg.label}
+        <CardTitle className='text-sm flex items-center gap-2'>
+          <Target className='h-4 w-4' />
+          S/R 支撑压力位
         </CardTitle>
       </CardHeader>
-      <CardContent className='space-y-2'>
-        {/* 共振亮灯 */}
-        <div className='space-y-2'>
-          <div className='flex items-center gap-3'>
-            <span className='text-sm text-muted-foreground min-w-[40px]'>做多</span>
-            <ResonanceDots layers={strategy.long} icon='long' />
-          </div>
-          <div className='flex items-center gap-3'>
-            <span className='text-sm text-muted-foreground min-w-[40px]'>做空</span>
-            <ResonanceDots layers={strategy.short} icon='short' />
-          </div>
+      <CardContent className='space-y-3 text-sm'>
+        <div className='grid grid-cols-1 md:grid-cols-3 gap-3'>
+          {tiers.map(({ key, label, data }) => {
+            if (!data) return null
+            const supports = data.supports ?? []
+            const resistances = data.resistances ?? []
+            const hasData = supports.length > 0 || resistances.length > 0
+            return (
+              <div key={key} className='space-y-1.5'>
+                <div className='text-xs font-medium text-muted-foreground border-b pb-1'>{label}</div>
+                {!hasData && (
+                  <div className='text-xs text-muted-foreground/50 py-1'>暂无数据</div>
+                )}
+                {supports.map((s, i) => (
+                  <div key={`s-${i}`} className='flex items-center justify-between py-0.5'>
+                    <div className='flex items-center gap-1'>
+                      <span className='text-green-500 text-xs'>▼</span>
+                      <span className='text-[10px] text-muted-foreground'>{s.source}</span>
+                      <StrengthBadge strength={s.strength} />
+                    </div>
+                    <div className='text-right'>
+                      <span className='font-mono text-xs'>{fmtPrice(s.price)}</span>
+                      <span className='text-[10px] text-muted-foreground ml-1'>
+                        {fmtPct((s.price - currentPrice) / currentPrice * 100)}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+                {resistances.map((r, i) => (
+                  <div key={`r-${i}`} className='flex items-center justify-between py-0.5'>
+                    <div className='flex items-center gap-1'>
+                      <span className='text-red-500 text-xs'>▲</span>
+                      <span className='text-[10px] text-muted-foreground'>{r.source}</span>
+                      <StrengthBadge strength={r.strength} />
+                    </div>
+                    <div className='text-right'>
+                      <span className='font-mono text-xs'>{fmtPrice(r.price)}</span>
+                      <span className='text-[10px] text-muted-foreground ml-1'>
+                        {fmtPct((r.price - currentPrice) / currentPrice * 100)}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
+          })}
         </div>
-
-        {/* 警告信息 */}
-        {volume.low_volume && (
-          <Alert>
-            <AlertTriangle className='h-4 w-4' />
-            <AlertDescription>薄盘环境，信号可靠性降低</AlertDescription>
-          </Alert>
-        )}
-        {consolidation.signal_count >= 3 && (
-          <Alert>
-            <AlertTriangle className='h-4 w-4' />
-            <AlertDescription>
-              盘整{consolidation.is_consolidation ? '确认' : '预警'} ({consolidation.signal_count}/4)
-              {consolidation.is_consolidation && '，共振阈值提升至 4/4'}
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {/* 做多/做空建议 */}
-        {strategy.long_advice && (
-          <AdviceBlock direction='long' advice={strategy.long_advice} layers={strategy.long} vegas={vegas} />
-        )}
-        {strategy.short_advice && (
-          <AdviceBlock direction='short' advice={strategy.short_advice} layers={strategy.short} vegas={vegas} />
-        )}
-
-        {rec === 'wait' && (
-          <div className='text-sm text-muted-foreground'>信号不充分，建议观望</div>
-        )}
+        <HintText text={srLevels.hint} />
       </CardContent>
     </Card>
   )
 }
 
-function AdviceBlock({
-  direction,
-  advice,
-  layers,
-  vegas,
+// ============================================
+// 趋势过滤卡片
+// ============================================
+
+function TrendFilterCard({
+  trendFilter,
 }: {
-  direction: 'long' | 'short'
-  advice: NonNullable<OrderRadarData['strategy']['long_advice']>
-  layers: OrderRadarData['strategy']['long']
-  vegas: OrderRadarData['l1_trend']['vegas']
+  trendFilter: OrderRadarData['trend_filter']
 }) {
-  const isLong = direction === 'long'
-  const strength = layers.count === 4 ? '强烈' : '较强'
-  const label = isLong ? '做多' : '做空'
+  const { vwap, ema } = trendFilter
+  const isBullish = ema.slope === 'up' && ema.price_vs_ema === 'above'
+  const isBearish = ema.slope === 'down' && ema.price_vs_ema === 'below'
+  const borderColor = isBullish
+    ? 'border-green-500/40 bg-green-500/5'
+    : isBearish
+      ? 'border-red-500/40 bg-red-500/5'
+      : 'border-yellow-500/40 bg-yellow-500/5'
 
-  const vegasConfirmed = isLong
-    ? vegas.signal_bullish || vegas.position === 'above'
-    : vegas.signal_bearish || vegas.position === 'below'
-
-  const missing: string[] = []
-  const names: Record<string, string> = { l1: 'EMA', l2: '共振', l3: 'RSI', l4: 'CVD' }
-  for (const [k, n] of Object.entries(names)) {
-    if (!layers[k as keyof typeof layers]) missing.push(n)
-  }
+  const dirLabel = isBullish ? '多头有利，逢低做多' : isBearish ? '空头有利，逢高做空' : '方向不明，谨慎操作'
+  const DirIcon = isBullish ? TrendingUp : isBearish ? TrendingDown : AlertTriangle
 
   return (
-    <div className={`rounded-lg border p-2 space-y-1 ${isLong ? 'border-green-500/30' : 'border-red-500/30'}`}>
-      <div className='flex items-center gap-2'>
-        <span className='font-medium'>{strength}{label}信号 ({layers.count}/4)</span>
-        {missing.length > 0 && (
-          <span className='text-xs text-muted-foreground'>等待: {missing.join('/')}</span>
-        )}
-      </div>
-      {vegasConfirmed && (
-        <div className='text-xs text-green-500'>Vegas 验证趋势，可信度高</div>
-      )}
-      {vegas.position === 'inside' && (
-        <div className='text-xs text-yellow-500'>价格在 Vegas 通道内部</div>
-      )}
-      <div className='space-y-1'>
-        <PriceField label='入场' value={advice.entry} basis={advice.entry_basis} />
-        <PriceField label='止损' value={advice.stop} />
-        <PriceField label='止盈' value={advice.take_profit} basis={advice.tp_basis} />
-        {!advice.take_profit && (
-          <div className='text-xs text-muted-foreground'>{advice.tp_basis}，按盈亏比自行设定</div>
-        )}
-      </div>
-    </div>
+    <Card className={`border-2 ${borderColor}`}>
+      <CardHeader className='pb-2'>
+        <CardTitle className='text-sm flex items-center gap-2'>
+          <DirIcon className='h-4 w-4' />
+          趋势过滤
+          <Badge variant='outline' className='ml-1 text-xs'>
+            {dirLabel}
+          </Badge>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className='space-y-2 text-sm'>
+        <div className='grid grid-cols-2 gap-4'>
+          {/* VWAP */}
+          <div className='space-y-1'>
+            <div className='text-xs text-muted-foreground'>VWAP {vwap.intraday ? '(当日)' : '(多日)'}</div>
+            <div className='font-mono font-medium'>
+              {vwap.value != null ? fmtPrice(vwap.value) : '-'}
+            </div>
+            {vwap.dist_pct != null && (
+              <div className={`text-xs ${vwap.dist_pct > 0 ? 'text-green-500' : 'text-red-500'}`}>
+                价格在VWAP{vwap.dist_pct > 0 ? '上方' : '下方'} {fmtPct(vwap.dist_pct)}
+              </div>
+            )}
+          </div>
+          {/* EMA */}
+          <div className='space-y-1'>
+            <div className='text-xs text-muted-foreground'>EMA12 (4H)</div>
+            <div className='font-mono font-medium'>{fmtPrice(ema.ema12)}</div>
+            <div className='text-xs'>
+              <span className={ema.slope === 'up' ? 'text-green-500' : ema.slope === 'down' ? 'text-red-500' : 'text-muted-foreground'}>
+                {ema.slope === 'up' ? '↑ 上行' : ema.slope === 'down' ? '↓ 下行' : '→ 横盘'}
+              </span>
+              <span className='text-muted-foreground ml-2'>
+                价格在EMA{ema.price_vs_ema === 'above' ? '上方' : '下方'}
+              </span>
+            </div>
+          </div>
+        </div>
+        <HintText text={vwap.hint} />
+      </CardContent>
+    </Card>
   )
 }
 
 // ============================================
-// 关键位置表
+// 止盈止损参考卡片
 // ============================================
 
-function KeyLevelsTable({ levels, currentPrice }: { levels: OrderRadarData['key_levels']; currentPrice: number }) {
-  let priceInserted = false
+function TpSlCard({
+  tpSl,
+}: {
+  tpSl: OrderRadarData['tp_sl_reference']
+}) {
+  const { bollinger, macd } = tpSl
+
+  const macdColor = macd.cross === 'golden' ? 'text-green-500' : macd.cross === 'death' ? 'text-red-500' : 'text-muted-foreground'
+  const macdCrossLabel = macd.cross === 'golden' ? '金叉' : macd.cross === 'death' ? '死叉' : '无交叉'
+  const histLabel = macd.histogram_trend === 'expanding' ? '扩张' : '收缩'
 
   return (
-    <div className='space-y-0.5 text-sm'>
-      {levels.map((lv, i) => {
-        const rows: React.ReactNode[] = []
-
-        if (!priceInserted && lv.price < currentPrice) {
-          priceInserted = true
-          rows.push(
-            <div key='price-line' className='flex items-center gap-2 py-1.5 border-y border-dashed border-muted-foreground/40'>
-              <span className='text-xs text-muted-foreground'>当前价</span>
-              <span className='font-mono font-bold'>{currentPrice.toFixed(2)}</span>
+    <Card>
+      <CardHeader className='pb-2'>
+        <CardTitle className='text-sm flex items-center gap-2'>
+          <ShieldAlert className='h-4 w-4' />
+          止盈止损参考
+          <Badge variant='outline' className='text-xs ml-1'>R:R ≥ 1.5:1</Badge>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className='space-y-3 text-sm'>
+        {/* 布林带 */}
+        <div>
+          <div className='text-xs text-muted-foreground mb-1'>布林带</div>
+          <div className='grid grid-cols-2 gap-4'>
+            <div className='space-y-1'>
+              <div className='flex justify-between'>
+                <span className='text-muted-foreground'>1H 上轨</span>
+                <span className='font-mono'>{fmtPrice(bollinger.upper)}</span>
+              </div>
+              <div className='flex justify-between'>
+                <span className='text-muted-foreground'>1H 下轨</span>
+                <span className='font-mono'>{fmtPrice(bollinger.lower)}</span>
+              </div>
             </div>
-          )
-        }
-
-        const statusIcon = lv.status === 'broken' ? ' (已突破)' : lv.status === 'near' ? ' (临近)' : ''
-
-        rows.push(
-          <div key={i} className='flex items-center justify-between py-0.5'>
-            <div className='flex items-center gap-1.5'>
-              <span className='text-xs'>{lv.is_resistance ? '▲' : '▼'}</span>
-              <span className='text-muted-foreground'>{lv.name}</span>
-            </div>
-            <div className='flex items-center gap-2'>
-              <span className='font-mono'>{lv.price.toFixed(2)}</span>
-              <span className={`text-xs ${lv.dist_pct > 0 ? 'text-green-500' : 'text-red-500'}`}>
-                {lv.dist_pct > 0 ? '+' : ''}{lv.dist_pct.toFixed(2)}%
-              </span>
-              {statusIcon && <span className='text-xs text-yellow-500'>{statusIcon}</span>}
+            <div className='space-y-1'>
+              {bollinger.upper_4h != null && (
+                <div className='flex justify-between'>
+                  <span className='text-muted-foreground'>4H 上轨</span>
+                  <span className='font-mono'>{fmtPrice(bollinger.upper_4h)}</span>
+                </div>
+              )}
+              {bollinger.lower_4h != null && (
+                <div className='flex justify-between'>
+                  <span className='text-muted-foreground'>4H 下轨</span>
+                  <span className='font-mono'>{fmtPrice(bollinger.lower_4h)}</span>
+                </div>
+              )}
             </div>
           </div>
-        )
-
-        return rows
-      })}
-      {!priceInserted && (
-        <div className='flex items-center gap-2 py-1.5 border-t border-dashed border-muted-foreground/40'>
-          <span className='text-xs text-muted-foreground'>当前价</span>
-          <span className='font-mono font-bold'>{currentPrice.toFixed(2)}</span>
+          {bollinger.pct != null && (
+            <div className='mt-1.5'>
+              <div className='flex justify-between text-xs text-muted-foreground mb-0.5'>
+                <span>下轨 0%</span>
+                <span>上轨 100%</span>
+              </div>
+              <div className='h-2 bg-muted rounded-full overflow-hidden'>
+                <div
+                  className='h-full bg-blue-500 rounded-full transition-all'
+                  style={{ width: `${Math.max(0, Math.min(100, bollinger.pct))}%` }}
+                />
+              </div>
+              <div className='text-center text-xs text-muted-foreground mt-0.5'>
+                当前: {bollinger.pct}%
+              </div>
+            </div>
+          )}
         </div>
-      )}
-    </div>
+
+        {/* MACD */}
+        <div>
+          <div className='text-xs text-muted-foreground mb-1'>MACD (4H)</div>
+          <div className='flex items-center gap-4 flex-wrap'>
+            <span className={`font-medium ${macdColor}`}>{macdCrossLabel}</span>
+            <span className='text-xs text-muted-foreground'>
+              MACD: <span className='font-mono'>{macd.macd.toFixed(2)}</span>
+            </span>
+            <span className='text-xs text-muted-foreground'>
+              Signal: <span className='font-mono'>{macd.signal.toFixed(2)}</span>
+            </span>
+            <span className='text-xs text-muted-foreground'>
+              柱状图: <span className={`font-mono ${macd.histogram >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                {macd.histogram >= 0 ? '+' : ''}{macd.histogram.toFixed(2)}
+              </span> ({histLabel})
+            </span>
+          </div>
+        </div>
+
+        <HintText text={bollinger.hint} />
+        <HintText text={macd.hint} />
+      </CardContent>
+    </Card>
   )
+}
+
+// ============================================
+// 小组件
+// ============================================
+
+function StrengthBadge({ strength }: { strength: string }) {
+  const config: Record<string, { label: string; cls: string }> = {
+    strong: { label: '强', cls: 'bg-green-500/20 text-green-600 dark:text-green-400' },
+    moderate: { label: '中', cls: 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400' },
+    weak: { label: '弱', cls: 'bg-gray-500/20 text-gray-500' },
+  }
+  const c = config[strength] ?? config.weak
+  return <Badge variant='outline' className={`text-[10px] px-1 py-0 h-4 ${c.cls}`}>{c.label}</Badge>
+}
+
+function FundingTrendBadge({ trend }: { trend: string }) {
+  const config: Record<string, { label: string; cls: string }> = {
+    positive: { label: '正向（多头付费）', cls: 'text-green-500' },
+    negative: { label: '负向（空头付费）', cls: 'text-red-500' },
+    neutral: { label: '中性', cls: 'text-muted-foreground' },
+  }
+  const c = config[trend] ?? config.neutral
+  return <span className={`text-xs ${c.cls}`}>{c.label}</span>
 }

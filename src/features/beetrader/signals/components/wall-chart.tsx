@@ -48,11 +48,6 @@ const COLORS = {
   // 布林参考线
   boll1h: '#818cf8',
   boll4h: '#c084fc',
-  boll1d: '#f472b6',
-  // Vegas 参考线
-  vegas1h: '#34d399',
-  vegas4h: '#fbbf24',
-  vegas1d: '#fb923c',
 }
 
 /**
@@ -61,25 +56,22 @@ const COLORS = {
  * Y 轴: 价格（从高到低）
  * X 轴: 强度（左 = 支撑，右 = 压力）
  * 柱状图: L2(蓝/琥珀) 和 量能(绿/红) 分别堆叠，清晰区分
- * 参考线: 多时段布林、Vegas 水平线
+ * 参考线: 多时段布林水平线
  */
 export function WallChart({ chartData, currentPrice, coin }: WallChartProps) {
   const { points, absMax, refLines } = useMemo(() => {
     const bollinger = chartData.bollinger ?? {}
-    const vegas = chartData.vegas ?? {}
 
     // ── 1. 收集参考价确定可视范围 ──
     const refPrices: number[] = [currentPrice]
-    for (const tf of ['1h', '4h', '1d'] as const) {
+    for (const tf of ['1h', '4h'] as const) {
       const b = (bollinger as Record<string, { upper: number; lower: number } | null>)[tf]
       if (b) refPrices.push(b.upper, b.lower)
-      const v = (vegas as Record<string, { upper: number; lower: number } | null>)[tf]
-      if (v) refPrices.push(v.upper, v.lower)
     }
     const rangeMin = Math.min(...refPrices) * 0.99
     const rangeMax = Math.max(...refPrices) * 1.01
 
-    // ── 2. 构建参考线（先构建，后面插入占位点保证必定能画） ──
+    // ── 2. 构建参考线 ──
     const bucketSize = currentPrice * 0.001
     const toBucket = (price: number) =>
       (Math.round(price / bucketSize) * bucketSize).toFixed(2)
@@ -95,22 +87,6 @@ export function WallChart({ chartData, currentPrice, coin }: WallChartProps) {
     if (bollinger['4h']) {
       rawLines.push({ price: bollinger['4h'].upper, color: COLORS.boll4h, label: '4H 布林上轨', width: 1.5, dash: '6 2' })
       rawLines.push({ price: bollinger['4h'].lower, color: COLORS.boll4h, label: '4H 布林下轨', width: 1.5, dash: '6 2' })
-    }
-    if (bollinger['1d']) {
-      rawLines.push({ price: bollinger['1d'].upper, color: COLORS.boll1d, label: '1D 布林上轨', width: 2, dash: '8 3' })
-      rawLines.push({ price: bollinger['1d'].lower, color: COLORS.boll1d, label: '1D 布林下轨', width: 2, dash: '8 3' })
-    }
-    if (vegas['1h']) {
-      rawLines.push({ price: vegas['1h'].upper, color: COLORS.vegas1h, label: '1H Vegas 上', width: 1, dash: '3 3' })
-      rawLines.push({ price: vegas['1h'].lower, color: COLORS.vegas1h, label: '1H Vegas 下', width: 1, dash: '3 3' })
-    }
-    if (vegas['4h']) {
-      rawLines.push({ price: vegas['4h'].upper, color: COLORS.vegas4h, label: '4H Vegas 上', width: 1.5, dash: '6 2' })
-      rawLines.push({ price: vegas['4h'].lower, color: COLORS.vegas4h, label: '4H Vegas 下', width: 1.5, dash: '6 2' })
-    }
-    if (vegas['1d']) {
-      rawLines.push({ price: vegas['1d'].upper, color: COLORS.vegas1d, label: '1D Vegas 上', width: 2, dash: '8 3' })
-      rawLines.push({ price: vegas['1d'].lower, color: COLORS.vegas1d, label: '1D Vegas 下', width: 2, dash: '8 3' })
     }
 
     // ── 3. 收集数据点 ──
@@ -166,7 +142,7 @@ export function WallChart({ chartData, currentPrice, coin }: WallChartProps) {
       }
     }
 
-    // L2 盘口 — 买卖盘分别归一化，避免一方过大压缩另一方
+    // L2 盘口
     const maxL2Bid = Math.max(...chartData.l2_walls.bids.map((b) => b.size), 1)
     const maxL2Ask = Math.max(...chartData.l2_walls.asks.map((a) => a.size), 1)
     for (const b of chartData.l2_walls.bids) {
@@ -180,7 +156,7 @@ export function WallChart({ chartData, currentPrice, coin }: WallChartProps) {
       pt.l2Resistance += (a.size / maxL2Ask) * 100
     }
 
-    // ── 4. 在参考线价格插入占位数据点（保证参考线一定能画） ──
+    // ── 4. 参考线占位点 ──
     for (const rl of rawLines) {
       getOrCreate(rl.price)
     }
@@ -216,7 +192,6 @@ export function WallChart({ chartData, currentPrice, coin }: WallChartProps) {
   useEffect(() => {
     const el = scrollRef.current
     if (!el || !isScrollable) return
-    // 找到当前价在 points 中的大致位置（points 已从高到低排序）
     const cpIdx = points.findIndex((p) => p.price <= currentPrice)
     if (cpIdx >= 0) {
       const ratio = cpIdx / points.length
@@ -241,7 +216,6 @@ export function WallChart({ chartData, currentPrice, coin }: WallChartProps) {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        {/* 可滚动的图表容器 */}
         <div
           ref={scrollRef}
           className='relative'
@@ -292,7 +266,7 @@ export function WallChart({ chartData, currentPrice, coin }: WallChartProps) {
                 />
                 <Tooltip content={<WallTooltip currentPrice={currentPrice} />} />
 
-                {/* 支撑（向左）— 独立 stackId 避免正负混叠 */}
+                {/* 支撑（向左） */}
                 <Bar dataKey='l2Support' stackId='left' fill={COLORS.l2Buy} fillOpacity={0.9} maxBarSize={16} />
                 <Bar dataKey='vpSupport' stackId='left' fill={COLORS.vpSupport} fillOpacity={0.85} radius={[4, 0, 0, 4]} maxBarSize={16} />
 
@@ -300,7 +274,7 @@ export function WallChart({ chartData, currentPrice, coin }: WallChartProps) {
                 <Bar dataKey='l2Resistance' stackId='right' fill={COLORS.l2Sell} fillOpacity={0.9} maxBarSize={16} />
                 <Bar dataKey='vpResistance' stackId='right' fill={COLORS.vpResistance} fillOpacity={0.85} radius={[0, 4, 4, 0]} maxBarSize={16} />
 
-                {/* 多时段参考线 — 直接用 bucketKey，不再 snap + threshold */}
+                {/* 参考线 */}
                 {refLines.map((rl) => (
                   <ReferenceLine
                     key={rl.label}
@@ -324,7 +298,6 @@ export function WallChart({ chartData, currentPrice, coin }: WallChartProps) {
 
         {/* 图例 */}
         <div className='flex flex-wrap gap-x-4 gap-y-1.5 mt-2 text-xs text-muted-foreground justify-center'>
-          {/* 柱状图 */}
           <span className='flex items-center gap-1'>
             <span className='inline-block w-3 h-3 rounded-sm' style={{ background: COLORS.l2Buy }} />
             L2 买盘墙
@@ -341,12 +314,10 @@ export function WallChart({ chartData, currentPrice, coin }: WallChartProps) {
             <span className='inline-block w-3 h-3 rounded-sm' style={{ background: COLORS.vpResistance }} />
             量能压力
           </span>
-          {/* 当前价 */}
           <span className='flex items-center gap-1'>
             <span className='inline-block w-4 border-t-2 border-dashed' style={{ borderColor: COLORS.currentPrice }} />
             当前价
           </span>
-          {/* 布林线 */}
           <span className='flex items-center gap-1'>
             <span className='inline-block w-4 border-t border-dashed' style={{ borderColor: COLORS.boll1h }} />
             1H 布林
@@ -354,23 +325,6 @@ export function WallChart({ chartData, currentPrice, coin }: WallChartProps) {
           <span className='flex items-center gap-1'>
             <span className='inline-block w-4 border-t-[1.5px] border-dashed' style={{ borderColor: COLORS.boll4h }} />
             4H 布林
-          </span>
-          <span className='flex items-center gap-1'>
-            <span className='inline-block w-4 border-t-2 border-dashed' style={{ borderColor: COLORS.boll1d }} />
-            1D 布林
-          </span>
-          {/* Vegas */}
-          <span className='flex items-center gap-1'>
-            <span className='inline-block w-4 border-t border-dashed' style={{ borderColor: COLORS.vegas1h }} />
-            1H Vegas
-          </span>
-          <span className='flex items-center gap-1'>
-            <span className='inline-block w-4 border-t-[1.5px] border-dashed' style={{ borderColor: COLORS.vegas4h }} />
-            4H Vegas
-          </span>
-          <span className='flex items-center gap-1'>
-            <span className='inline-block w-4 border-t-2 border-dashed' style={{ borderColor: COLORS.vegas1d }} />
-            1D Vegas
           </span>
         </div>
       </CardContent>
