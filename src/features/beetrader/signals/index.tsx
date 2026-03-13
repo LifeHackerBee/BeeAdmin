@@ -15,7 +15,7 @@ import { Macroscopic } from '../macroscopic'
 import { Candles } from '../candles'
 import { MarketDepth } from '../market/components/market-depth'
 
-const POPULAR_COINS = ['BTC', 'ETH', 'SOL', 'HYPE', 'SUI', 'DOGE']
+const POPULAR_COINS = ['BTC', 'ETH', 'SOL', 'HYPE', 'SUI', 'DOGE', 'XYZ:GOLD', 'XYZ:BRENTOIL', 'XYZ:SILVER']
 const AUTO_REFRESH_INTERVAL = 60 // 秒
 
 export function TradingSignals() {
