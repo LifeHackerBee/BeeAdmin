@@ -3,7 +3,6 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
-  Activity,
   TrendingUp,
   TrendingDown,
   Target,
@@ -17,7 +16,6 @@ import {
 } from 'lucide-react'
 import type { OrderRadarData } from '../hooks/use-order-radar'
 import { useLiquidationMap } from '../hooks/use-liquidation-map'
-import { WallChart } from './wall-chart'
 import { LiquidationMapChart } from './liquidation-map-chart'
 import { AIAnalysis } from './ai-analysis'
 
@@ -59,21 +57,8 @@ export function SignalResult({ data, autoAnalyze }: { data: OrderRadarData; auto
 
   return (
     <div className='space-y-3'>
-      {/* 价格 & 总览 */}
-      <Card>
-        <CardHeader className='pb-2'>
-          <div className='flex items-center justify-between flex-wrap gap-2'>
-            <CardTitle className='text-base flex items-center gap-2'>
-              <Activity className='h-4 w-4' />
-              {data.coin} 分析报告
-            </CardTitle>
-            <span className='font-mono text-xl font-bold'>{fmtPrice(cp)}</span>
-          </div>
-        </CardHeader>
-      </Card>
-
-      {/* ── 趋势过滤 ── */}
-      <TrendFilterCard trendFilter={trend_filter} />
+      {/* ── 趋势过滤 + 价格 ── */}
+      <TrendFilterCard trendFilter={trend_filter} coin={data.coin} currentPrice={cp} />
 
       {/* AI 交易建议 */}
       <AIAnalysis data={data} autoAnalyze={autoAnalyze} />
@@ -83,7 +68,7 @@ export function SignalResult({ data, autoAnalyze }: { data: OrderRadarData; auto
       {/* S/R 位 — 三档展示 */}
       <SrLevelsCard srLevels={entry_trigger.sr_levels} currentPrice={cp} />
 
-      <div className='grid grid-cols-1 md:grid-cols-2 gap-3'>
+      <div className='grid grid-cols-1 md:grid-cols-3 gap-3'>
         {/* 订单块 */}
         <Card>
           <CardHeader className='pb-2'>
@@ -92,42 +77,31 @@ export function SignalResult({ data, autoAnalyze }: { data: OrderRadarData; auto
               订单块
             </CardTitle>
           </CardHeader>
-          <CardContent className='space-y-2 text-sm'>
-            {entry_trigger.order_blocks.bullish.length > 0 && (
-              <div>
-                <div className='text-xs text-muted-foreground mb-1'>看涨订单块</div>
-                {entry_trigger.order_blocks.bullish.map((ob, i) => (
-                  <div key={i} className='flex items-center justify-between py-0.5'>
-                    <span className='font-mono text-green-500'>
-                      {fmtPrice(ob.low)} – {fmtPrice(ob.high)}
-                    </span>
-                    <span className='text-xs text-muted-foreground'>
-                      强度 {(ob.strength * 100).toFixed(0)}%
-                    </span>
-                  </div>
-                ))}
+          <CardContent className='space-y-1 text-sm'>
+            {entry_trigger.order_blocks.bullish.map((ob, i) => (
+              <div key={`b-${i}`} className='flex items-center justify-between'>
+                <span className='font-mono text-xs text-green-500'>
+                  {fmtPrice(ob.low)} – {fmtPrice(ob.high)}
+                </span>
+                <span className='text-[10px] text-muted-foreground'>
+                  {(ob.strength * 100).toFixed(0)}%
+                </span>
               </div>
-            )}
-            {entry_trigger.order_blocks.bearish.length > 0 && (
-              <div>
-                <div className='text-xs text-muted-foreground mb-1'>看跌订单块</div>
-                {entry_trigger.order_blocks.bearish.map((ob, i) => (
-                  <div key={i} className='flex items-center justify-between py-0.5'>
-                    <span className='font-mono text-red-500'>
-                      {fmtPrice(ob.low)} – {fmtPrice(ob.high)}
-                    </span>
-                    <span className='text-xs text-muted-foreground'>
-                      强度 {(ob.strength * 100).toFixed(0)}%
-                    </span>
-                  </div>
-                ))}
+            ))}
+            {entry_trigger.order_blocks.bearish.map((ob, i) => (
+              <div key={`s-${i}`} className='flex items-center justify-between'>
+                <span className='font-mono text-xs text-red-500'>
+                  {fmtPrice(ob.low)} – {fmtPrice(ob.high)}
+                </span>
+                <span className='text-[10px] text-muted-foreground'>
+                  {(ob.strength * 100).toFixed(0)}%
+                </span>
               </div>
-            )}
+            ))}
             {entry_trigger.order_blocks.bullish.length === 0 &&
               entry_trigger.order_blocks.bearish.length === 0 && (
-                <span className='text-muted-foreground'>暂无明显订单块</span>
+                <span className='text-xs text-muted-foreground'>暂无</span>
               )}
-            <HintText text={entry_trigger.order_blocks.hint} />
           </CardContent>
         </Card>
 
@@ -139,31 +113,30 @@ export function SignalResult({ data, autoAnalyze }: { data: OrderRadarData; auto
               CVD 背离
             </CardTitle>
           </CardHeader>
-          <CardContent className='space-y-2 text-sm'>
+          <CardContent className='space-y-1 text-sm'>
             <div className='flex items-center justify-between'>
-              <span className='text-muted-foreground'>CVD 趋势</span>
-              <span>{entry_trigger.cvd.trend}</span>
+              <span className='text-xs text-muted-foreground'>趋势</span>
+              <span className='text-xs'>{entry_trigger.cvd.trend}</span>
             </div>
             <div className='flex items-center justify-between'>
-              <span className='text-muted-foreground'>CVD 值</span>
-              <span className='font-mono'>{entry_trigger.cvd.value.toFixed(1)}</span>
+              <span className='text-xs text-muted-foreground'>CVD</span>
+              <span className='font-mono text-xs'>{entry_trigger.cvd.value.toFixed(1)}</span>
             </div>
             {entry_trigger.cvd.bull_divergence && (
-              <div className='flex items-center gap-2 text-green-500'>
-                <ArrowUpCircle className='h-4 w-4' />
-                <span>底背离（多头信号）</span>
+              <div className='flex items-center gap-1 text-green-500 text-xs'>
+                <ArrowUpCircle className='h-3 w-3' />
+                底背离
               </div>
             )}
             {entry_trigger.cvd.bear_divergence && (
-              <div className='flex items-center gap-2 text-red-500'>
-                <ArrowDownCircle className='h-4 w-4' />
-                <span>顶背离（空头信号）</span>
+              <div className='flex items-center gap-1 text-red-500 text-xs'>
+                <ArrowDownCircle className='h-3 w-3' />
+                顶背离
               </div>
             )}
             {!entry_trigger.cvd.bull_divergence && !entry_trigger.cvd.bear_divergence && (
-              <div className='text-muted-foreground text-xs'>无背离信号</div>
+              <div className='text-xs text-muted-foreground'>无背离</div>
             )}
-            <HintText text={entry_trigger.cvd.hint} />
           </CardContent>
         </Card>
 
@@ -172,21 +145,21 @@ export function SignalResult({ data, autoAnalyze }: { data: OrderRadarData; auto
           <CardHeader className='pb-2'>
             <CardTitle className='text-sm flex items-center gap-2'>
               <ShieldAlert className='h-4 w-4' />
-              OI & 资金费率
+              OI & 费率
             </CardTitle>
           </CardHeader>
-          <CardContent className='space-y-2 text-sm'>
+          <CardContent className='space-y-1 text-sm'>
             <div className='flex items-center justify-between'>
-              <span className='text-muted-foreground'>持仓量 (OI)</span>
-              <span className='font-mono'>
+              <span className='text-xs text-muted-foreground'>OI</span>
+              <span className='font-mono text-xs'>
                 {entry_trigger.oi.open_interest != null
                   ? fmtLargeNum(entry_trigger.oi.open_interest)
                   : '-'}
               </span>
             </div>
             <div className='flex items-center justify-between'>
-              <span className='text-muted-foreground'>当前费率</span>
-              <span className={`font-mono ${
+              <span className='text-xs text-muted-foreground'>费率</span>
+              <span className={`font-mono text-xs ${
                 (entry_trigger.oi.funding_rate ?? 0) > 0 ? 'text-green-500' : 'text-red-500'
               }`}>
                 {entry_trigger.oi.funding_rate != null
@@ -195,23 +168,15 @@ export function SignalResult({ data, autoAnalyze }: { data: OrderRadarData; auto
               </span>
             </div>
             <div className='flex items-center justify-between'>
-              <span className='text-muted-foreground'>费率趋势 (8h)</span>
+              <span className='text-xs text-muted-foreground'>趋势</span>
               <FundingTrendBadge trend={entry_trigger.oi.funding_trend} />
             </div>
-            <HintText text={entry_trigger.oi.hint} />
           </CardContent>
         </Card>
       </div>
 
       {/* ── 止盈止损参考 ── */}
       <TpSlCard tpSl={tp_sl_reference} />
-
-      {/* 挂单墙 & 量能墙图表 */}
-      <WallChart
-        chartData={data.chart_data}
-        currentPrice={cp}
-        coin={data.coin}
-      />
 
       {/* 清算热力图 */}
       {liqMap.data ? (
@@ -337,8 +302,12 @@ function SrLevelsCard({
 
 function TrendFilterCard({
   trendFilter,
+  coin,
+  currentPrice,
 }: {
   trendFilter: OrderRadarData['trend_filter']
+  coin: string
+  currentPrice: number
 }) {
   const { vwap, ema } = trendFilter
   const isBullish = ema.slope === 'up' && ema.price_vs_ema === 'above'
@@ -349,49 +318,40 @@ function TrendFilterCard({
       ? 'border-red-500/40 bg-red-500/5'
       : 'border-yellow-500/40 bg-yellow-500/5'
 
-  const dirLabel = isBullish ? '多头有利，逢低做多' : isBearish ? '空头有利，逢高做空' : '方向不明，谨慎操作'
+  const dirLabel = isBullish ? '逢低做多' : isBearish ? '逢高做空' : '谨慎操作'
   const DirIcon = isBullish ? TrendingUp : isBearish ? TrendingDown : AlertTriangle
 
   return (
     <Card className={`border-2 ${borderColor}`}>
       <CardHeader className='pb-2'>
-        <CardTitle className='text-sm flex items-center gap-2'>
-          <DirIcon className='h-4 w-4' />
-          趋势过滤
-          <Badge variant='outline' className='ml-1 text-xs'>
-            {dirLabel}
-          </Badge>
-        </CardTitle>
+        <div className='flex items-center justify-between flex-wrap gap-2'>
+          <CardTitle className='text-sm flex items-center gap-2'>
+            <DirIcon className='h-4 w-4' />
+            {coin} 趋势过滤
+            <Badge variant='outline' className='ml-1 text-xs'>{dirLabel}</Badge>
+          </CardTitle>
+          <span className='font-mono text-lg font-bold'>{fmtPrice(currentPrice)}</span>
+        </div>
       </CardHeader>
-      <CardContent className='space-y-2 text-sm'>
-        <div className='grid grid-cols-2 gap-4'>
-          {/* VWAP */}
-          <div className='space-y-1'>
-            <div className='text-xs text-muted-foreground'>VWAP {vwap.intraday ? '(当日)' : '(多日)'}</div>
-            <div className='font-mono font-medium'>
-              {vwap.value != null ? fmtPrice(vwap.value) : '-'}
-            </div>
+      <CardContent className='text-sm'>
+        <div className='flex items-center gap-6 flex-wrap'>
+          <div className='flex items-center gap-2'>
+            <span className='text-xs text-muted-foreground'>VWAP</span>
+            <span className='font-mono text-xs'>{vwap.value != null ? fmtPrice(vwap.value) : '-'}</span>
             {vwap.dist_pct != null && (
-              <div className={`text-xs ${vwap.dist_pct > 0 ? 'text-green-500' : 'text-red-500'}`}>
-                价格在VWAP{vwap.dist_pct > 0 ? '上方' : '下方'} {fmtPct(vwap.dist_pct)}
-              </div>
+              <span className={`text-xs ${vwap.dist_pct > 0 ? 'text-green-500' : 'text-red-500'}`}>
+                {fmtPct(vwap.dist_pct)}
+              </span>
             )}
           </div>
-          {/* EMA */}
-          <div className='space-y-1'>
-            <div className='text-xs text-muted-foreground'>EMA12 (4H)</div>
-            <div className='font-mono font-medium'>{fmtPrice(ema.ema12)}</div>
-            <div className='text-xs'>
-              <span className={ema.slope === 'up' ? 'text-green-500' : ema.slope === 'down' ? 'text-red-500' : 'text-muted-foreground'}>
-                {ema.slope === 'up' ? '↑ 上行' : ema.slope === 'down' ? '↓ 下行' : '→ 横盘'}
-              </span>
-              <span className='text-muted-foreground ml-2'>
-                价格在EMA{ema.price_vs_ema === 'above' ? '上方' : '下方'}
-              </span>
-            </div>
+          <div className='flex items-center gap-2'>
+            <span className='text-xs text-muted-foreground'>EMA12</span>
+            <span className='font-mono text-xs'>{fmtPrice(ema.ema12)}</span>
+            <span className={`text-xs ${ema.slope === 'up' ? 'text-green-500' : ema.slope === 'down' ? 'text-red-500' : 'text-muted-foreground'}`}>
+              {ema.slope === 'up' ? '↑' : ema.slope === 'down' ? '↓' : '→'}
+            </span>
           </div>
         </div>
-        <HintText text={vwap.hint} />
       </CardContent>
     </Card>
   )
@@ -410,7 +370,6 @@ function TpSlCard({
 
   const macdColor = macd.cross === 'golden' ? 'text-green-500' : macd.cross === 'death' ? 'text-red-500' : 'text-muted-foreground'
   const macdCrossLabel = macd.cross === 'golden' ? '金叉' : macd.cross === 'death' ? '死叉' : '无交叉'
-  const histLabel = macd.histogram_trend === 'expanding' ? '扩张' : '收缩'
 
   return (
     <Card>
@@ -418,79 +377,27 @@ function TpSlCard({
         <CardTitle className='text-sm flex items-center gap-2'>
           <ShieldAlert className='h-4 w-4' />
           止盈止损参考
-          <Badge variant='outline' className='text-xs ml-1'>R:R ≥ 1.5:1</Badge>
         </CardTitle>
       </CardHeader>
-      <CardContent className='space-y-3 text-sm'>
-        {/* 布林带 */}
-        <div>
-          <div className='text-xs text-muted-foreground mb-1'>布林带</div>
-          <div className='grid grid-cols-2 gap-4'>
-            <div className='space-y-1'>
-              <div className='flex justify-between'>
-                <span className='text-muted-foreground'>1H 上轨</span>
-                <span className='font-mono'>{fmtPrice(bollinger.upper)}</span>
-              </div>
-              <div className='flex justify-between'>
-                <span className='text-muted-foreground'>1H 下轨</span>
-                <span className='font-mono'>{fmtPrice(bollinger.lower)}</span>
-              </div>
-            </div>
-            <div className='space-y-1'>
-              {bollinger.upper_4h != null && (
-                <div className='flex justify-between'>
-                  <span className='text-muted-foreground'>4H 上轨</span>
-                  <span className='font-mono'>{fmtPrice(bollinger.upper_4h)}</span>
-                </div>
-              )}
-              {bollinger.lower_4h != null && (
-                <div className='flex justify-between'>
-                  <span className='text-muted-foreground'>4H 下轨</span>
-                  <span className='font-mono'>{fmtPrice(bollinger.lower_4h)}</span>
-                </div>
-              )}
-            </div>
-          </div>
-          {bollinger.pct != null && (
-            <div className='mt-1.5'>
-              <div className='flex justify-between text-xs text-muted-foreground mb-0.5'>
-                <span>下轨 0%</span>
-                <span>上轨 100%</span>
-              </div>
-              <div className='h-2 bg-muted rounded-full overflow-hidden'>
-                <div
-                  className='h-full bg-blue-500 rounded-full transition-all'
-                  style={{ width: `${Math.max(0, Math.min(100, bollinger.pct))}%` }}
-                />
-              </div>
-              <div className='text-center text-xs text-muted-foreground mt-0.5'>
-                当前: {bollinger.pct}%
-              </div>
-            </div>
+      <CardContent className='text-sm'>
+        <div className='flex items-center gap-6 flex-wrap text-xs'>
+          <span className='text-muted-foreground'>1H 布林</span>
+          <span className='font-mono'>{fmtPrice(bollinger.lower)} – {fmtPrice(bollinger.upper)}</span>
+          {bollinger.upper_4h != null && bollinger.lower_4h != null && (
+            <>
+              <span className='text-muted-foreground'>4H 布林</span>
+              <span className='font-mono'>{fmtPrice(bollinger.lower_4h)} – {fmtPrice(bollinger.upper_4h)}</span>
+            </>
           )}
+          {bollinger.pct != null && (
+            <span className='text-muted-foreground'>位置 <span className='font-mono'>{bollinger.pct}%</span></span>
+          )}
+          <span className='text-muted-foreground'>MACD 4H</span>
+          <span className={macdColor}>{macdCrossLabel}</span>
+          <span className={`font-mono ${macd.histogram >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+            {macd.histogram >= 0 ? '+' : ''}{macd.histogram.toFixed(2)}
+          </span>
         </div>
-
-        {/* MACD */}
-        <div>
-          <div className='text-xs text-muted-foreground mb-1'>MACD (4H)</div>
-          <div className='flex items-center gap-4 flex-wrap'>
-            <span className={`font-medium ${macdColor}`}>{macdCrossLabel}</span>
-            <span className='text-xs text-muted-foreground'>
-              MACD: <span className='font-mono'>{macd.macd.toFixed(2)}</span>
-            </span>
-            <span className='text-xs text-muted-foreground'>
-              Signal: <span className='font-mono'>{macd.signal.toFixed(2)}</span>
-            </span>
-            <span className='text-xs text-muted-foreground'>
-              柱状图: <span className={`font-mono ${macd.histogram >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                {macd.histogram >= 0 ? '+' : ''}{macd.histogram.toFixed(2)}
-              </span> ({histLabel})
-            </span>
-          </div>
-        </div>
-
-        <HintText text={bollinger.hint} />
-        <HintText text={macd.hint} />
       </CardContent>
     </Card>
   )

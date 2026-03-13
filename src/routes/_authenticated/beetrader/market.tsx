@@ -1,6 +1,9 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { Market } from '@/features/beetrader/market'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/_authenticated/beetrader/market' as any)({
-  component: Market,
+  beforeLoad: () => {
+    throw redirect({
+      to: '/beetrader/signals' as any,
+    })
+  },
 })

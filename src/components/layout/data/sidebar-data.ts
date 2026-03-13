@@ -96,12 +96,7 @@ export const sidebarData: SidebarData = {
               icon: Eye,
             },
             {
-              title: '市场观察',
-              url: '/beetrader/market',
-              icon: BarChart3,
-            },
-            {
-              title: '信号模块',
+              title: '交易分析',
               url: '/beetrader/signals',
               icon: TrendingUp,
             },
