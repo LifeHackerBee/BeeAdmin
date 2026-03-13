@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { useNavigate } from '@tanstack/react-router'
+import { Route } from '@/routes/_authenticated/beetrader/signals'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -17,6 +19,14 @@ const POPULAR_COINS = ['BTC', 'ETH', 'SOL', 'HYPE', 'SUI', 'DOGE']
 const AUTO_REFRESH_INTERVAL = 60 // 秒
 
 export function TradingSignals() {
+  const { tab } = Route.useSearch()
+  const navigate = useNavigate()
+  const activeTab = tab ?? 'radar'
+
+  const handleTabChange = (value: string) => {
+    navigate({ search: { tab: value } as any, replace: true })
+  }
+
   const [coin, setCoin] = useState('BTC')
   const { analyze, loading, error, data, reset } = useOrderRadar()
   const [autoRefresh, setAutoRefresh] = useState(false)
@@ -93,7 +103,7 @@ export function TradingSignals() {
         </div>
       </div>
 
-      <Tabs defaultValue='radar' className='w-full'>
+      <Tabs value={activeTab} onValueChange={handleTabChange} className='w-full'>
         <TabsList>
           <TabsTrigger value='market'>市场观察</TabsTrigger>
           <TabsTrigger value='radar'>手动分析</TabsTrigger>
