@@ -134,7 +134,6 @@ function ZeroAxisBar({ value }: { value: number }) {
 
 interface BollingerPanelProps {
   data: Record<string, BollingerIndicator>
-  currentPrice: number
 }
 
 export function BollingerPanel({ data }: BollingerPanelProps) {

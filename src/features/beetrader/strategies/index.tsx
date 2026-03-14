@@ -24,6 +24,8 @@ import {
 } from './components/indicator-panels'
 import { FibonacciPanel } from './components/fibonacci-panel'
 import { VolumeAnalysisPanel } from './components/volume-analysis'
+import { AiStrategyCard } from './components/ai-strategy-card'
+import { useAiStrategy } from './hooks/use-ai-strategy'
 
 const POPULAR_COINS = ['BTC', 'ETH', 'SOL', 'HYPE', 'SUI', 'DOGE']
 const AUTO_REFRESH_INTERVAL = 120 // 秒 (策略分析较重, 2分钟刷新)
@@ -31,6 +33,7 @@ const AUTO_REFRESH_INTERVAL = 120 // 秒 (策略分析较重, 2分钟刷新)
 export function TradingStrategies() {
   const [coin, setCoin] = useState('BTC')
   const { analyze, loading, error, data, reset } = useBeeTraderStrategy()
+  const aiStrategy = useAiStrategy()
   const [autoRefresh, setAutoRefresh] = useState(false)
   const [countdown, setCountdown] = useState(AUTO_REFRESH_INTERVAL)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
@@ -55,6 +58,7 @@ export function TradingStrategies() {
   const handleAnalyze = () => {
     if (!coin.trim()) return
     reset()
+    aiStrategy.reset()
     doAnalyze(coin)
     setCountdown(AUTO_REFRESH_INTERVAL)
   }
@@ -158,6 +162,7 @@ export function TradingStrategies() {
               onClick={() => {
                 setCoin(c)
                 reset()
+                aiStrategy.reset()
                 doAnalyze(c)
                 setCountdown(AUTO_REFRESH_INTERVAL)
               }}
@@ -212,6 +217,18 @@ export function TradingStrategies() {
               currentPrice={data.current_price}
             />
 
+            {/* AI 策略判断 */}
+            <AiStrategyCard
+              result={aiStrategy.result}
+              loading={aiStrategy.loading}
+              error={aiStrategy.error}
+              onGenerate={() => {
+                if (data) aiStrategy.generate(data)
+              }}
+              hasData={!!data}
+              coin={data.coin}
+            />
+
             {/* 详细指标 Tabs */}
             <Tabs defaultValue='indicators'>
               <TabsList>
@@ -225,7 +242,6 @@ export function TradingStrategies() {
                   <MacdPanel data={data.indicators.macd} />
                   <BollingerPanel
                     data={data.indicators.bollinger}
-                    currentPrice={data.current_price}
                   />
                   <RsiPanel data={data.indicators.rsi} />
                   <KdjPanel data={data.indicators.kdj} />
