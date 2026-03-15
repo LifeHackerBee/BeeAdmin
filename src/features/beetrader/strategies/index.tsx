@@ -27,7 +27,7 @@ import { VolumeAnalysisPanel } from './components/volume-analysis'
 import { AiStrategyCard } from './components/ai-strategy-card'
 import { useAiStrategy } from './hooks/use-ai-strategy'
 
-const POPULAR_COINS = ['BTC', 'ETH', 'SOL', 'HYPE', 'SUI', 'DOGE']
+const POPULAR_COINS = ['BTC', 'ETH', 'SOL', 'HYPE', 'SUI', 'DOGE', 'xyz:GOLD', 'xyz:BRENTOIL', 'xyz:SILVER']
 const AUTO_REFRESH_INTERVAL = 120 // 秒 (策略分析较重, 2分钟刷新)
 
 export function TradingStrategies() {
