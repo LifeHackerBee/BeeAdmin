@@ -161,6 +161,28 @@ export async function hyperliquidApiPut<T = unknown>(
 }
 
 /**
+ * PATCH 请求
+ */
+export async function hyperliquidApiPatch<T = unknown>(
+  endpoint: string,
+  body?: unknown,
+  options: FetchOptions = {}
+): Promise<T> {
+  const response = await hyperliquidApiFetch(endpoint, {
+    ...options,
+    method: 'PATCH',
+    body: body ? JSON.stringify(body) : undefined,
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(`API 请求失败: ${response.status} - ${errorText}`)
+  }
+
+  return response.json()
+}
+
+/**
  * DELETE 请求
  */
 export async function hyperliquidApiDelete<T = unknown>(

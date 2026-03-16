@@ -3,6 +3,7 @@ import {
   hyperliquidApiGet,
   hyperliquidApiPost,
   hyperliquidApiDelete,
+  hyperliquidApiPatch,
 } from '@/lib/hyperliquid-api-client'
 
 export interface StrategyBotJob {
@@ -27,8 +28,26 @@ export interface StrategyBotJob {
   total_pnl: number
   win_count: number
   loss_count: number
+  custom_system_prompt: string | null
+  custom_user_prompt: string | null
+  tp_pct: number | null
+  sl_pct: number | null
   created_at: string
   updated_at: string
+}
+
+export interface UpdateBotJobData {
+  analyze_interval_seconds?: number
+  auto_trade?: boolean
+  custom_system_prompt?: string | null
+  custom_user_prompt?: string | null
+  tp_pct?: number | null
+  sl_pct?: number | null
+}
+
+export interface DefaultPrompts {
+  system_prompt: string
+  user_prompt_template: string
 }
 
 interface ListJobsResponse {
@@ -151,6 +170,27 @@ export function useStrategyBotJobs() {
     [fetchJobs],
   )
 
+  const updateJob = useCallback(
+    async (jobId: number, data: UpdateBotJobData) => {
+      try {
+        const res = await hyperliquidApiPatch<JobResponse>(`${API_PREFIX}/${jobId}`, data)
+        await fetchJobs()
+        return res.job
+      } catch (e) {
+        setError(e instanceof Error ? e : new Error(String(e)))
+        throw e
+      }
+    },
+    [fetchJobs],
+  )
+
+  const fetchDefaultPrompts = useCallback(async () => {
+    const res = await hyperliquidApiGet<{ success: boolean } & DefaultPrompts>(
+      `${API_PREFIX}/default-prompts`,
+    )
+    return { system_prompt: res.system_prompt, user_prompt_template: res.user_prompt_template }
+  }, [])
+
   return {
     jobs,
     loading,
@@ -161,5 +201,7 @@ export function useStrategyBotJobs() {
     pauseJob,
     deleteJob,
     resetAccount,
+    updateJob,
+    fetchDefaultPrompts,
   }
 }

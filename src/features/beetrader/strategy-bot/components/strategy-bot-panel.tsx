@@ -1,11 +1,13 @@
-import { useState } from 'react'
-import { useStrategyBotJobs, type StrategyBotJob } from '../hooks/use-strategy-bot-jobs'
+import { useState, useEffect } from 'react'
+import { useStrategyBotJobs, type StrategyBotJob, type UpdateBotJobData, type DefaultPrompts } from '../hooks/use-strategy-bot-jobs'
 import { useBotSignalTasks, calcPnl, type BacktestTrackerTask } from '../hooks/use-bot-signal-tasks'
 import { useBotLogs, type BotLog } from '../hooks/use-bot-logs'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -56,6 +58,7 @@ import {
   Zap,
   AlertTriangle,
   Info,
+  Settings,
 } from 'lucide-react'
 
 // ── 状态 Badge ──
@@ -197,11 +200,12 @@ function CreateBotDialog({
 
 export function StrategyBotPanel() {
   const {
-    jobs, loading, error, createJob, startJob, pauseJob, deleteJob, resetAccount, fetchJobs,
+    jobs, loading, error, createJob, startJob, pauseJob, deleteJob, resetAccount, updateJob, fetchDefaultPrompts, fetchJobs,
   } = useStrategyBotJobs()
   const signalTasks = useBotSignalTasks()
   const botLogs = useBotLogs()
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [settingsJob, setSettingsJob] = useState<StrategyBotJob | null>(null)
   const [refreshing, setRefreshing] = useState(false)
   const [logsOpen, setLogsOpen] = useState(true)
 
@@ -340,6 +344,7 @@ export function StrategyBotPanel() {
                   onPause={() => pauseJob(job.id)}
                   onDelete={() => deleteJob(job.id)}
                   onReset={() => resetAccount(job.id)}
+                  onSettings={() => setSettingsJob(job)}
                 />
               ))}
             </TableBody>
@@ -434,6 +439,18 @@ export function StrategyBotPanel() {
       </Collapsible>
 
       <CreateBotDialog open={dialogOpen} onOpenChange={setDialogOpen} onCreate={createJob} />
+      {settingsJob && (
+        <BotSettingsDialog
+          job={settingsJob}
+          open={!!settingsJob}
+          onOpenChange={(v) => !v && setSettingsJob(null)}
+          onSave={async (data) => {
+            await updateJob(settingsJob.id, data)
+            setSettingsJob(null)
+          }}
+          fetchDefaultPrompts={fetchDefaultPrompts}
+        />
+      )}
     </div>
   )
 }
@@ -441,13 +458,14 @@ export function StrategyBotPanel() {
 // ── Job 行 ──
 
 function JobRow({
-  job, onStart, onPause, onDelete, onReset,
+  job, onStart, onPause, onDelete, onReset, onSettings,
 }: {
   job: StrategyBotJob
   onStart: () => void
   onPause: () => void
   onDelete: () => void
   onReset: () => void
+  onSettings: () => void
 }) {
   const balance = job.account_balance ?? 10000
   const initialBalance = job.account_initial_balance ?? 10000
@@ -541,6 +559,16 @@ function JobRow({
               <Play className='h-3.5 w-3.5' />
             </Button>
           )}
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant='ghost' size='icon' className='h-7 w-7' onClick={onSettings}>
+                  <Settings className='h-3.5 w-3.5' />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Prompt 和止盈止损设置</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           {canReset && (
             <TooltipProvider>
               <Tooltip>
@@ -637,6 +665,188 @@ function SignalTaskRow({ task }: { task: BacktestTrackerTask }) {
         })}
       </TableCell>
     </TableRow>
+  )
+}
+
+// ── 设置对话框 ──
+
+function BotSettingsDialog({
+  job,
+  open,
+  onOpenChange,
+  onSave,
+  fetchDefaultPrompts,
+}: {
+  job: StrategyBotJob
+  open: boolean
+  onOpenChange: (v: boolean) => void
+  onSave: (data: UpdateBotJobData) => Promise<unknown>
+  fetchDefaultPrompts: () => Promise<DefaultPrompts>
+}) {
+  const [systemPrompt, setSystemPrompt] = useState(job.custom_system_prompt ?? '')
+  const [userPrompt, setUserPrompt] = useState(job.custom_user_prompt ?? '')
+  const [tpPct, setTpPct] = useState(job.tp_pct ?? 0)
+  const [slPct, setSlPct] = useState(job.sl_pct ?? 0)
+  const [saving, setSaving] = useState(false)
+  const [defaults, setDefaults] = useState<DefaultPrompts | null>(null)
+  const [loadingDefaults, setLoadingDefaults] = useState(false)
+
+  // 加载默认 prompt
+  useEffect(() => {
+    if (!open) return
+    setLoadingDefaults(true)
+    fetchDefaultPrompts()
+      .then((d) => setDefaults(d))
+      .catch(() => {})
+      .finally(() => setLoadingDefaults(false))
+  }, [open, fetchDefaultPrompts])
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      await onSave({
+        custom_system_prompt: systemPrompt.trim() || null,
+        custom_user_prompt: userPrompt.trim() || null,
+        tp_pct: tpPct > 0 ? tpPct : 0,
+        sl_pct: slPct > 0 ? slPct : 0,
+      })
+    } catch {
+      // error handled by hook
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleResetSystemPrompt = () => {
+    if (defaults) setSystemPrompt(defaults.system_prompt)
+  }
+  const handleResetUserPrompt = () => {
+    if (defaults) setUserPrompt(defaults.user_prompt_template)
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className='sm:max-w-2xl max-h-[85vh] overflow-y-auto'>
+        <DialogHeader>
+          <DialogTitle className='flex items-center gap-2'>
+            <Settings className='h-4 w-4' />
+            {job.coin} 机器人设置
+          </DialogTitle>
+        </DialogHeader>
+
+        <Tabs defaultValue='prompt' className='w-full'>
+          <TabsList className='grid w-full grid-cols-2'>
+            <TabsTrigger value='prompt'>AI Prompt</TabsTrigger>
+            <TabsTrigger value='tpsl'>止盈止损</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value='prompt' className='space-y-4 mt-4'>
+            {/* System Prompt */}
+            <div className='space-y-2'>
+              <div className='flex items-center justify-between'>
+                <Label className='text-sm font-medium'>System Prompt</Label>
+                <Button
+                  variant='ghost'
+                  size='sm'
+                  className='h-6 text-xs'
+                  onClick={handleResetSystemPrompt}
+                  disabled={loadingDefaults}
+                >
+                  恢复默认
+                </Button>
+              </div>
+              <Textarea
+                value={systemPrompt}
+                onChange={(e) => setSystemPrompt(e.target.value)}
+                placeholder={loadingDefaults ? '加载中...' : defaults?.system_prompt ?? '使用默认 System Prompt'}
+                rows={8}
+                className='font-mono text-xs'
+              />
+              <p className='text-[10px] text-muted-foreground'>
+                留空则使用默认 System Prompt。定义 AI 的角色、核心原则和输出格式。
+              </p>
+            </div>
+
+            {/* User Prompt */}
+            <div className='space-y-2'>
+              <div className='flex items-center justify-between'>
+                <Label className='text-sm font-medium'>User Prompt 模板</Label>
+                <Button
+                  variant='ghost'
+                  size='sm'
+                  className='h-6 text-xs'
+                  onClick={handleResetUserPrompt}
+                  disabled={loadingDefaults}
+                >
+                  恢复默认
+                </Button>
+              </div>
+              <Textarea
+                value={userPrompt}
+                onChange={(e) => setUserPrompt(e.target.value)}
+                placeholder={loadingDefaults ? '加载中...' : defaults?.user_prompt_template ?? '使用默认 User Prompt 模板'}
+                rows={12}
+                className='font-mono text-xs'
+              />
+              <p className='text-[10px] text-muted-foreground'>
+                留空则使用默认模板。可用变量: {'{coin}'}, {'{current_price}'}, {'{account_ctx}'}, {'{bias}'}, {'{resonance_score}'} 等。
+                点击「恢复默认」可查看完整模板。
+              </p>
+            </div>
+          </TabsContent>
+
+          <TabsContent value='tpsl' className='space-y-4 mt-4'>
+            <div className='space-y-1'>
+              <Label>止盈百分比 (%)</Label>
+              <Input
+                type='number'
+                value={tpPct}
+                onChange={(e) => setTpPct(Number(e.target.value))}
+                min={0}
+                max={100}
+                step={0.5}
+                placeholder='如 3.0 表示 3%'
+              />
+              <p className='text-[10px] text-muted-foreground'>
+                设置后将覆盖 AI 输出的止盈价。设为 0 则使用 AI 自行判断。
+              </p>
+            </div>
+            <div className='space-y-1'>
+              <Label>止损百分比 (%)</Label>
+              <Input
+                type='number'
+                value={slPct}
+                onChange={(e) => setSlPct(Number(e.target.value))}
+                min={0}
+                max={100}
+                step={0.5}
+                placeholder='如 2.0 表示 2%'
+              />
+              <p className='text-[10px] text-muted-foreground'>
+                设置后将覆盖 AI 输出的止损价。设为 0 则使用 AI 自行判断。
+              </p>
+            </div>
+            {tpPct > 0 && slPct > 0 && (
+              <Alert>
+                <AlertDescription className='text-xs'>
+                  盈亏比: {(tpPct / slPct).toFixed(2)}:1
+                  {tpPct / slPct < 1.5 && (
+                    <span className='text-yellow-500 ml-2'>（低于推荐的 1.5:1）</span>
+                  )}
+                </AlertDescription>
+              </Alert>
+            )}
+          </TabsContent>
+        </Tabs>
+
+        <DialogFooter>
+          <Button variant='outline' onClick={() => onOpenChange(false)}>取消</Button>
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? '保存中...' : '保存'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
