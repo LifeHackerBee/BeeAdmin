@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { TradingSignals } from '@/features/beetrader/signals'
 
 const signalsSearchSchema = z.object({
-  tab: z.enum(['market', 'radar', 'jobs']).optional().catch('radar'),
+  tab: z.enum(['market', 'analyze', 'jobs']).optional().catch('analyze'),
 })
 
 export const Route = createFileRoute('/_authenticated/beetrader/signals')({

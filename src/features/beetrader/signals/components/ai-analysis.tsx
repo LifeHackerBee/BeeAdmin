@@ -27,6 +27,7 @@ import { SimulationStatus } from './simulation-card'
 interface AIAnalysisProps {
   data: OrderRadarData
   autoAnalyze?: boolean
+  onSignalChange?: (signal: SimSignal | null, loading: boolean) => void
 }
 
 /** 从 AI 输出中提取有效期小时数 */
@@ -150,7 +151,7 @@ function SignalCard({
 // 主组件
 // ============================================
 
-export function AIAnalysis({ data, autoAnalyze }: AIAnalysisProps) {
+export function AIAnalysis({ data, autoAnalyze, onSignalChange }: AIAnalysisProps) {
   const {
     analyze, fetchSignal, streaming, content, error, abort, reset,
     signal, signalLoading,
@@ -227,6 +228,11 @@ export function AIAnalysis({ data, autoAnalyze }: AIAnalysisProps) {
 
   const validity =
     generatedAt && validHours ? remainingText(generatedAt, validHours) : null
+
+  // 向上报告信号状态
+  useEffect(() => {
+    onSignalChange?.(signal, signalLoading)
+  }, [signal, signalLoading, onSignalChange])
 
   const isAnalyzing = streaming || signalLoading
 

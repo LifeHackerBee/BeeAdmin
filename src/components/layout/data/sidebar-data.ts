@@ -12,7 +12,6 @@ import {
   Sparkles,
   TrendingUp,
   Eye,
-  BookOpen,
   BarChart3,
   Clock,
   Wallet,
@@ -99,11 +98,6 @@ export const sidebarData: SidebarData = {
               title: '交易分析',
               url: '/beetrader/signals',
               icon: TrendingUp,
-            },
-            {
-              title: '交易策略库',
-              url: '/beetrader/strategies',
-              icon: BookOpen,
             },
             {
               title: '回测模块',

@@ -1,42 +1,36 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Skeleton } from '@/components/ui/skeleton'
 import {
   TrendingUp,
   TrendingDown,
   Target,
   ShieldAlert,
   Layers,
-  Flame,
   BarChart3,
   ArrowUpCircle,
   ArrowDownCircle,
   AlertTriangle,
 } from 'lucide-react'
 import type { OrderRadarData } from '../hooks/use-order-radar'
-import { useLiquidationMap } from '../hooks/use-liquidation-map'
-import { LiquidationMapChart } from './liquidation-map-chart'
-import { AIAnalysis } from './ai-analysis'
 
 // ============================================
-// 辅助函数
+// 辅助函数（导出供其他模块使用）
 // ============================================
 
-function fmtPrice(v: number): string {
+export function fmtPrice(v: number): string {
   if (v >= 10_000) return `$${v.toLocaleString('en-US', { maximumFractionDigits: 0 })}`
   if (v >= 100) return `$${v.toFixed(2)}`
   return `$${v.toFixed(4)}`
 }
 
-function fmtLargeNum(v: number): string {
+export function fmtLargeNum(v: number): string {
   if (v >= 1_000_000_000) return `$${(v / 1_000_000_000).toFixed(2)}B`
   if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(2)}M`
   if (v >= 1_000) return `$${(v / 1_000).toFixed(1)}K`
   return `$${v.toFixed(0)}`
 }
 
-function fmtPct(v: number | null | undefined, signed = true): string {
+export function fmtPct(v: number | null | undefined, signed = true): string {
   if (v == null) return '-'
   const prefix = signed && v > 0 ? '+' : ''
   return `${prefix}${v.toFixed(2)}%`
@@ -47,245 +41,79 @@ function HintText({ text }: { text: string }) {
 }
 
 // ============================================
-// 主组件
+// S/R 支撑压力区间
 // ============================================
 
-export function SignalResult({ data, autoAnalyze }: { data: OrderRadarData; autoAnalyze?: boolean }) {
-  const { entry_trigger, trend_filter, tp_sl_reference } = data
-  const cp = data.current_price
-  const liqMap = useLiquidationMap()
-
-  return (
-    <div className='space-y-3'>
-      {/* ── 趋势过滤 + 价格 ── */}
-      <TrendFilterCard trendFilter={trend_filter} coin={data.coin} currentPrice={cp} />
-
-      {/* AI 交易建议 */}
-      <AIAnalysis data={data} autoAnalyze={autoAnalyze} />
-
-      {/* ── 入场触发 ── */}
-
-      {/* S/R 位 — 三档展示 */}
-      <SrLevelsCard srLevels={entry_trigger.sr_levels} currentPrice={cp} />
-
-      <div className='grid grid-cols-1 md:grid-cols-3 gap-3'>
-        {/* 订单块 */}
-        <Card>
-          <CardHeader className='pb-2'>
-            <CardTitle className='text-sm flex items-center gap-2'>
-              <Layers className='h-4 w-4' />
-              订单块
-            </CardTitle>
-          </CardHeader>
-          <CardContent className='space-y-1 text-sm'>
-            {entry_trigger.order_blocks.bullish.map((ob, i) => (
-              <div key={`b-${i}`} className='flex items-center justify-between'>
-                <span className='font-mono text-xs text-green-500'>
-                  {fmtPrice(ob.low)} – {fmtPrice(ob.high)}
-                </span>
-                <span className='text-[10px] text-muted-foreground'>
-                  {(ob.strength * 100).toFixed(0)}%
-                </span>
-              </div>
-            ))}
-            {entry_trigger.order_blocks.bearish.map((ob, i) => (
-              <div key={`s-${i}`} className='flex items-center justify-between'>
-                <span className='font-mono text-xs text-red-500'>
-                  {fmtPrice(ob.low)} – {fmtPrice(ob.high)}
-                </span>
-                <span className='text-[10px] text-muted-foreground'>
-                  {(ob.strength * 100).toFixed(0)}%
-                </span>
-              </div>
-            ))}
-            {entry_trigger.order_blocks.bullish.length === 0 &&
-              entry_trigger.order_blocks.bearish.length === 0 && (
-                <span className='text-xs text-muted-foreground'>暂无</span>
-              )}
-          </CardContent>
-        </Card>
-
-        {/* CVD 背离 */}
-        <Card>
-          <CardHeader className='pb-2'>
-            <CardTitle className='text-sm flex items-center gap-2'>
-              <BarChart3 className='h-4 w-4' />
-              CVD 背离
-            </CardTitle>
-          </CardHeader>
-          <CardContent className='space-y-1 text-sm'>
-            <div className='flex items-center justify-between'>
-              <span className='text-xs text-muted-foreground'>趋势</span>
-              <span className='text-xs'>{entry_trigger.cvd.trend}</span>
-            </div>
-            <div className='flex items-center justify-between'>
-              <span className='text-xs text-muted-foreground'>CVD</span>
-              <span className='font-mono text-xs'>{entry_trigger.cvd.value.toFixed(1)}</span>
-            </div>
-            {entry_trigger.cvd.bull_divergence && (
-              <div className='flex items-center gap-1 text-green-500 text-xs'>
-                <ArrowUpCircle className='h-3 w-3' />
-                底背离
-              </div>
-            )}
-            {entry_trigger.cvd.bear_divergence && (
-              <div className='flex items-center gap-1 text-red-500 text-xs'>
-                <ArrowDownCircle className='h-3 w-3' />
-                顶背离
-              </div>
-            )}
-            {!entry_trigger.cvd.bull_divergence && !entry_trigger.cvd.bear_divergence && (
-              <div className='text-xs text-muted-foreground'>无背离</div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* OI & 资金费率 */}
-        <Card>
-          <CardHeader className='pb-2'>
-            <CardTitle className='text-sm flex items-center gap-2'>
-              <ShieldAlert className='h-4 w-4' />
-              OI & 费率
-            </CardTitle>
-          </CardHeader>
-          <CardContent className='space-y-1 text-sm'>
-            <div className='flex items-center justify-between'>
-              <span className='text-xs text-muted-foreground'>OI</span>
-              <span className='font-mono text-xs'>
-                {entry_trigger.oi.open_interest != null
-                  ? fmtLargeNum(entry_trigger.oi.open_interest)
-                  : '-'}
-              </span>
-            </div>
-            <div className='flex items-center justify-between'>
-              <span className='text-xs text-muted-foreground'>费率</span>
-              <span className={`font-mono text-xs ${
-                (entry_trigger.oi.funding_rate ?? 0) > 0 ? 'text-green-500' : 'text-red-500'
-              }`}>
-                {entry_trigger.oi.funding_rate != null
-                  ? `${(entry_trigger.oi.funding_rate * 100).toFixed(4)}%`
-                  : '-'}
-              </span>
-            </div>
-            <div className='flex items-center justify-between'>
-              <span className='text-xs text-muted-foreground'>趋势</span>
-              <FundingTrendBadge trend={entry_trigger.oi.funding_trend} />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* ── 止盈止损参考 ── */}
-      <TpSlCard tpSl={tp_sl_reference} />
-
-      {/* 清算热力图 */}
-      {liqMap.data ? (
-        <LiquidationMapChart data={liqMap.data} coin={data.coin} />
-      ) : (
-        <Card>
-          <CardHeader className='pb-2'>
-            <CardTitle className='text-sm flex items-center gap-2'>
-              <Flame className='h-4 w-4' />
-              {data.coin} 清算热力图
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {liqMap.loading ? (
-              <div className='space-y-2'>
-                <div className='text-sm text-muted-foreground'>正在从 CoinGlass 抓取清算数据，约需 10-30 秒...</div>
-                <Skeleton className='h-[280px] w-full' />
-              </div>
-            ) : liqMap.error ? (
-              <div className='text-sm text-red-500'>{liqMap.error.message}</div>
-            ) : (
-              <div className='flex flex-col items-center py-4 gap-2'>
-                <span className='text-sm text-muted-foreground'>点击加载清算热力图（数据来源: CoinGlass，约需 10-30 秒）</span>
-                <Button
-                  variant='outline'
-                  size='sm'
-                  onClick={() => liqMap.fetch(data.coin)}
-                  className='gap-1'
-                >
-                  <Flame className='h-4 w-4' />
-                  加载清算图
-                </Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-    </div>
-  )
-}
-
-// ============================================
-// S/R 位卡片 — 短期/中期/长期三档
-// ============================================
-
-function SrLevelsCard({
+export function SrLevelsCard({
   srLevels,
-  currentPrice,
 }: {
   srLevels: OrderRadarData['entry_trigger']['sr_levels']
-  currentPrice: number
 }) {
   const tiers = [
-    { key: 'short_term' as const, label: '短期 (±5%)', data: srLevels.short_term },
-    { key: 'medium_term' as const, label: '中期 (5%~10%)', data: srLevels.medium_term },
-    { key: 'long_term' as const, label: '长期 (10%~20%)', data: srLevels.long_term },
+    { key: 'short_term' as const, label: '短期', timeframe: '15m', data: srLevels.short_term },
+    { key: 'medium_term' as const, label: '中期', timeframe: '1h', data: srLevels.medium_term },
+    { key: 'long_term' as const, label: '长期', timeframe: '4h', data: srLevels.long_term },
   ]
 
   return (
     <Card>
       <CardHeader className='pb-2'>
-        <CardTitle className='text-sm flex items-center gap-2'>
-          <Target className='h-4 w-4' />
-          S/R 支撑压力位
-        </CardTitle>
+        <div className='flex items-center justify-between'>
+          <CardTitle className='text-sm flex items-center gap-2'>
+            <Target className='h-4 w-4' />
+            S/R 支撑压力区间
+          </CardTitle>
+          <span className='text-[10px] text-muted-foreground'>
+            各周期成交量聚类 + 摆动点 + L2挂单墙
+          </span>
+        </div>
       </CardHeader>
-      <CardContent className='space-y-3 text-sm'>
+      <CardContent className='text-sm'>
         <div className='grid grid-cols-1 md:grid-cols-3 gap-3'>
-          {tiers.map(({ key, label, data }) => {
+          {tiers.map(({ key, label, timeframe, data }) => {
             if (!data) return null
             const supports = data.supports ?? []
             const resistances = data.resistances ?? []
-            const hasData = supports.length > 0 || resistances.length > 0
+            const hasSupport = supports.length > 0
+            const hasResistance = resistances.length > 0
+
+            const sMin = hasSupport ? Math.min(...supports.map((s) => s.price)) : null
+            const sMax = hasSupport ? Math.max(...supports.map((s) => s.price)) : null
+            const rMin = hasResistance ? Math.min(...resistances.map((r) => r.price)) : null
+            const rMax = hasResistance ? Math.max(...resistances.map((r) => r.price)) : null
+
             return (
-              <div key={key} className='space-y-1.5'>
-                <div className='text-xs font-medium text-muted-foreground border-b pb-1'>{label}</div>
-                {!hasData && (
-                  <div className='text-xs text-muted-foreground/50 py-1'>暂无数据</div>
+              <div key={key} className='rounded-md border p-2.5 space-y-1.5'>
+                <div className='flex items-center justify-between'>
+                  <span className='text-xs font-semibold'>{label}</span>
+                  <span className='text-[10px] text-muted-foreground'>{timeframe} K线</span>
+                </div>
+                {hasSupport && sMin != null && sMax != null ? (
+                  <div className='flex items-center justify-between'>
+                    <span className='text-green-500 text-xs'>支撑</span>
+                    <span className='font-mono text-xs text-green-600 dark:text-green-400'>
+                      {fmtPrice(sMin)}{sMin !== sMax ? ` – ${fmtPrice(sMax)}` : ''}
+                    </span>
+                  </div>
+                ) : (
+                  <div className='flex items-center justify-between'>
+                    <span className='text-green-500 text-xs'>支撑</span>
+                    <span className='text-xs text-muted-foreground/50'>—</span>
+                  </div>
                 )}
-                {supports.map((s, i) => (
-                  <div key={`s-${i}`} className='flex items-center justify-between py-0.5'>
-                    <div className='flex items-center gap-1'>
-                      <span className='text-green-500 text-xs'>▼</span>
-                      <span className='text-[10px] text-muted-foreground'>{s.source}</span>
-                      <StrengthBadge strength={s.strength} />
-                    </div>
-                    <div className='text-right'>
-                      <span className='font-mono text-xs'>{fmtPrice(s.price)}</span>
-                      <span className='text-[10px] text-muted-foreground ml-1'>
-                        {fmtPct((s.price - currentPrice) / currentPrice * 100)}
-                      </span>
-                    </div>
+                {hasResistance && rMin != null && rMax != null ? (
+                  <div className='flex items-center justify-between'>
+                    <span className='text-red-500 text-xs'>压力</span>
+                    <span className='font-mono text-xs text-red-600 dark:text-red-400'>
+                      {fmtPrice(rMin)}{rMin !== rMax ? ` – ${fmtPrice(rMax)}` : ''}
+                    </span>
                   </div>
-                ))}
-                {resistances.map((r, i) => (
-                  <div key={`r-${i}`} className='flex items-center justify-between py-0.5'>
-                    <div className='flex items-center gap-1'>
-                      <span className='text-red-500 text-xs'>▲</span>
-                      <span className='text-[10px] text-muted-foreground'>{r.source}</span>
-                      <StrengthBadge strength={r.strength} />
-                    </div>
-                    <div className='text-right'>
-                      <span className='font-mono text-xs'>{fmtPrice(r.price)}</span>
-                      <span className='text-[10px] text-muted-foreground ml-1'>
-                        {fmtPct((r.price - currentPrice) / currentPrice * 100)}
-                      </span>
-                    </div>
+                ) : (
+                  <div className='flex items-center justify-between'>
+                    <span className='text-red-500 text-xs'>压力</span>
+                    <span className='text-xs text-muted-foreground/50'>—</span>
                   </div>
-                ))}
+                )}
               </div>
             )
           })}
@@ -300,7 +128,7 @@ function SrLevelsCard({
 // 趋势过滤卡片
 // ============================================
 
-function TrendFilterCard({
+export function TrendFilterCard({
   trendFilter,
   coin,
   currentPrice,
@@ -358,10 +186,146 @@ function TrendFilterCard({
 }
 
 // ============================================
+// 订单块卡片
+// ============================================
+
+export function OrderBlocksCard({
+  orderBlocks,
+}: {
+  orderBlocks: OrderRadarData['entry_trigger']['order_blocks']
+}) {
+  return (
+    <Card>
+      <CardHeader className='pb-2'>
+        <CardTitle className='text-sm flex items-center gap-2'>
+          <Layers className='h-4 w-4' />
+          订单块
+        </CardTitle>
+      </CardHeader>
+      <CardContent className='space-y-1 text-sm'>
+        {orderBlocks.bullish.map((ob, i) => (
+          <div key={`b-${i}`} className='flex items-center justify-between'>
+            <span className='font-mono text-xs text-green-500'>
+              {fmtPrice(ob.low)} – {fmtPrice(ob.high)}
+            </span>
+            <span className='text-[10px] text-muted-foreground'>
+              {(ob.strength * 100).toFixed(0)}%
+            </span>
+          </div>
+        ))}
+        {orderBlocks.bearish.map((ob, i) => (
+          <div key={`s-${i}`} className='flex items-center justify-between'>
+            <span className='font-mono text-xs text-red-500'>
+              {fmtPrice(ob.low)} – {fmtPrice(ob.high)}
+            </span>
+            <span className='text-[10px] text-muted-foreground'>
+              {(ob.strength * 100).toFixed(0)}%
+            </span>
+          </div>
+        ))}
+        {orderBlocks.bullish.length === 0 &&
+          orderBlocks.bearish.length === 0 && (
+            <span className='text-xs text-muted-foreground'>暂无</span>
+          )}
+      </CardContent>
+    </Card>
+  )
+}
+
+// ============================================
+// CVD 背离卡片
+// ============================================
+
+export function CvdCard({
+  cvd,
+}: {
+  cvd: OrderRadarData['entry_trigger']['cvd']
+}) {
+  return (
+    <Card>
+      <CardHeader className='pb-2'>
+        <CardTitle className='text-sm flex items-center gap-2'>
+          <BarChart3 className='h-4 w-4' />
+          CVD 背离
+        </CardTitle>
+      </CardHeader>
+      <CardContent className='space-y-1 text-sm'>
+        <div className='flex items-center justify-between'>
+          <span className='text-xs text-muted-foreground'>趋势</span>
+          <span className='text-xs'>{cvd.trend}</span>
+        </div>
+        <div className='flex items-center justify-between'>
+          <span className='text-xs text-muted-foreground'>CVD</span>
+          <span className='font-mono text-xs'>{cvd.value.toFixed(1)}</span>
+        </div>
+        {cvd.bull_divergence && (
+          <div className='flex items-center gap-1 text-green-500 text-xs'>
+            <ArrowUpCircle className='h-3 w-3' />
+            底背离
+          </div>
+        )}
+        {cvd.bear_divergence && (
+          <div className='flex items-center gap-1 text-red-500 text-xs'>
+            <ArrowDownCircle className='h-3 w-3' />
+            顶背离
+          </div>
+        )}
+        {!cvd.bull_divergence && !cvd.bear_divergence && (
+          <div className='text-xs text-muted-foreground'>无背离</div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+// ============================================
+// OI & 费率卡片
+// ============================================
+
+export function OiFundingCard({
+  oi,
+}: {
+  oi: OrderRadarData['entry_trigger']['oi']
+}) {
+  return (
+    <Card>
+      <CardHeader className='pb-2'>
+        <CardTitle className='text-sm flex items-center gap-2'>
+          <ShieldAlert className='h-4 w-4' />
+          OI & 费率
+        </CardTitle>
+      </CardHeader>
+      <CardContent className='space-y-1 text-sm'>
+        <div className='flex items-center justify-between'>
+          <span className='text-xs text-muted-foreground'>OI</span>
+          <span className='font-mono text-xs'>
+            {oi.open_interest != null ? fmtLargeNum(oi.open_interest) : '-'}
+          </span>
+        </div>
+        <div className='flex items-center justify-between'>
+          <span className='text-xs text-muted-foreground'>费率</span>
+          <span className={`font-mono text-xs ${
+            (oi.funding_rate ?? 0) > 0 ? 'text-green-500' : 'text-red-500'
+          }`}>
+            {oi.funding_rate != null
+              ? `${(oi.funding_rate * 100).toFixed(4)}%`
+              : '-'}
+          </span>
+        </div>
+        <div className='flex items-center justify-between'>
+          <span className='text-xs text-muted-foreground'>趋势</span>
+          <FundingTrendBadge trend={oi.funding_trend} />
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+// ============================================
 // 止盈止损参考卡片
 // ============================================
 
-function TpSlCard({
+export function TpSlCard({
   tpSl,
 }: {
   tpSl: OrderRadarData['tp_sl_reference']
@@ -406,16 +370,6 @@ function TpSlCard({
 // ============================================
 // 小组件
 // ============================================
-
-function StrengthBadge({ strength }: { strength: string }) {
-  const config: Record<string, { label: string; cls: string }> = {
-    strong: { label: '强', cls: 'bg-green-500/20 text-green-600 dark:text-green-400' },
-    moderate: { label: '中', cls: 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400' },
-    weak: { label: '弱', cls: 'bg-gray-500/20 text-gray-500' },
-  }
-  const c = config[strength] ?? config.weak
-  return <Badge variant='outline' className={`text-[10px] px-1 py-0 h-4 ${c.cls}`}>{c.label}</Badge>
-}
 
 function FundingTrendBadge({ trend }: { trend: string }) {
   const config: Record<string, { label: string; cls: string }> = {

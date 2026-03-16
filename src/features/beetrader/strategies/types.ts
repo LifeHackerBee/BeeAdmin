@@ -37,6 +37,23 @@ export interface KdjIndicator {
   j: number
   cross: 'golden' | 'death' | null
   zone: 'overbought' | 'oversold' | 'bullish' | 'bearish' | 'neutral'
+  j_extreme: 'extreme_overbought' | 'extreme_oversold' | null
+}
+
+// ── 均线 ──
+export interface MovingAverages {
+  ma5: number | null
+  ma7: number | null
+  ma20: number | null
+  ma60: number | null
+  alignment: 'bullish' | 'bearish' | 'mixed' | 'unknown'
+}
+
+// ── 阶梯式形态 ──
+export interface StaircasePattern {
+  pattern: 'higher_lows' | 'lower_lows' | 'staircase_up' | 'unknown'
+  swing_lows: number[]
+  swing_highs: number[]
 }
 
 // ── 斐波那契 ──
@@ -56,6 +73,7 @@ export interface Indicators {
   rsi: Record<string, RsiIndicator>
   kdj: Record<string, KdjIndicator>
   fibonacci: FibonacciData
+  moving_averages: Record<string, MovingAverages>
 }
 
 // ── 多周期状态 ──
@@ -133,6 +151,7 @@ export interface BeeTraderStrategyData {
   indicators: Indicators
   bull_bear_line: BullBearLine
   volume_analysis: VolumeAnalysis
+  staircase_pattern: Record<string, StaircasePattern>
   strategy: Strategy
 }
 

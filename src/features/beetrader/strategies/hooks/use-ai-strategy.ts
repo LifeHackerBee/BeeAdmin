@@ -52,10 +52,11 @@ const SYSTEM_PROMPT = `你是一位专业的加密货币交易策略分析师，
 
 你将收到一份币种的完整技术分析数据，包含：
 1. **多周期状态** (短线1H-4H / 中线日线 / 长线周线)
-2. **技术指标** (MACD含零轴分析 / 布林带 / RSI / KDJ / 斐波那契回撤)
-3. **多空分界线** (基于日线中轨+4H EMA20+VWAP加权)
+2. **技术指标** (MACD含零轴分析 / 布林带 / RSI / KDJ / 斐波那契回撤+扩展 / 均线MA5/7/20/60)
+3. **多空分界线** (基于日线中轨+4H EMA20+日线MA60+VWAP加权)
 4. **成交量分析** (量价匹配 / 无量拉升检测)
-5. **策略引擎的初步建议** (共振评分 / 偏向 / 关键位)
+5. **阶梯形态** (低点抬高/降低, 阶梯式上涨/下跌)
+6. **策略引擎的初步建议** (共振评分 / 偏向 / 关键位)
 
 ## 分析原则
 
@@ -65,6 +66,10 @@ const SYSTEM_PROMPT = `你是一位专业的加密货币交易策略分析师，
 4. **顺大势逆小势**: 偏多时不追涨, 等弱势回踩到支撑位再接多; 偏空时不追跌, 等反弹到压力位再做空。
 5. **盈亏比硬约束**: 必须 >= 1.5:1, 不满足则观望。
 6. **进场灵活**: 给出合理的建仓区间, 不必严格踩点。
+7. **均线排列**: MA5>MA7>MA20为多头排列, 短期均线企稳代表短线攻击性。MA60视为上方强压力位。
+8. **阶梯形态**: 低点不断抬高(higher_lows)代表上升趋势健康; 阶梯式上涨(staircase_up)高低点同时抬高是最强形态。
+9. **KDJ J线极值**: J>100极端超买, 随时回调; J<0极端超卖, 随时反弹。
+10. **斐波那契扩展**: 突破1.0后, 1.382和1.618为上方目标价。
 
 ## 输出要求
 
@@ -139,8 +144,17 @@ export function useAiStrategy() {
 
 ## 斐波那契
 区间: {fib_low} - {fib_high}
-0.382={fib_382} | 0.5={fib_500} | 0.618={fib_618}
+0.382={fib_382} | 0.5={fib_500} | 0.618={fib_618} | 1.382={fib_1382} | 1.618={fib_1618}
 回撤强度: {fib_strength}
+
+## 均线 MA
+1H: MA5={ma_1h_5}, MA7={ma_1h_7}, MA20={ma_1h_20}, MA60={ma_1h_60}, 排列={ma_1h_align}
+4H: MA5={ma_4h_5}, MA7={ma_4h_7}, MA20={ma_4h_20}, MA60={ma_4h_60}, 排列={ma_4h_align}
+日线: MA5={ma_1d_5}, MA7={ma_1d_7}, MA20={ma_1d_20}, MA60={ma_1d_60}, 排列={ma_1d_align}
+
+## 阶梯形态
+4H: {staircase_4h}
+日线: {staircase_1d}
 
 ## 成交量
 趋势: {vol_trend}, 量比: {vol_ratio}x, 无量拉升: {vol_hollow}
@@ -156,6 +170,8 @@ export function useAiStrategy() {
       const kdj = data.indicators.kdj
       const bb = data.indicators.bollinger
       const fib = data.indicators.fibonacci
+      const ma = data.indicators.moving_averages ?? {}
+      const sc = data.staircase_pattern ?? {}
       const ts = data.timeframe_status
 
       const chain = prompt.pipe(structured)
@@ -220,7 +236,28 @@ export function useAiStrategy() {
         fib_382: fib.levels['0.382'] ?? 0,
         fib_500: fib.levels['0.5'] ?? 0,
         fib_618: fib.levels['0.618'] ?? 0,
+        fib_1382: fib.levels['1.382'] ?? 0,
+        fib_1618: fib.levels['1.618'] ?? 0,
         fib_strength: fib.retracement_strength,
+        // 均线
+        ma_1h_5: ma['1h']?.ma5 ?? '-',
+        ma_1h_7: ma['1h']?.ma7 ?? '-',
+        ma_1h_20: ma['1h']?.ma20 ?? '-',
+        ma_1h_60: ma['1h']?.ma60 ?? '-',
+        ma_1h_align: ma['1h']?.alignment ?? 'unknown',
+        ma_4h_5: ma['4h']?.ma5 ?? '-',
+        ma_4h_7: ma['4h']?.ma7 ?? '-',
+        ma_4h_20: ma['4h']?.ma20 ?? '-',
+        ma_4h_60: ma['4h']?.ma60 ?? '-',
+        ma_4h_align: ma['4h']?.alignment ?? 'unknown',
+        ma_1d_5: ma['1d']?.ma5 ?? '-',
+        ma_1d_7: ma['1d']?.ma7 ?? '-',
+        ma_1d_20: ma['1d']?.ma20 ?? '-',
+        ma_1d_60: ma['1d']?.ma60 ?? '-',
+        ma_1d_align: ma['1d']?.alignment ?? 'unknown',
+        // 阶梯形态
+        staircase_4h: sc?.['4h']?.pattern ?? 'unknown',
+        staircase_1d: sc?.['1d']?.pattern ?? 'unknown',
         // 成交量
         vol_trend: data.volume_analysis.recent_trend,
         vol_ratio: data.volume_analysis.vol_ratio ?? 1,

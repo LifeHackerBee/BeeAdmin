@@ -356,6 +356,11 @@ export function KdjPanel({ data }: KdjPanelProps) {
                               ? '偏空'
                               : '中性'}
                     </Badge>
+                    {k.j_extreme && (
+                      <Badge variant='destructive' className='text-[10px] h-4 px-1'>
+                        {k.j_extreme === 'extreme_overbought' ? 'J>100极端' : 'J<0极端'}
+                      </Badge>
+                    )}
                   </div>
                 </div>
                 {/* 简易 K/D 条形图 */}

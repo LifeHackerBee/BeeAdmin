@@ -53,7 +53,8 @@ export function BullBearLineCard({ data, currentPrice }: Props) {
         </div>
 
         {data.components.length > 0 && (
-          <div className='flex items-center gap-3 mt-2 text-xs text-muted-foreground'>
+          <div className='flex items-center gap-3 mt-2 text-xs text-muted-foreground flex-wrap'>
+            <span className='text-muted-foreground/60'>加权计算:</span>
             {data.components.map((c) => (
               <span key={c.name} className='tabular-nums'>
                 {c.name === 'daily_bb_mid'

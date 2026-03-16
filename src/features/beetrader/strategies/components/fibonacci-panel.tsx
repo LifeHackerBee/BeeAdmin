@@ -10,6 +10,8 @@ const FIB_COLORS: Record<string, string> = {
   '0.618': 'bg-orange-500',
   '0.786': 'bg-red-400',
   '1.0': 'bg-red-600',
+  '1.382': 'bg-purple-400',
+  '1.618': 'bg-purple-600',
 }
 
 const STRENGTH_LABELS: Record<string, { label: string; color: string }> = {
@@ -154,6 +156,7 @@ export function FibonacciPanel({ data, currentPrice }: Props) {
           <div className='text-xs text-muted-foreground'>
             0.618 ({data.levels['0.618']?.toLocaleString()}) 和 0.5 ({data.levels['0.5']?.toLocaleString()}) 是判断反弹强度的关键位。
             收复 0.618 以上属于强势反弹，0.382 以下属于弱势反弹。
+            扩展位 1.382 ({data.levels['1.382']?.toLocaleString()}) 和 1.618 ({data.levels['1.618']?.toLocaleString()}) 为突破后上方目标价。
           </div>
         </div>
       </CardContent>
