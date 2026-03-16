@@ -50,6 +50,7 @@ import { Route as AuthenticatedBeetraderDashboardRouteImport } from './routes/_a
 import { Route as AuthenticatedBeetraderCandlesRouteImport } from './routes/_authenticated/beetrader/candles'
 import { Route as AuthenticatedBeetraderBacktestRouteImport } from './routes/_authenticated/beetrader/backtest'
 import { Route as AuthenticatedBeetraderAnalyzerRouteImport } from './routes/_authenticated/beetrader/analyzer'
+import { Route as AuthenticatedBeetraderStrategyBotRouteImport } from './routes/_authenticated/beetrader/strategy-bot'
 import { Route as AuthenticatedMonitoringTasksIndexRouteImport } from './routes/_authenticated/monitoring/tasks/index'
 import { Route as AuthenticatedFinanceStatisticsIndexRouteImport } from './routes/_authenticated/finance/statistics/index'
 import { Route as AuthenticatedFinanceLiabilitiesIndexRouteImport } from './routes/_authenticated/finance/liabilities/index'
@@ -288,6 +289,12 @@ const AuthenticatedBeetraderAnalyzerRoute =
     path: '/analyzer',
     getParentRoute: () => AuthenticatedBeetraderRouteRoute,
   } as any)
+const AuthenticatedBeetraderStrategyBotRoute =
+  AuthenticatedBeetraderStrategyBotRouteImport.update({
+    id: '/strategy-bot',
+    path: '/strategy-bot',
+    getParentRoute: () => AuthenticatedBeetraderRouteRoute,
+  } as any)
 const AuthenticatedMonitoringTasksIndexRoute =
   AuthenticatedMonitoringTasksIndexRouteImport.update({
     id: '/monitoring/tasks/',
@@ -375,6 +382,7 @@ export interface FileRoutesByFullPath {
   '/beetrader/monitor-observation': typeof AuthenticatedBeetraderMonitorObservationRoute
   '/beetrader/signals': typeof AuthenticatedBeetraderSignalsRoute
   '/beetrader/strategies': typeof AuthenticatedBeetraderStrategiesRoute
+  '/beetrader/strategy-bot': typeof AuthenticatedBeetraderStrategyBotRoute
   '/beetrader/tracker': typeof AuthenticatedBeetraderTrackerRoute
   '/beetrader/whale-wallet-manage': typeof AuthenticatedBeetraderWhaleWalletManageRoute
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
@@ -424,6 +432,7 @@ export interface FileRoutesByTo {
   '/beetrader/monitor-observation': typeof AuthenticatedBeetraderMonitorObservationRoute
   '/beetrader/signals': typeof AuthenticatedBeetraderSignalsRoute
   '/beetrader/strategies': typeof AuthenticatedBeetraderStrategiesRoute
+  '/beetrader/strategy-bot': typeof AuthenticatedBeetraderStrategyBotRoute
   '/beetrader/tracker': typeof AuthenticatedBeetraderTrackerRoute
   '/beetrader/whale-wallet-manage': typeof AuthenticatedBeetraderWhaleWalletManageRoute
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
@@ -477,6 +486,7 @@ export interface FileRoutesById {
   '/_authenticated/beetrader/market': typeof AuthenticatedBeetraderMarketRoute
   '/_authenticated/beetrader/monitor-observation': typeof AuthenticatedBeetraderMonitorObservationRoute
   '/_authenticated/beetrader/signals': typeof AuthenticatedBeetraderSignalsRoute
+  '/_authenticated/beetrader/strategy-bot': typeof AuthenticatedBeetraderStrategyBotRoute
   '/_authenticated/beetrader/strategies': typeof AuthenticatedBeetraderStrategiesRoute
   '/_authenticated/beetrader/tracker': typeof AuthenticatedBeetraderTrackerRoute
   '/_authenticated/beetrader/whale-wallet-manage': typeof AuthenticatedBeetraderWhaleWalletManageRoute
@@ -532,6 +542,7 @@ export interface FileRouteTypes {
     | '/beetrader/monitor-observation'
     | '/beetrader/signals'
     | '/beetrader/strategies'
+    | '/beetrader/strategy-bot'
     | '/beetrader/tracker'
     | '/beetrader/whale-wallet-manage'
     | '/errors/$error'
@@ -581,6 +592,7 @@ export interface FileRouteTypes {
     | '/beetrader/monitor-observation'
     | '/beetrader/signals'
     | '/beetrader/strategies'
+    | '/beetrader/strategy-bot'
     | '/beetrader/tracker'
     | '/beetrader/whale-wallet-manage'
     | '/errors/$error'
@@ -634,6 +646,7 @@ export interface FileRouteTypes {
     | '/_authenticated/beetrader/monitor-observation'
     | '/_authenticated/beetrader/signals'
     | '/_authenticated/beetrader/strategies'
+    | '/_authenticated/beetrader/strategy-bot'
     | '/_authenticated/beetrader/tracker'
     | '/_authenticated/beetrader/whale-wallet-manage'
     | '/_authenticated/errors/$error'
@@ -964,6 +977,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedBeetraderAnalyzerRouteImport
       parentRoute: typeof AuthenticatedBeetraderRouteRoute
     }
+    '/_authenticated/beetrader/strategy-bot': {
+      id: '/_authenticated/beetrader/strategy-bot'
+      path: '/strategy-bot'
+      fullPath: '/beetrader/strategy-bot'
+      preLoaderRoute: typeof AuthenticatedBeetraderStrategyBotRouteImport
+      parentRoute: typeof AuthenticatedBeetraderRouteRoute
+    }
     '/_authenticated/monitoring/tasks/': {
       id: '/_authenticated/monitoring/tasks/'
       path: '/monitoring/tasks'
@@ -1048,6 +1068,7 @@ interface AuthenticatedBeetraderRouteRouteChildren {
   AuthenticatedBeetraderMonitorObservationRoute: typeof AuthenticatedBeetraderMonitorObservationRoute
   AuthenticatedBeetraderSignalsRoute: typeof AuthenticatedBeetraderSignalsRoute
   AuthenticatedBeetraderStrategiesRoute: typeof AuthenticatedBeetraderStrategiesRoute
+  AuthenticatedBeetraderStrategyBotRoute: typeof AuthenticatedBeetraderStrategyBotRoute
   AuthenticatedBeetraderTrackerRoute: typeof AuthenticatedBeetraderTrackerRoute
   AuthenticatedBeetraderWhaleWalletManageRoute: typeof AuthenticatedBeetraderWhaleWalletManageRoute
   AuthenticatedBeetraderIndexRoute: typeof AuthenticatedBeetraderIndexRoute
@@ -1068,6 +1089,8 @@ const AuthenticatedBeetraderRouteRouteChildren: AuthenticatedBeetraderRouteRoute
     AuthenticatedBeetraderSignalsRoute: AuthenticatedBeetraderSignalsRoute,
     AuthenticatedBeetraderStrategiesRoute:
       AuthenticatedBeetraderStrategiesRoute,
+    AuthenticatedBeetraderStrategyBotRoute:
+      AuthenticatedBeetraderStrategyBotRoute,
     AuthenticatedBeetraderTrackerRoute: AuthenticatedBeetraderTrackerRoute,
     AuthenticatedBeetraderWhaleWalletManageRoute:
       AuthenticatedBeetraderWhaleWalletManageRoute,

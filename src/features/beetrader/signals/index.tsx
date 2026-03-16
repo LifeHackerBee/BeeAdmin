@@ -2,7 +2,6 @@ import { useNavigate } from '@tanstack/react-router'
 import { Route } from '@/routes/_authenticated/beetrader/signals'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Radar } from 'lucide-react'
-import { RadarJobsTab } from './components/radar-jobs-tab'
 import { Macroscopic } from '../macroscopic'
 import { Candles } from '../candles'
 import { MarketDepth } from '../market/components/market-depth'
@@ -32,7 +31,6 @@ export function TradingSignals() {
         <TabsList>
           <TabsTrigger value='market'>市场观察</TabsTrigger>
           <TabsTrigger value='analyze'>交易分析</TabsTrigger>
-          <TabsTrigger value='jobs'>后台任务</TabsTrigger>
         </TabsList>
 
         <TabsContent value='market' className='space-y-6'>
@@ -65,10 +63,6 @@ export function TradingSignals() {
 
         <TabsContent value='analyze' className='space-y-3'>
           <UnifiedAnalysis />
-        </TabsContent>
-
-        <TabsContent value='jobs'>
-          <RadarJobsTab />
         </TabsContent>
       </Tabs>
     </div>

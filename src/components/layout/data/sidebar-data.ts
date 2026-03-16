@@ -21,6 +21,7 @@ import {
   ScanLine,
   Link2,
   Activity,
+  Bot,
 } from 'lucide-react'
 import { type SidebarData } from '../types'
 
@@ -98,6 +99,11 @@ export const sidebarData: SidebarData = {
               title: '交易分析',
               url: '/beetrader/signals',
               icon: TrendingUp,
+            },
+            {
+              title: '交易机器人',
+              url: '/beetrader/strategy-bot',
+              icon: Bot,
             },
             {
               title: '回测模块',
