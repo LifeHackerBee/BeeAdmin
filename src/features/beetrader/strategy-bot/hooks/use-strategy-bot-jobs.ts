@@ -32,6 +32,8 @@ export interface StrategyBotJob {
   custom_user_prompt: string | null
   tp_pct: number | null
   sl_pct: number | null
+  scale_in_count: number
+  scale_out_count: number
   created_at: string
   updated_at: string
 }
@@ -100,7 +102,7 @@ export function useStrategyBotJobs() {
   }, [jobs, fetchJobs])
 
   const createJob = useCallback(
-    async (coin: string, interval: number = 120, autoTrade: boolean = true, accountBalance: number = 10000) => {
+    async (coin: string, interval: number = 120, autoTrade: boolean = true, accountBalance: number = 20000) => {
       try {
         const res = await hyperliquidApiPost<JobResponse>(API_PREFIX, {
           coin,

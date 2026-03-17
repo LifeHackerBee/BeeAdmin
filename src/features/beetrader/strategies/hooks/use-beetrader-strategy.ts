@@ -36,5 +36,5 @@ export function useBeeTraderStrategy() {
     setError(null)
   }, [])
 
-  return { analyze, loading, error, data, reset }
+  return { analyze, loading, error, data, setData, reset }
 }

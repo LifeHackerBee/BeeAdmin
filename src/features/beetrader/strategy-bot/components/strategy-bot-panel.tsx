@@ -89,22 +89,74 @@ function StatusBadge({ status }: { status: StrategyBotJob['status'] }) {
   }
 }
 
-// ── 信号 Badge ──
+// ── 信号详情 ──
 
-function SignalBadge({ action, confidence }: { action: string | null; confidence: number | null }) {
+function SignalDetail({ action, confidence, signal }: { action: string | null; confidence: number | null; signal: Record<string, unknown> | null }) {
   if (!action) return <span className='text-muted-foreground text-xs'>-</span>
 
-  const Icon = action === 'long' ? TrendingUp : action === 'short' ? TrendingDown : action === 'close' ? RotateCcw : Minus
-  const color = action === 'long' ? 'text-green-500' : action === 'short' ? 'text-red-500' : action === 'close' ? 'text-orange-500' : 'text-yellow-500'
-  const label = action === 'long' ? '做多' : action === 'short' ? '做空' : action === 'close' ? '平仓' : '观望'
+  const Icon = action === 'long' ? TrendingUp : action === 'short' ? TrendingDown : action === 'close' ? RotateCcw : action === 'add' ? Plus : action === 'reduce' ? Minus : Minus
+  const color = action === 'long' ? 'text-green-500' : action === 'short' ? 'text-red-500' : action === 'close' ? 'text-orange-500' : action === 'add' ? 'text-blue-500' : action === 'reduce' ? 'text-purple-500' : 'text-yellow-500'
+  const label = action === 'long' ? '做多' : action === 'short' ? '做空' : action === 'close' ? '平仓' : action === 'add' ? '加仓' : action === 'reduce' ? '减仓' : '观望'
+
+  const entryPrice = signal?.entry_price as number | undefined
+  const takeProfit = signal?.take_profit as number | undefined
+  const stopLoss = signal?.stop_loss as number | undefined
+  const reason = signal?.reason as string | undefined
+  const hasPrices = entryPrice != null && (action === 'long' || action === 'short')
 
   return (
-    <span className={`flex items-center gap-1 text-xs font-medium ${color}`}>
-      <Icon className='h-3 w-3' />
-      {label}
-      {confidence != null && <span className='font-mono text-[10px] opacity-70'>({confidence})</span>}
-    </span>
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className='cursor-help'>
+            <span className={`flex items-center gap-1 text-xs font-medium ${color}`}>
+              <Icon className='h-3 w-3' />
+              {label}
+              {confidence != null && <span className='font-mono text-[10px] opacity-70'>({confidence})</span>}
+            </span>
+            {hasPrices && (
+              <div className='flex flex-col mt-0.5 text-[10px] font-mono leading-tight'>
+                <span className='text-muted-foreground'>入场 <span className='text-foreground'>{fmtPrice(entryPrice)}</span></span>
+                <span className='text-green-500/80'>TP {fmtPrice(takeProfit)}</span>
+                <span className='text-red-500/80'>SL {fmtPrice(stopLoss)}</span>
+              </div>
+            )}
+          </div>
+        </TooltipTrigger>
+        <TooltipContent side='left' className='max-w-xs'>
+          {reason && <p className='text-xs mb-1'>{reason}</p>}
+          {hasPrices && entryPrice && (
+            <div className='text-xs space-y-0.5'>
+              <p>入场: {fmtPrice(entryPrice)}</p>
+              {takeProfit != null && (
+                <p className='text-green-500'>
+                  止盈: {fmtPrice(takeProfit)} ({action === 'long' ? '+' : '-'}{(Math.abs((takeProfit - entryPrice) / entryPrice) * 100).toFixed(2)}%)
+                </p>
+              )}
+              {stopLoss != null && (
+                <p className='text-red-500'>
+                  止损: {fmtPrice(stopLoss)} ({action === 'long' ? '-' : '+'}{(Math.abs((stopLoss - entryPrice) / entryPrice) * 100).toFixed(2)}%)
+                </p>
+              )}
+              {takeProfit != null && stopLoss != null && (
+                <p className='text-muted-foreground'>
+                  盈亏比: {(Math.abs(takeProfit - entryPrice) / Math.abs(stopLoss - entryPrice)).toFixed(2)}:1
+                </p>
+              )}
+            </div>
+          )}
+          {!reason && !hasPrices && <p className='text-xs text-muted-foreground'>无详情</p>}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   )
+}
+
+function fmtPrice(v: number | null | undefined): string {
+  if (v == null) return '-'
+  if (v >= 1000) return `$${v.toFixed(2)}`
+  if (v >= 1) return `$${v.toFixed(4)}`
+  return `$${v.toPrecision(4)}`
 }
 
 // ── 创建对话框 ──
@@ -121,7 +173,7 @@ function CreateBotDialog({
   const [coin, setCoin] = useState('')
   const [interval, setInterval] = useState(120)
   const [autoTrade, setAutoTrade] = useState(true)
-  const [balance, setBalance] = useState(10000)
+  const [balance, setBalance] = useState(20000)
   const [creating, setCreating] = useState(false)
 
   const handleCreate = async () => {
@@ -130,7 +182,7 @@ function CreateBotDialog({
     try {
       await onCreate(coin.trim(), interval, autoTrade, balance)
       setCoin('')
-      setBalance(10000)
+      setBalance(20000)
       onOpenChange(false)
     } catch {
       // error handled by hook
@@ -392,12 +444,14 @@ export function StrategyBotPanel() {
             <TableHeader>
               <TableRow>
                 <TableHead className='w-24'>币种</TableHead>
-                <TableHead className='w-24'>状态</TableHead>
+                <TableHead className='w-20'>状态</TableHead>
                 <TableHead>入场价</TableHead>
-                <TableHead>当前/退出价</TableHead>
+                <TableHead>当前价</TableHead>
+                <TableHead>止盈</TableHead>
+                <TableHead>止损</TableHead>
                 <TableHead>盈亏</TableHead>
                 <TableHead>ROI</TableHead>
-                <TableHead>时间</TableHead>
+                <TableHead>运行时间</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -467,8 +521,8 @@ function JobRow({
   onReset: () => void
   onSettings: () => void
 }) {
-  const balance = job.account_balance ?? 10000
-  const initialBalance = job.account_initial_balance ?? 10000
+  const balance = job.account_balance ?? 20000
+  const initialBalance = job.account_initial_balance ?? 20000
   const pnlFromBalance = balance - initialBalance
   const totalPnl = job.total_pnl ?? 0
   const winCount = job.win_count ?? 0
@@ -512,7 +566,16 @@ function JobRow({
       </TableCell>
       <TableCell>
         {job.has_open_position ? (
-          <Badge variant='outline' className='text-xs text-blue-500 border-blue-500/30'>持仓中</Badge>
+          <div className='flex flex-col gap-0.5'>
+            <Badge variant='outline' className='text-xs text-blue-500 border-blue-500/30'>持仓中</Badge>
+            {((job.scale_in_count ?? 0) > 0 || (job.scale_out_count ?? 0) > 0) && (
+              <span className='text-[10px] text-muted-foreground'>
+                {(job.scale_in_count ?? 0) > 0 && <span className='text-blue-500'>+{job.scale_in_count}加</span>}
+                {(job.scale_in_count ?? 0) > 0 && (job.scale_out_count ?? 0) > 0 && ' '}
+                {(job.scale_out_count ?? 0) > 0 && <span className='text-purple-500'>-{job.scale_out_count}减</span>}
+              </span>
+            )}
+          </div>
         ) : (
           <span className='text-xs text-muted-foreground'>空仓</span>
         )}
@@ -546,7 +609,7 @@ function JobRow({
         )}
       </TableCell>
       <TableCell>
-        <SignalBadge action={job.last_signal_action} confidence={job.last_signal_confidence} />
+        <SignalDetail action={job.last_signal_action} confidence={job.last_signal_confidence} signal={job.last_signal_json} />
       </TableCell>
       <TableCell className='text-right'>
         <div className='flex items-center justify-end gap-1'>
@@ -617,6 +680,20 @@ function SignalTaskRow({ task }: { task: BacktestTrackerTask }) {
   const dirColor = task.entry_direction === 'long' ? 'text-green-500' : 'text-red-500'
   const DirIcon = task.entry_direction === 'long' ? TrendingUp : TrendingDown
 
+  // TP/SL 距离百分比
+  const tpPct = task.take_profit != null && task.entry_price != null
+    ? Math.abs((task.take_profit - task.entry_price) / task.entry_price * 100) : null
+  const slPct = task.stop_loss != null && task.entry_price != null
+    ? Math.abs((task.stop_loss - task.entry_price) / task.entry_price * 100) : null
+
+  // 当前价距 TP/SL 的进度
+  const tpProgress = currentPrice != null && task.entry_price != null && task.take_profit != null
+    ? ((currentPrice - task.entry_price) / (task.take_profit - task.entry_price) * 100) : null
+
+  // 运行时间
+  const startTime = task.entry_time || task.created_at
+  const elapsed = formatDuration(startTime, task.status === 'running' ? undefined : task.last_tracked_at ?? undefined)
+
   return (
     <TableRow>
       <TableCell>
@@ -636,10 +713,41 @@ function SignalTaskRow({ task }: { task: BacktestTrackerTask }) {
         )}
       </TableCell>
       <TableCell className='text-xs font-mono'>
-        {task.entry_price != null ? `$${task.entry_price.toFixed(2)}` : '-'}
+        {fmtPrice(task.entry_price)}
       </TableCell>
-      <TableCell className='text-xs font-mono'>
-        {currentPrice != null ? `$${currentPrice.toFixed(2)}` : '-'}
+      <TableCell>
+        {currentPrice != null ? (
+          <div className='flex flex-col'>
+            <span className='text-xs font-mono font-medium'>{fmtPrice(currentPrice)}</span>
+            {tpProgress != null && task.status === 'running' && (
+              <span className={`text-[10px] font-mono ${tpProgress >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                {tpProgress >= 0 ? '>' : '<'} TP {Math.abs(tpProgress).toFixed(0)}%
+              </span>
+            )}
+          </div>
+        ) : (
+          <span className='text-xs text-muted-foreground'>-</span>
+        )}
+      </TableCell>
+      <TableCell>
+        {task.take_profit != null ? (
+          <div className='flex flex-col'>
+            <span className='text-xs font-mono text-green-500'>{fmtPrice(task.take_profit)}</span>
+            {tpPct != null && <span className='text-[10px] text-muted-foreground'>+{tpPct.toFixed(2)}%</span>}
+          </div>
+        ) : (
+          <span className='text-xs text-muted-foreground'>-</span>
+        )}
+      </TableCell>
+      <TableCell>
+        {task.stop_loss != null ? (
+          <div className='flex flex-col'>
+            <span className='text-xs font-mono text-red-500'>{fmtPrice(task.stop_loss)}</span>
+            {slPct != null && <span className='text-[10px] text-muted-foreground'>-{slPct.toFixed(2)}%</span>}
+          </div>
+        ) : (
+          <span className='text-xs text-muted-foreground'>-</span>
+        )}
       </TableCell>
       <TableCell>
         {pnl != null ? (
@@ -659,13 +767,23 @@ function SignalTaskRow({ task }: { task: BacktestTrackerTask }) {
           <span className='text-xs text-muted-foreground'>-</span>
         )}
       </TableCell>
-      <TableCell className='text-xs text-muted-foreground'>
-        {new Date(task.created_at).toLocaleString('zh-CN', {
-          month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
-        })}
+      <TableCell className='text-xs text-muted-foreground whitespace-nowrap'>
+        {elapsed}
       </TableCell>
     </TableRow>
   )
+}
+
+function formatDuration(startIso: string, endIso?: string): string {
+  const start = new Date(startIso).getTime()
+  const end = endIso ? new Date(endIso).getTime() : Date.now()
+  const diff = Math.max(0, end - start)
+  const mins = Math.floor(diff / 60000)
+  const hours = Math.floor(mins / 60)
+  const days = Math.floor(hours / 24)
+  if (days > 0) return `${days}天${hours % 24}时`
+  if (hours > 0) return `${hours}时${mins % 60}分`
+  return `${mins}分`
 }
 
 // ── 设置对话框 ──
@@ -685,8 +803,8 @@ function BotSettingsDialog({
 }) {
   const [systemPrompt, setSystemPrompt] = useState(job.custom_system_prompt ?? '')
   const [userPrompt, setUserPrompt] = useState(job.custom_user_prompt ?? '')
-  const [tpPct, setTpPct] = useState(job.tp_pct ?? 0)
-  const [slPct, setSlPct] = useState(job.sl_pct ?? 0)
+  const [tpPct, setTpPct] = useState(job.tp_pct != null && job.tp_pct > 0 ? String(job.tp_pct) : '')
+  const [slPct, setSlPct] = useState(job.sl_pct != null && job.sl_pct > 0 ? String(job.sl_pct) : '')
   const [saving, setSaving] = useState(false)
   const [defaults, setDefaults] = useState<DefaultPrompts | null>(null)
   const [loadingDefaults, setLoadingDefaults] = useState(false)
@@ -704,11 +822,13 @@ function BotSettingsDialog({
   const handleSave = async () => {
     setSaving(true)
     try {
+      const tp = parseFloat(tpPct) || 0
+      const sl = parseFloat(slPct) || 0
       await onSave({
         custom_system_prompt: systemPrompt.trim() || null,
         custom_user_prompt: userPrompt.trim() || null,
-        tp_pct: tpPct > 0 ? tpPct : 0,
-        sl_pct: slPct > 0 ? slPct : 0,
+        tp_pct: tp > 0 ? tp : 0,
+        sl_pct: sl > 0 ? sl : 0,
       })
     } catch {
       // error handled by hook
@@ -796,46 +916,70 @@ function BotSettingsDialog({
           </TabsContent>
 
           <TabsContent value='tpsl' className='space-y-4 mt-4'>
-            <div className='space-y-1'>
-              <Label>止盈百分比 (%)</Label>
-              <Input
-                type='number'
-                value={tpPct}
-                onChange={(e) => setTpPct(Number(e.target.value))}
-                min={0}
-                max={100}
-                step={0.5}
-                placeholder='如 3.0 表示 3%'
-              />
-              <p className='text-[10px] text-muted-foreground'>
-                设置后将覆盖 AI 输出的止盈价。设为 0 则使用 AI 自行判断。
-              </p>
-            </div>
-            <div className='space-y-1'>
-              <Label>止损百分比 (%)</Label>
-              <Input
-                type='number'
-                value={slPct}
-                onChange={(e) => setSlPct(Number(e.target.value))}
-                min={0}
-                max={100}
-                step={0.5}
-                placeholder='如 2.0 表示 2%'
-              />
-              <p className='text-[10px] text-muted-foreground'>
-                设置后将覆盖 AI 输出的止损价。设为 0 则使用 AI 自行判断。
-              </p>
-            </div>
-            {tpPct > 0 && slPct > 0 && (
-              <Alert>
-                <AlertDescription className='text-xs'>
-                  盈亏比: {(tpPct / slPct).toFixed(2)}:1
-                  {tpPct / slPct < 1.5 && (
-                    <span className='text-yellow-500 ml-2'>（低于推荐的 1.5:1）</span>
+            {(() => {
+              const bal = job.account_balance ?? 20000
+              const tp = parseFloat(tpPct) || 0
+              const sl = parseFloat(slPct) || 0
+              return (
+                <>
+                  <p className='text-xs text-muted-foreground'>
+                    按本金盈亏百分比设置止盈止损。例如本金 ${bal.toFixed(0)}，
+                    设 3% 止盈 = 盈利 ${(bal * 0.03).toFixed(0)} 时平仓。
+                  </p>
+                  <div className='space-y-1'>
+                    <Label>止盈 — 本金盈利 (%)</Label>
+                    <Input
+                      type='number'
+                      value={tpPct}
+                      onChange={(e) => setTpPct(e.target.value)}
+                      min={0}
+                      max={100}
+                      step={0.5}
+                      placeholder='如 3'
+                    />
+                    {tp > 0 ? (
+                      <p className='text-[10px] text-muted-foreground'>
+                        盈利 ${(bal * tp / 100).toFixed(2)} 时止盈（1x 杠杆下价格变动 {tp.toFixed(2)}%）
+                      </p>
+                    ) : (
+                      <p className='text-[10px] text-muted-foreground'>留空或设为 0 则使用 AI 自行判断止盈点位</p>
+                    )}
+                  </div>
+                  <div className='space-y-1'>
+                    <Label>止损 — 本金亏损 (%)</Label>
+                    <Input
+                      type='number'
+                      value={slPct}
+                      onChange={(e) => setSlPct(e.target.value)}
+                      min={0}
+                      max={100}
+                      step={0.5}
+                      placeholder='如 2'
+                    />
+                    {sl > 0 ? (
+                      <p className='text-[10px] text-muted-foreground'>
+                        亏损 ${(bal * sl / 100).toFixed(2)} 时止损（1x 杠杆下价格变动 {sl.toFixed(2)}%）
+                      </p>
+                    ) : (
+                      <p className='text-[10px] text-muted-foreground'>留空或设为 0 则使用 AI 自行判断止损点位</p>
+                    )}
+                  </div>
+                  {tp > 0 && sl > 0 && (
+                    <Alert>
+                      <AlertDescription className='text-xs'>
+                        盈亏比: {(tp / sl).toFixed(2)}:1
+                        {tp / sl < 1.5 && (
+                          <span className='text-yellow-500 ml-2'>（低于推荐的 1.5:1）</span>
+                        )}
+                        <span className='text-muted-foreground ml-2'>
+                          | 止盈 +${(bal * tp / 100).toFixed(0)} / 止损 -${(bal * sl / 100).toFixed(0)}
+                        </span>
+                      </AlertDescription>
+                    </Alert>
                   )}
-                </AlertDescription>
-              </Alert>
-            )}
+                </>
+              )
+            })()}
           </TabsContent>
         </Tabs>
 

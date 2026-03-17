@@ -41,6 +41,8 @@ import {
 import { FibonacciPanel } from '../../strategies/components/fibonacci-panel'
 import { VolumeAnalysisPanel } from '../../strategies/components/volume-analysis'
 import { MovingAveragesPanel, StaircasePatternPanel } from '../../strategies/components/moving-averages-panel'
+import { hyperliquidApiGet } from '@/lib/hyperliquid-api-client'
+import type { BeeTraderStrategyData } from '../../strategies/types'
 
 const POPULAR_COINS = ['BTC', 'ETH', 'SOL', 'HYPE', 'SUI', 'DOGE', 'xyz:GOLD', 'xyz:BRENTOIL', 'xyz:SILVER']
 const AUTO_REFRESH_INTERVAL = 60 // 秒
@@ -64,6 +66,24 @@ export function UnifiedAnalysis() {
   // 清算热力图
   const liqMap = useLiquidationMap()
 
+  // 页面加载时获取最新分析记录
+  const [historyLoaded, setHistoryLoaded] = useState(false)
+  const [historyTime, setHistoryTime] = useState<string | null>(null)
+  useEffect(() => {
+    if (historyLoaded) return
+    setHistoryLoaded(true)
+    hyperliquidApiGet<{ success: boolean; record: { coin: string; strategy_data: BeeTraderStrategyData; created_at: string } | null }>(
+      '/api/beetrader_strategy/history/latest'
+    ).then((res) => {
+      if (res.record) {
+        setCoin(res.record.coin)
+        strategy.setData(res.record.strategy_data)
+        setHistoryTime(res.record.created_at)
+        setLastUpdated(new Date(res.record.created_at))
+      }
+    }).catch(() => {})
+  }, [historyLoaded]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const loading = radar.loading || strategy.loading
   const loadingRef = useRef(loading)
   loadingRef.current = loading
@@ -82,6 +102,7 @@ export function UnifiedAnalysis() {
     radar.reset()
     strategy.reset()
     aiStrategy.reset()
+    setHistoryTime(null)
     doAnalyze(coin)
     setCountdown(AUTO_REFRESH_INTERVAL)
   }
@@ -187,6 +208,7 @@ export function UnifiedAnalysis() {
         )}
         {lastUpdated && (
           <span className='text-xs text-muted-foreground ml-auto'>
+            {historyTime && !radar.data && !strategy.loading ? '历史记录 · ' : ''}
             更新于 {lastUpdated.toLocaleTimeString()}
           </span>
         )}
