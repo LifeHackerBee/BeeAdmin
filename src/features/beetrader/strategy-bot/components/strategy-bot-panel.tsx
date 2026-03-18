@@ -435,7 +435,7 @@ export function StrategyBotPanel() {
 
       {/* ── 交易记录 ── */}
       {(() => {
-        const tradeLogs = botLogs.logs.filter((l) => l.level === 'trade' || l.level === 'signal')
+        const tradeLogs = botLogs.logs.filter((l) => l.level === 'trade')
         if (tradeLogs.length === 0 && signalTasks.stats.total === 0) return null
         return (
           <Card>
@@ -705,19 +705,11 @@ const TRADE_STAGE_CONFIG: Record<string, { label: string; color: string; bg: str
   trade_reduce: { label: '减仓', color: 'text-purple-600', bg: 'bg-purple-50 dark:bg-purple-950/30' },
   trade_close: { label: '平仓', color: 'text-orange-600', bg: 'bg-orange-50 dark:bg-orange-950/30' },
   settle: { label: '结算', color: 'text-amber-600', bg: 'bg-amber-50 dark:bg-amber-950/30' },
-  ai_signal: { label: '信号', color: 'text-muted-foreground', bg: '' },
 }
 
 function TradeLogRow({ log }: { log: BotLog }) {
-  const [expanded, setExpanded] = useState(false)
-  const cfg = TRADE_STAGE_CONFIG[log.stage] ?? (
-    log.level === 'trade'
-      ? { label: '交易', color: 'text-blue-600', bg: 'bg-blue-50 dark:bg-blue-950/30' }
-      : { label: '信号', color: 'text-muted-foreground', bg: '' }
-  )
+  const cfg = TRADE_STAGE_CONFIG[log.stage] ?? { label: '交易', color: 'text-blue-600', bg: 'bg-blue-50 dark:bg-blue-950/30' }
   const detail = log.detail as Record<string, unknown>
-  const isTrade = log.level === 'trade'
-  const isSignal = log.level === 'signal'
 
   // 从 detail 提取关键信息
   const direction = detail?.direction as string | undefined
@@ -726,8 +718,6 @@ function TradeLogRow({ log }: { log: BotLog }) {
   const sl = detail?.stop_loss as number | undefined
   const amount = detail?.amount as number | undefined
   const pnl = detail?.pnl as number ?? detail?.partial_pnl as number | undefined
-  const reason = detail?.reason as string | undefined
-  const confidence = detail?.confidence as number | undefined
   const currentPrice = detail?.current_price as number | undefined
   const reduceAmount = detail?.reduce_amount as number | undefined
   const newAmount = detail?.new_amount as number | undefined
@@ -748,7 +738,7 @@ function TradeLogRow({ log }: { log: BotLog }) {
 
         {/* 内容 */}
         <div className='flex-1 min-w-0'>
-          {isTrade && log.stage === 'trade_open' && direction && (
+          {log.stage === 'trade_open' && direction && (
             <div className='space-y-0.5'>
               <div className='flex items-center gap-2 text-xs'>
                 <Badge variant='outline' className='text-[10px] px-1.5 py-0'>{log.coin}</Badge>
@@ -766,7 +756,7 @@ function TradeLogRow({ log }: { log: BotLog }) {
             </div>
           )}
 
-          {isTrade && (log.stage === 'trade_add' || log.stage === 'trade_reduce') && (
+          {(log.stage === 'trade_add' || log.stage === 'trade_reduce') && (
             <div className='space-y-0.5'>
               <div className='flex items-center gap-2 text-xs'>
                 <Badge variant='outline' className='text-[10px] px-1.5 py-0'>{log.coin}</Badge>
@@ -788,7 +778,7 @@ function TradeLogRow({ log }: { log: BotLog }) {
             </div>
           )}
 
-          {isTrade && (log.stage === 'trade_close' || log.stage === 'settle') && (
+          {(log.stage === 'trade_close' || log.stage === 'settle') && (
             <div className='flex items-center gap-2 text-xs'>
               <Badge variant='outline' className='text-[10px] px-1.5 py-0'>{log.coin}</Badge>
               <span>{log.message}</span>
@@ -800,34 +790,10 @@ function TradeLogRow({ log }: { log: BotLog }) {
             </div>
           )}
 
-          {isTrade && !['trade_open', 'trade_add', 'trade_reduce', 'trade_close', 'settle'].includes(log.stage) && (
+          {!['trade_open', 'trade_add', 'trade_reduce', 'trade_close', 'settle'].includes(log.stage) && (
             <div className='flex items-center gap-2 text-xs'>
               <Badge variant='outline' className='text-[10px] px-1.5 py-0'>{log.coin}</Badge>
               <span>{log.message}</span>
-            </div>
-          )}
-
-          {isSignal && (
-            <div className='space-y-0.5'>
-              <div className='flex items-center gap-2 text-xs'>
-                <Badge variant='outline' className='text-[10px] px-1.5 py-0'>{log.coin}</Badge>
-                <span className={
-                  direction === 'long' ? 'text-green-600' :
-                  direction === 'short' ? 'text-red-600' :
-                  direction === 'close' ? 'text-orange-500' :
-                  direction === 'add' ? 'text-cyan-600' :
-                  direction === 'reduce' ? 'text-purple-600' :
-                  'text-muted-foreground'
-                }>
-                  {direction === 'long' ? '做多' : direction === 'short' ? '做空' : direction === 'close' ? '平仓' : direction === 'add' ? '加仓' : direction === 'reduce' ? '减仓' : '观望'}
-                </span>
-                {confidence != null && <span className='text-[10px] text-muted-foreground'>({confidence}/10)</span>}
-              </div>
-              {reason && (
-                <p className={`text-[10px] leading-relaxed ${expanded ? '' : 'line-clamp-1'} text-muted-foreground cursor-pointer`} onClick={() => setExpanded(!expanded)}>
-                  {reason}
-                </p>
-              )}
             </div>
           )}
         </div>
