@@ -24,7 +24,7 @@ export function useBotLogs(jobId?: number, coin?: string) {
 
   const fetchLogs = useCallback(async () => {
     try {
-      const params = new URLSearchParams({ limit: '100' })
+      const params = new URLSearchParams({ limit: '1000' })
       if (jobId != null) params.set('job_id', String(jobId))
       if (coin) params.set('coin', coin)
       const res = await hyperliquidApiGet<LogsResponse>(

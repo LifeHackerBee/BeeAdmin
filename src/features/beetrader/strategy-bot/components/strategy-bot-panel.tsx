@@ -278,6 +278,15 @@ export function StrategyBotPanel() {
   const aggWinRate = aggTrades > 0 ? (aggWins / aggTrades) * 100 : 0
   const openPositions = jobs.filter((j) => j.has_open_position).length
 
+  // 汇总浮动盈亏
+  const aggFloatingPnl = jobs.reduce((sum, j) => {
+    if (!j.has_open_position || !j.open_task_id) return sum
+    const task = signalTasks.tasks.find((t) => t.id === j.open_task_id && t.status === 'running')
+    if (!task) return sum
+    const pnl = calcPnl(task)
+    return pnl != null ? sum + pnl : sum
+  }, 0)
+
   return (
     <div className='space-y-3'>
       {/* 顶部操作栏 */}
@@ -302,7 +311,16 @@ export function StrategyBotPanel() {
                 <span className={runningCount > 0 ? 'text-green-500' : ''}>{runningCount}</span>
                 <span className='text-sm text-muted-foreground font-normal'>/{jobs.length}</span>
               </p>
-              {openPositions > 0 && <p className='text-[10px] text-blue-500'>{openPositions} 个持仓中</p>}
+              {openPositions > 0 && (
+                <p className='text-[10px] text-blue-500'>
+                  {openPositions} 个持仓中
+                  {aggFloatingPnl !== 0 && (
+                    <span className={`ml-1 ${aggFloatingPnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                      ({aggFloatingPnl >= 0 ? '+' : ''}{aggFloatingPnl.toFixed(0)})
+                    </span>
+                  )}
+                </p>
+              )}
             </CardContent>
           </Card>
           <Card>
@@ -328,6 +346,11 @@ export function StrategyBotPanel() {
               <p className={`text-lg font-bold tabular-nums ${aggPnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                 {aggPnl >= 0 ? '+' : ''}${aggPnl.toFixed(2)}
               </p>
+              {openPositions > 0 && aggFloatingPnl !== 0 && (
+                <p className={`text-[10px] font-mono ${aggFloatingPnl >= 0 ? 'text-green-500/70' : 'text-red-500/70'}`}>
+                  浮动 {aggFloatingPnl >= 0 ? '+' : ''}${aggFloatingPnl.toFixed(2)}
+                </p>
+              )}
             </CardContent>
           </Card>
           <Card>
@@ -358,7 +381,7 @@ export function StrategyBotPanel() {
         </Alert>
       )}
 
-      {/* 任务列表 */}
+      {/* ── 策略管理 ── */}
       {loading ? (
         <div className='space-y-2'>
           <Skeleton className='h-10 w-full' />
@@ -374,6 +397,11 @@ export function StrategyBotPanel() {
         </Card>
       ) : (
         <Card>
+          <div className='flex items-center gap-2 px-4 pt-3 pb-2 border-b'>
+            <Bot className='h-4 w-4 text-blue-500' />
+            <span className='text-sm font-medium'>策略管理</span>
+            <Badge variant='outline' className='text-xs'>{jobs.length} 个</Badge>
+          </div>
           <Table>
             <TableHeader>
               <TableRow>
@@ -392,6 +420,7 @@ export function StrategyBotPanel() {
                 <JobRow
                   key={job.id}
                   job={job}
+                  trackerTasks={signalTasks.tasks}
                   onStart={() => startJob(job.id)}
                   onPause={() => pauseJob(job.id)}
                   onDelete={() => deleteJob(job.id)}
@@ -404,23 +433,20 @@ export function StrategyBotPanel() {
         </Card>
       )}
 
-      {/* 信号统计 */}
-      {signalTasks.stats.total > 0 && (
-        <Card>
-          <CardContent className='pt-4 pb-3'>
-            <div className='flex items-center gap-6'>
+      {/* ── 交易记录 ── */}
+      {(() => {
+        const tradeLogs = botLogs.logs.filter((l) => l.level === 'trade' || l.level === 'signal')
+        if (tradeLogs.length === 0 && signalTasks.stats.total === 0) return null
+        return (
+          <Card>
+            <div className='flex items-center justify-between px-4 pt-3 pb-2 border-b'>
               <div className='flex items-center gap-2'>
-                <Bot className='h-4 w-4 text-blue-500' />
-                <span className='text-sm font-medium'>策略信号测试</span>
-                <Badge variant='outline' className='text-xs'>{signalTasks.stats.total} 次</Badge>
-                {signalTasks.stats.running > 0 && (
-                  <Badge variant='secondary' className='text-xs animate-pulse'>
-                    {signalTasks.stats.running} 运行中
-                  </Badge>
-                )}
+                <Zap className='h-4 w-4 text-amber-500' />
+                <span className='text-sm font-medium'>交易记录</span>
+                <Badge variant='outline' className='text-xs'>{tradeLogs.length} 条</Badge>
               </div>
               {signalTasks.stats.settled > 0 && (
-                <div className='flex items-center gap-4 text-sm'>
+                <div className='flex items-center gap-4 text-xs'>
                   <div className='flex items-center gap-1'>
                     <Trophy className='h-3.5 w-3.5' />
                     <span className='font-mono font-bold'>{signalTasks.stats.winRate.toFixed(1)}%</span>
@@ -433,35 +459,14 @@ export function StrategyBotPanel() {
                 </div>
               )}
             </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* 信号任务列表 */}
-      {signalTasks.tasks.length > 0 && (
-        <Card>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className='w-24'>币种</TableHead>
-                <TableHead className='w-20'>状态</TableHead>
-                <TableHead>入场价</TableHead>
-                <TableHead>当前价</TableHead>
-                <TableHead>止盈</TableHead>
-                <TableHead>止损</TableHead>
-                <TableHead>盈亏</TableHead>
-                <TableHead>ROI</TableHead>
-                <TableHead>运行时间</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {signalTasks.tasks.map((task) => (
-                <SignalTaskRow key={task.id} task={task} />
+            <div className='max-h-[500px] overflow-y-auto divide-y'>
+              {tradeLogs.map((log) => (
+                <TradeLogRow key={log.id} log={log} />
               ))}
-            </TableBody>
-          </Table>
-        </Card>
-      )}
+            </div>
+          </Card>
+        )
+      })()}
 
       {/* 执行日志 */}
       <Collapsible open={logsOpen} onOpenChange={setLogsOpen}>
@@ -512,9 +517,10 @@ export function StrategyBotPanel() {
 // ── Job 行 ──
 
 function JobRow({
-  job, onStart, onPause, onDelete, onReset, onSettings,
+  job, trackerTasks, onStart, onPause, onDelete, onReset, onSettings,
 }: {
   job: StrategyBotJob
+  trackerTasks: BacktestTrackerTask[]
   onStart: () => void
   onPause: () => void
   onDelete: () => void
@@ -530,6 +536,15 @@ function JobRow({
   const totalTrades = job.total_trades ?? 0
   const winRate = totalTrades > 0 ? (winCount / totalTrades) * 100 : 0
   const canReset = job.status !== 'running' && !job.has_open_position && totalTrades > 0
+
+  // 浮动盈亏
+  const openTask = job.has_open_position && job.open_task_id
+    ? trackerTasks.find((t) => t.id === job.open_task_id && t.status === 'running')
+    : null
+  const floatingPnl = openTask ? calcPnl(openTask) : null
+  const floatingRoi = floatingPnl != null && openTask && openTask.test_amount > 0
+    ? (floatingPnl / openTask.test_amount) * 100
+    : null
 
   return (
     <TableRow>
@@ -567,13 +582,35 @@ function JobRow({
       <TableCell>
         {job.has_open_position ? (
           <div className='flex flex-col gap-0.5'>
-            <Badge variant='outline' className='text-xs text-blue-500 border-blue-500/30'>持仓中</Badge>
-            {((job.scale_in_count ?? 0) > 0 || (job.scale_out_count ?? 0) > 0) && (
-              <span className='text-[10px] text-muted-foreground'>
-                {(job.scale_in_count ?? 0) > 0 && <span className='text-blue-500'>+{job.scale_in_count}加</span>}
-                {(job.scale_in_count ?? 0) > 0 && (job.scale_out_count ?? 0) > 0 && ' '}
-                {(job.scale_out_count ?? 0) > 0 && <span className='text-purple-500'>-{job.scale_out_count}减</span>}
+            <div className='flex items-center gap-1'>
+              <Badge variant='outline' className='text-xs text-blue-500 border-blue-500/30'>
+                {openTask?.entry_direction === 'long' ? '多' : openTask?.entry_direction === 'short' ? '空' : '持仓中'}
+              </Badge>
+              {((job.scale_in_count ?? 0) > 0 || (job.scale_out_count ?? 0) > 0) && (
+                <span className='text-[10px] text-muted-foreground'>
+                  {(job.scale_in_count ?? 0) > 0 && <span className='text-blue-500'>+{job.scale_in_count}加</span>}
+                  {(job.scale_in_count ?? 0) > 0 && (job.scale_out_count ?? 0) > 0 && ' '}
+                  {(job.scale_out_count ?? 0) > 0 && <span className='text-purple-500'>-{job.scale_out_count}减</span>}
+                </span>
+              )}
+            </div>
+            {openTask && (
+              <span className='text-[10px] font-mono text-muted-foreground'>
+                仓位 ${openTask.test_amount.toFixed(0)}
+                {openTask.last_tracked_price != null && <> @ {fmtPrice(openTask.last_tracked_price)}</>}
               </span>
+            )}
+            {floatingPnl != null && (
+              <div className='flex items-center gap-1.5'>
+                <span className={`text-xs font-mono font-bold ${floatingPnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                  {floatingPnl >= 0 ? '+' : ''}${floatingPnl.toFixed(2)}
+                </span>
+                {floatingRoi != null && (
+                  <span className={`text-[10px] font-mono ${floatingPnl >= 0 ? 'text-green-500/70' : 'text-red-500/70'}`}>
+                    ({floatingRoi >= 0 ? '+' : ''}{floatingRoi.toFixed(2)}%)
+                  </span>
+                )}
+              </div>
             )}
           </div>
         ) : (
@@ -610,6 +647,13 @@ function JobRow({
       </TableCell>
       <TableCell>
         <SignalDetail action={job.last_signal_action} confidence={job.last_signal_confidence} signal={job.last_signal_json} />
+        {(job.tp_pct || job.sl_pct) && (
+          <div className='text-[10px] font-mono text-muted-foreground mt-0.5'>
+            {job.tp_pct ? <span className='text-green-500/70'>TP {job.tp_pct}%</span> : null}
+            {job.tp_pct && job.sl_pct ? ' / ' : null}
+            {job.sl_pct ? <span className='text-red-500/70'>SL {job.sl_pct}%</span> : null}
+          </div>
+        )}
       </TableCell>
       <TableCell className='text-right'>
         <div className='flex items-center justify-end gap-1'>
@@ -653,137 +697,143 @@ function JobRow({
   )
 }
 
-// ── 信号任务行 ──
+// ── 交易记录行 ──
 
-function SignalTaskRow({ task }: { task: BacktestTrackerTask }) {
-  const pnl = calcPnl(task)
-  const currentPrice = task.exit_price ?? task.last_tracked_price
-  const roi = task.final_roi != null
-    ? task.final_roi
-    : pnl != null && task.test_amount > 0
-      ? (pnl / task.test_amount) * 100
-      : null
-
-  const statusLabel = task.status === 'running' ? '运行中'
-    : task.exit_reason === 'tp_hit' ? '止盈'
-    : task.exit_reason === 'sl_hit' ? '止损'
-    : task.exit_reason === 'ai_close' ? 'AI平仓'
-    : task.exit_reason === 'timeout' ? '超时'
-    : task.status
-
-  const statusColor = task.status === 'running' ? ''
-    : task.exit_reason === 'tp_hit' ? 'text-green-500'
-    : task.exit_reason === 'sl_hit' ? 'text-red-500'
-    : task.exit_reason === 'ai_close' ? 'text-orange-500'
-    : 'text-yellow-500'
-
-  const dirColor = task.entry_direction === 'long' ? 'text-green-500' : 'text-red-500'
-  const DirIcon = task.entry_direction === 'long' ? TrendingUp : TrendingDown
-
-  // TP/SL 距离百分比
-  const tpPct = task.take_profit != null && task.entry_price != null
-    ? Math.abs((task.take_profit - task.entry_price) / task.entry_price * 100) : null
-  const slPct = task.stop_loss != null && task.entry_price != null
-    ? Math.abs((task.stop_loss - task.entry_price) / task.entry_price * 100) : null
-
-  // 当前价距 TP/SL 的进度
-  const tpProgress = currentPrice != null && task.entry_price != null && task.take_profit != null
-    ? ((currentPrice - task.entry_price) / (task.take_profit - task.entry_price) * 100) : null
-
-  // 运行时间
-  const startTime = task.entry_time || task.created_at
-  const elapsed = formatDuration(startTime, task.status === 'running' ? undefined : task.last_tracked_at ?? undefined)
-
-  return (
-    <TableRow>
-      <TableCell>
-        <div className='flex items-center gap-1'>
-          <span className='font-medium text-xs'>{task.coin}</span>
-          <span className={`flex items-center gap-0.5 text-xs ${dirColor}`}>
-            <DirIcon className='h-3 w-3' />
-            {task.entry_direction === 'long' ? '多' : '空'}
-          </span>
-        </div>
-      </TableCell>
-      <TableCell>
-        {task.status === 'running' ? (
-          <Badge variant='secondary' className='text-xs animate-pulse'>运行中</Badge>
-        ) : (
-          <span className={`text-xs font-medium ${statusColor}`}>{statusLabel}</span>
-        )}
-      </TableCell>
-      <TableCell className='text-xs font-mono'>
-        {fmtPrice(task.entry_price)}
-      </TableCell>
-      <TableCell>
-        {currentPrice != null ? (
-          <div className='flex flex-col'>
-            <span className='text-xs font-mono font-medium'>{fmtPrice(currentPrice)}</span>
-            {tpProgress != null && task.status === 'running' && (
-              <span className={`text-[10px] font-mono ${tpProgress >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                {tpProgress >= 0 ? '>' : '<'} TP {Math.abs(tpProgress).toFixed(0)}%
-              </span>
-            )}
-          </div>
-        ) : (
-          <span className='text-xs text-muted-foreground'>-</span>
-        )}
-      </TableCell>
-      <TableCell>
-        {task.take_profit != null ? (
-          <div className='flex flex-col'>
-            <span className='text-xs font-mono text-green-500'>{fmtPrice(task.take_profit)}</span>
-            {tpPct != null && <span className='text-[10px] text-muted-foreground'>+{tpPct.toFixed(2)}%</span>}
-          </div>
-        ) : (
-          <span className='text-xs text-muted-foreground'>-</span>
-        )}
-      </TableCell>
-      <TableCell>
-        {task.stop_loss != null ? (
-          <div className='flex flex-col'>
-            <span className='text-xs font-mono text-red-500'>{fmtPrice(task.stop_loss)}</span>
-            {slPct != null && <span className='text-[10px] text-muted-foreground'>-{slPct.toFixed(2)}%</span>}
-          </div>
-        ) : (
-          <span className='text-xs text-muted-foreground'>-</span>
-        )}
-      </TableCell>
-      <TableCell>
-        {pnl != null ? (
-          <span className={`text-xs font-mono font-bold ${pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-            {pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}
-          </span>
-        ) : (
-          <span className='text-xs text-muted-foreground'>-</span>
-        )}
-      </TableCell>
-      <TableCell>
-        {roi != null ? (
-          <span className={`text-xs font-mono ${roi >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-            {roi >= 0 ? '+' : ''}{roi.toFixed(2)}%
-          </span>
-        ) : (
-          <span className='text-xs text-muted-foreground'>-</span>
-        )}
-      </TableCell>
-      <TableCell className='text-xs text-muted-foreground whitespace-nowrap'>
-        {elapsed}
-      </TableCell>
-    </TableRow>
-  )
+const TRADE_STAGE_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
+  trade_open: { label: '开仓', color: 'text-blue-600', bg: 'bg-blue-50 dark:bg-blue-950/30' },
+  trade_add: { label: '加仓', color: 'text-cyan-600', bg: 'bg-cyan-50 dark:bg-cyan-950/30' },
+  trade_reduce: { label: '减仓', color: 'text-purple-600', bg: 'bg-purple-50 dark:bg-purple-950/30' },
+  trade_close: { label: '平仓', color: 'text-orange-600', bg: 'bg-orange-50 dark:bg-orange-950/30' },
+  settle: { label: '结算', color: 'text-amber-600', bg: 'bg-amber-50 dark:bg-amber-950/30' },
+  ai_signal: { label: '信号', color: 'text-muted-foreground', bg: '' },
 }
 
-function formatDuration(startIso: string, endIso?: string): string {
-  const start = new Date(startIso).getTime()
-  const end = endIso ? new Date(endIso).getTime() : Date.now()
-  const diff = Math.max(0, end - start)
-  const mins = Math.floor(diff / 60000)
-  const hours = Math.floor(mins / 60)
-  const days = Math.floor(hours / 24)
-  if (days > 0) return `${days}天${hours % 24}时`
-  if (hours > 0) return `${hours}时${mins % 60}分`
-  return `${mins}分`
+function TradeLogRow({ log }: { log: BotLog }) {
+  const [expanded, setExpanded] = useState(false)
+  const cfg = TRADE_STAGE_CONFIG[log.stage] ?? (
+    log.level === 'trade'
+      ? { label: '交易', color: 'text-blue-600', bg: 'bg-blue-50 dark:bg-blue-950/30' }
+      : { label: '信号', color: 'text-muted-foreground', bg: '' }
+  )
+  const detail = log.detail as Record<string, unknown>
+  const isTrade = log.level === 'trade'
+  const isSignal = log.level === 'signal'
+
+  // 从 detail 提取关键信息
+  const direction = detail?.direction as string | undefined
+  const entryPrice = detail?.entry_price as number | undefined
+  const tp = detail?.take_profit as number | undefined
+  const sl = detail?.stop_loss as number | undefined
+  const amount = detail?.amount as number | undefined
+  const pnl = detail?.pnl as number ?? detail?.partial_pnl as number | undefined
+  const reason = detail?.reason as string | undefined
+  const confidence = detail?.confidence as number | undefined
+  const currentPrice = detail?.current_price as number | undefined
+  const reduceAmount = detail?.reduce_amount as number | undefined
+  const newAmount = detail?.new_amount as number | undefined
+  const scaleCount = detail?.scale_in_count as number ?? detail?.scale_out_count as number | undefined
+
+  const time = new Date(log.created_at).toLocaleString('zh-CN', {
+    month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
+  })
+
+  return (
+    <div className={`px-4 py-2.5 ${cfg.bg} hover:bg-muted/30 transition-colors`}>
+      <div className='flex items-start gap-3'>
+        {/* 时间 + 标签 */}
+        <div className='shrink-0 w-[100px]'>
+          <span className={`text-xs font-medium ${cfg.color}`}>{cfg.label}</span>
+          <div className='text-[10px] text-muted-foreground tabular-nums'>{time}</div>
+        </div>
+
+        {/* 内容 */}
+        <div className='flex-1 min-w-0'>
+          {isTrade && log.stage === 'trade_open' && direction && (
+            <div className='space-y-0.5'>
+              <div className='flex items-center gap-2 text-xs'>
+                <Badge variant='outline' className='text-[10px] px-1.5 py-0'>{log.coin}</Badge>
+                <span className={direction === 'long' ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>
+                  {direction === 'long' ? '做多' : '做空'}
+                </span>
+                {amount != null && <span className='font-mono'>${amount.toFixed(0)}</span>}
+                {entryPrice != null && <span className='text-muted-foreground'>@ {fmtPrice(entryPrice)}</span>}
+              </div>
+              {tp != null && sl != null && (
+                <div className='text-[10px] font-mono text-muted-foreground'>
+                  TP {fmtPrice(tp)} / SL {fmtPrice(sl)}
+                </div>
+              )}
+            </div>
+          )}
+
+          {isTrade && (log.stage === 'trade_add' || log.stage === 'trade_reduce') && (
+            <div className='space-y-0.5'>
+              <div className='flex items-center gap-2 text-xs'>
+                <Badge variant='outline' className='text-[10px] px-1.5 py-0'>{log.coin}</Badge>
+                <span className='text-xs'>{log.message}</span>
+              </div>
+              {(reduceAmount != null || newAmount != null || currentPrice != null) && (
+                <div className='text-[10px] font-mono text-muted-foreground'>
+                  {reduceAmount != null && <span>{log.stage === 'trade_add' ? '+' : '-'}${reduceAmount.toFixed(0)}</span>}
+                  {newAmount != null && <span> → 仓位 ${newAmount.toFixed(0)}</span>}
+                  {currentPrice != null && <span> @ {fmtPrice(currentPrice)}</span>}
+                  {pnl != null && (
+                    <span className={`ml-1 ${pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                      ({pnl >= 0 ? '+' : ''}${pnl.toFixed(2)})
+                    </span>
+                  )}
+                  {scaleCount != null && <span className='ml-1'>第{scaleCount}次</span>}
+                </div>
+              )}
+            </div>
+          )}
+
+          {isTrade && (log.stage === 'trade_close' || log.stage === 'settle') && (
+            <div className='flex items-center gap-2 text-xs'>
+              <Badge variant='outline' className='text-[10px] px-1.5 py-0'>{log.coin}</Badge>
+              <span>{log.message}</span>
+              {pnl != null && (
+                <span className={`font-mono font-bold ${pnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}
+                </span>
+              )}
+            </div>
+          )}
+
+          {isTrade && !['trade_open', 'trade_add', 'trade_reduce', 'trade_close', 'settle'].includes(log.stage) && (
+            <div className='flex items-center gap-2 text-xs'>
+              <Badge variant='outline' className='text-[10px] px-1.5 py-0'>{log.coin}</Badge>
+              <span>{log.message}</span>
+            </div>
+          )}
+
+          {isSignal && (
+            <div className='space-y-0.5'>
+              <div className='flex items-center gap-2 text-xs'>
+                <Badge variant='outline' className='text-[10px] px-1.5 py-0'>{log.coin}</Badge>
+                <span className={
+                  direction === 'long' ? 'text-green-600' :
+                  direction === 'short' ? 'text-red-600' :
+                  direction === 'close' ? 'text-orange-500' :
+                  direction === 'add' ? 'text-cyan-600' :
+                  direction === 'reduce' ? 'text-purple-600' :
+                  'text-muted-foreground'
+                }>
+                  {direction === 'long' ? '做多' : direction === 'short' ? '做空' : direction === 'close' ? '平仓' : direction === 'add' ? '加仓' : direction === 'reduce' ? '减仓' : '观望'}
+                </span>
+                {confidence != null && <span className='text-[10px] text-muted-foreground'>({confidence}/10)</span>}
+              </div>
+              {reason && (
+                <p className={`text-[10px] leading-relaxed ${expanded ? '' : 'line-clamp-1'} text-muted-foreground cursor-pointer`} onClick={() => setExpanded(!expanded)}>
+                  {reason}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
 }
 
 // ── 设置对话框 ──
@@ -926,6 +976,12 @@ function BotSettingsDialog({
                     按本金盈亏百分比设置止盈止损。例如本金 ${bal.toFixed(0)}，
                     设 3% 止盈 = 盈利 ${(bal * 0.03).toFixed(0)} 时平仓。
                   </p>
+                  <Alert>
+                    <Info className='h-3 w-3' />
+                    <AlertDescription className='text-[11px]'>
+                      设置后对<strong>下一次开仓</strong>生效，会覆盖 AI 信号的止盈止损价格。不影响已有持仓。
+                    </AlertDescription>
+                  </Alert>
                   <div className='space-y-1'>
                     <Label>止盈 — 本金盈利 (%)</Label>
                     <Input
