@@ -34,11 +34,6 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible'
-import {
   Plus,
   Play,
   Pause,
@@ -50,10 +45,8 @@ import {
   RefreshCw,
   Activity,
   Bot,
-  Trophy,
   RotateCcw,
   ScrollText,
-  ChevronDown,
   Brain,
   Zap,
   AlertTriangle,
@@ -259,7 +252,7 @@ export function StrategyBotPanel() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [settingsJob, setSettingsJob] = useState<StrategyBotJob | null>(null)
   const [refreshing, setRefreshing] = useState(false)
-  const [logsOpen, setLogsOpen] = useState(true)
+
 
   const handleRefresh = async () => {
     setRefreshing(true)
@@ -402,100 +395,41 @@ export function StrategyBotPanel() {
             <span className='text-sm font-medium'>策略管理</span>
             <Badge variant='outline' className='text-xs'>{jobs.length} 个</Badge>
           </div>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className='w-20'>币种</TableHead>
-                <TableHead className='w-24'>状态</TableHead>
-                <TableHead>余额</TableHead>
-                <TableHead>仓位</TableHead>
-                <TableHead>总盈亏</TableHead>
-                <TableHead>胜率</TableHead>
-                <TableHead>最新信号</TableHead>
-                <TableHead className='w-28 text-right'>操作</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {jobs.map((job) => (
-                <JobRow
-                  key={job.id}
-                  job={job}
-                  trackerTasks={signalTasks.tasks}
-                  onStart={() => startJob(job.id)}
-                  onPause={() => pauseJob(job.id)}
-                  onDelete={() => deleteJob(job.id)}
-                  onReset={() => resetAccount(job.id)}
-                  onSettings={() => setSettingsJob(job)}
-                />
-              ))}
-            </TableBody>
-          </Table>
+          <div className='overflow-x-auto'>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className='w-16'>币种</TableHead>
+                  <TableHead className='w-20'>状态</TableHead>
+                  <TableHead>账户资产</TableHead>
+                  <TableHead>持仓情况</TableHead>
+                  <TableHead>买入价</TableHead>
+                  <TableHead>当前现价</TableHead>
+                  <TableHead>盈亏情况</TableHead>
+                  <TableHead className='w-20 text-center'>交易日志</TableHead>
+                  <TableHead>当前信号</TableHead>
+                  <TableHead className='w-28 text-right'>操作</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {jobs.map((job) => (
+                  <JobRow
+                    key={job.id}
+                    job={job}
+                    trackerTasks={signalTasks.tasks}
+                    logs={botLogs.logs.filter((l) => l.job_id === job.id)}
+                    onStart={() => startJob(job.id)}
+                    onPause={() => pauseJob(job.id)}
+                    onDelete={() => deleteJob(job.id)}
+                    onReset={() => resetAccount(job.id)}
+                    onSettings={() => setSettingsJob(job)}
+                  />
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </Card>
       )}
-
-      {/* ── 交易记录 ── */}
-      {(() => {
-        const tradeLogs = botLogs.logs.filter((l) => l.level === 'trade')
-        if (tradeLogs.length === 0 && signalTasks.stats.total === 0) return null
-        return (
-          <Card>
-            <div className='flex items-center justify-between px-4 pt-3 pb-2 border-b'>
-              <div className='flex items-center gap-2'>
-                <Zap className='h-4 w-4 text-amber-500' />
-                <span className='text-sm font-medium'>交易记录</span>
-                <Badge variant='outline' className='text-xs'>{tradeLogs.length} 条</Badge>
-              </div>
-              {signalTasks.stats.settled > 0 && (
-                <div className='flex items-center gap-4 text-xs'>
-                  <div className='flex items-center gap-1'>
-                    <Trophy className='h-3.5 w-3.5' />
-                    <span className='font-mono font-bold'>{signalTasks.stats.winRate.toFixed(1)}%</span>
-                  </div>
-                  <span className='text-green-500 font-mono'>{signalTasks.stats.wins}W</span>
-                  <span className='text-red-500 font-mono'>{signalTasks.stats.losses}L</span>
-                  <span className={`font-mono font-bold ${signalTasks.stats.totalPnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                    {signalTasks.stats.totalPnl >= 0 ? '+' : ''}${signalTasks.stats.totalPnl.toFixed(2)}
-                  </span>
-                </div>
-              )}
-            </div>
-            <div className='max-h-[500px] overflow-y-auto divide-y'>
-              {tradeLogs.map((log) => (
-                <TradeLogRow key={log.id} log={log} />
-              ))}
-            </div>
-          </Card>
-        )
-      })()}
-
-      {/* 执行日志 */}
-      <Collapsible open={logsOpen} onOpenChange={setLogsOpen}>
-        <Card>
-          <CollapsibleTrigger asChild>
-            <button className='flex items-center justify-between w-full px-4 py-3 hover:bg-muted/50 transition-colors'>
-              <div className='flex items-center gap-2'>
-                <ScrollText className='h-4 w-4 text-blue-500' />
-                <span className='text-sm font-medium'>执行日志</span>
-                <Badge variant='outline' className='text-xs'>{botLogs.logs.length}</Badge>
-              </div>
-              <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${logsOpen ? 'rotate-180' : ''}`} />
-            </button>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <div className='border-t max-h-[400px] overflow-y-auto'>
-              {botLogs.logs.length === 0 ? (
-                <div className='py-6 text-center text-muted-foreground text-sm'>暂无日志，启动机器人后将在此显示执行过程</div>
-              ) : (
-                <div className='divide-y'>
-                  {botLogs.logs.map((log) => (
-                    <BotLogRow key={log.id} log={log} />
-                  ))}
-                </div>
-              )}
-            </div>
-          </CollapsibleContent>
-        </Card>
-      </Collapsible>
 
       <CreateBotDialog open={dialogOpen} onOpenChange={setDialogOpen} onCreate={createJob} />
       {settingsJob && (
@@ -517,16 +451,18 @@ export function StrategyBotPanel() {
 // ── Job 行 ──
 
 function JobRow({
-  job, trackerTasks, onStart, onPause, onDelete, onReset, onSettings,
+  job, trackerTasks, logs, onStart, onPause, onDelete, onReset, onSettings,
 }: {
   job: StrategyBotJob
   trackerTasks: BacktestTrackerTask[]
+  logs: BotLog[]
   onStart: () => void
   onPause: () => void
   onDelete: () => void
   onReset: () => void
   onSettings: () => void
 }) {
+  const [logsDialogOpen, setLogsDialogOpen] = useState(false)
   const balance = job.account_balance ?? 20000
   const initialBalance = job.account_initial_balance ?? 20000
   const pnlFromBalance = balance - initialBalance
@@ -537,7 +473,7 @@ function JobRow({
   const winRate = totalTrades > 0 ? (winCount / totalTrades) * 100 : 0
   const canReset = job.status !== 'running' && !job.has_open_position && totalTrades > 0
 
-  // 浮动盈亏
+  // 当前持仓 task
   const openTask = job.has_open_position && job.open_task_id
     ? trackerTasks.find((t) => t.id === job.open_task_id && t.status === 'running')
     : null
@@ -546,154 +482,274 @@ function JobRow({
     ? (floatingPnl / openTask.test_amount) * 100
     : null
 
+  const tradeLogs = logs.filter((l) => l.level === 'trade')
+
   return (
-    <TableRow>
-      <TableCell className='font-medium'>{job.coin}</TableCell>
-      <TableCell>
-        <div className='flex flex-col gap-0.5'>
-          <StatusBadge status={job.status} />
-          {job.status === 'error' && job.last_error && (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span className='text-[10px] text-destructive truncate max-w-[120px] cursor-help'>
-                    {job.last_error}
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent side='bottom' className='max-w-xs'>
-                  <p className='text-xs'>{job.last_error}</p>
-                  <p className='text-xs text-muted-foreground mt-1'>连续错误 {job.consecutive_errors} 次</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          )}
-        </div>
-      </TableCell>
-      <TableCell>
-        <div className='flex flex-col'>
-          <span className='text-xs font-mono font-medium'>${balance.toFixed(0)}</span>
-          {pnlFromBalance !== 0 && (
-            <span className={`text-[10px] font-mono ${pnlFromBalance >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-              {pnlFromBalance >= 0 ? '+' : ''}{((pnlFromBalance / initialBalance) * 100).toFixed(1)}%
-            </span>
-          )}
-        </div>
-      </TableCell>
-      <TableCell>
-        {job.has_open_position ? (
+    <>
+      <TableRow>
+        {/* 1. 币种 */}
+        <TableCell className='font-medium'>{job.coin}</TableCell>
+
+        {/* 2. 状态 */}
+        <TableCell>
           <div className='flex flex-col gap-0.5'>
-            <div className='flex items-center gap-1'>
-              <Badge variant='outline' className='text-xs text-blue-500 border-blue-500/30'>
-                {openTask?.entry_direction === 'long' ? '多' : openTask?.entry_direction === 'short' ? '空' : '持仓中'}
-              </Badge>
-              {((job.scale_in_count ?? 0) > 0 || (job.scale_out_count ?? 0) > 0) && (
-                <span className='text-[10px] text-muted-foreground'>
-                  {(job.scale_in_count ?? 0) > 0 && <span className='text-blue-500'>+{job.scale_in_count}加</span>}
-                  {(job.scale_in_count ?? 0) > 0 && (job.scale_out_count ?? 0) > 0 && ' '}
-                  {(job.scale_out_count ?? 0) > 0 && <span className='text-purple-500'>-{job.scale_out_count}减</span>}
+            <StatusBadge status={job.status} />
+            {job.status === 'error' && job.last_error && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className='text-[10px] text-destructive truncate max-w-[100px] cursor-help'>
+                      {job.last_error}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side='bottom' className='max-w-xs'>
+                    <p className='text-xs'>{job.last_error}</p>
+                    <p className='text-xs text-muted-foreground mt-1'>连续错误 {job.consecutive_errors} 次</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+          </div>
+        </TableCell>
+
+        {/* 3. 账户资产 */}
+        <TableCell>
+          <div className='flex flex-col'>
+            <span className='text-xs font-mono font-medium'>${balance.toFixed(0)}</span>
+            <span className='text-[10px] font-mono text-muted-foreground'>初始 ${initialBalance.toFixed(0)}</span>
+            {pnlFromBalance !== 0 && (
+              <span className={`text-[10px] font-mono ${pnlFromBalance >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                {pnlFromBalance >= 0 ? '+' : ''}{((pnlFromBalance / initialBalance) * 100).toFixed(1)}%
+              </span>
+            )}
+          </div>
+        </TableCell>
+
+        {/* 4. 持仓情况 */}
+        <TableCell>
+          {job.has_open_position ? (
+            <div className='flex flex-col gap-0.5'>
+              <div className='flex items-center gap-1'>
+                <Badge variant='outline' className='text-xs text-blue-500 border-blue-500/30'>
+                  {openTask?.entry_direction === 'long' ? '做多' : openTask?.entry_direction === 'short' ? '做空' : '持仓中'}
+                </Badge>
+                {((job.scale_in_count ?? 0) > 0 || (job.scale_out_count ?? 0) > 0) && (
+                  <span className='text-[10px] text-muted-foreground'>
+                    {(job.scale_in_count ?? 0) > 0 && <span className='text-blue-500'>+{job.scale_in_count}加</span>}
+                    {(job.scale_in_count ?? 0) > 0 && (job.scale_out_count ?? 0) > 0 && ' '}
+                    {(job.scale_out_count ?? 0) > 0 && <span className='text-purple-500'>-{job.scale_out_count}减</span>}
+                  </span>
+                )}
+              </div>
+              {openTask && (
+                <span className='text-[10px] font-mono text-muted-foreground'>
+                  仓位 ${openTask.test_amount.toFixed(0)}
                 </span>
               )}
             </div>
-            {openTask && (
-              <span className='text-[10px] font-mono text-muted-foreground'>
-                仓位 ${openTask.test_amount.toFixed(0)}
-                {openTask.last_tracked_price != null && <> @ {fmtPrice(openTask.last_tracked_price)}</>}
-              </span>
+          ) : (
+            <span className='text-xs text-muted-foreground'>空仓</span>
+          )}
+        </TableCell>
+
+        {/* 5. 买入价 */}
+        <TableCell>
+          {openTask?.entry_price != null ? (
+            <div className='flex flex-col'>
+              <span className='text-xs font-mono'>{fmtPrice(openTask.entry_price)}</span>
+              {openTask.take_profit != null && (
+                <span className='text-[10px] font-mono text-green-500/70'>TP {fmtPrice(openTask.take_profit)}</span>
+              )}
+              {openTask.stop_loss != null && (
+                <span className='text-[10px] font-mono text-red-500/70'>SL {fmtPrice(openTask.stop_loss)}</span>
+              )}
+            </div>
+          ) : (
+            <span className='text-xs text-muted-foreground'>-</span>
+          )}
+        </TableCell>
+
+        {/* 6. 当前现价 */}
+        <TableCell>
+          {openTask?.last_tracked_price != null ? (
+            <span className='text-xs font-mono'>{fmtPrice(openTask.last_tracked_price)}</span>
+          ) : (
+            <span className='text-xs text-muted-foreground'>-</span>
+          )}
+        </TableCell>
+
+        {/* 7. 盈亏情况 */}
+        <TableCell>
+          <div className='flex flex-col gap-0.5'>
+            {/* 已实现盈亏 */}
+            {totalTrades > 0 ? (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className='cursor-help'>
+                      <span className={`text-xs font-mono font-bold ${totalPnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                        {totalPnl >= 0 ? '+' : ''}${totalPnl.toFixed(2)}
+                      </span>
+                      <span className='text-[10px] text-muted-foreground ml-1'>
+                        {winRate.toFixed(0)}% ({winCount}W/{lossCount}L)
+                      </span>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className='text-xs'>已实现盈亏 | 共 {totalTrades} 笔 | 分析 {job.total_analyses} 次</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            ) : (
+              <span className='text-xs text-muted-foreground'>暂无交易</span>
             )}
+            {/* 浮动盈亏 */}
             {floatingPnl != null && (
-              <div className='flex items-center gap-1.5'>
-                <span className={`text-xs font-mono font-bold ${floatingPnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                  {floatingPnl >= 0 ? '+' : ''}${floatingPnl.toFixed(2)}
+              <div className='flex items-center gap-1'>
+                <span className={`text-[10px] font-mono ${floatingPnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                  浮动 {floatingPnl >= 0 ? '+' : ''}${floatingPnl.toFixed(2)}
                 </span>
                 {floatingRoi != null && (
                   <span className={`text-[10px] font-mono ${floatingPnl >= 0 ? 'text-green-500/70' : 'text-red-500/70'}`}>
-                    ({floatingRoi >= 0 ? '+' : ''}{floatingRoi.toFixed(2)}%)
+                    ({floatingRoi >= 0 ? '+' : ''}{floatingRoi.toFixed(1)}%)
                   </span>
                 )}
               </div>
             )}
           </div>
-        ) : (
-          <span className='text-xs text-muted-foreground'>空仓</span>
-        )}
-      </TableCell>
-      <TableCell>
-        {totalTrades > 0 ? (
-          <span className={`text-xs font-mono font-bold ${totalPnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-            {totalPnl >= 0 ? '+' : ''}${totalPnl.toFixed(2)}
-          </span>
-        ) : (
-          <span className='text-xs text-muted-foreground'>-</span>
-        )}
-      </TableCell>
-      <TableCell>
-        {totalTrades > 0 ? (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className='text-xs font-mono cursor-help'>
-                  {winRate.toFixed(0)}%
-                  <span className='text-muted-foreground ml-1'>({winCount}W/{lossCount}L)</span>
-                </span>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p className='text-xs'>共 {totalTrades} 笔交易 | 分析 {job.total_analyses} 次</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        ) : (
-          <span className='text-xs text-muted-foreground'>-</span>
-        )}
-      </TableCell>
-      <TableCell>
-        <SignalDetail action={job.last_signal_action} confidence={job.last_signal_confidence} signal={job.last_signal_json} />
-        {(job.tp_pct || job.sl_pct) && (
-          <div className='text-[10px] font-mono text-muted-foreground mt-0.5'>
-            {job.tp_pct ? <span className='text-green-500/70'>TP {job.tp_pct}%</span> : null}
-            {job.tp_pct && job.sl_pct ? ' / ' : null}
-            {job.sl_pct ? <span className='text-red-500/70'>SL {job.sl_pct}%</span> : null}
-          </div>
-        )}
-      </TableCell>
-      <TableCell className='text-right'>
-        <div className='flex items-center justify-end gap-1'>
-          {job.status === 'running' ? (
-            <Button variant='ghost' size='icon' className='h-7 w-7' onClick={onPause}>
-              <Pause className='h-3.5 w-3.5' />
-            </Button>
-          ) : (
-            <Button variant='ghost' size='icon' className='h-7 w-7' onClick={onStart}>
-              <Play className='h-3.5 w-3.5' />
-            </Button>
+        </TableCell>
+
+        {/* 8. 交易日志 */}
+        <TableCell className='text-center'>
+          <Button
+            variant='ghost'
+            size='sm'
+            className='h-7 text-xs gap-1'
+            onClick={() => setLogsDialogOpen(true)}
+          >
+            <ScrollText className='h-3.5 w-3.5' />
+            {tradeLogs.length > 0 && <span className='font-mono'>{tradeLogs.length}</span>}
+          </Button>
+        </TableCell>
+
+        {/* 9. 当前信号 */}
+        <TableCell>
+          <SignalDetail action={job.last_signal_action} confidence={job.last_signal_confidence} signal={job.last_signal_json} />
+          {(job.tp_pct || job.sl_pct) && (
+            <div className='text-[10px] font-mono text-muted-foreground mt-0.5'>
+              {job.tp_pct ? <span className='text-green-500/70'>TP {job.tp_pct}%</span> : null}
+              {job.tp_pct && job.sl_pct ? ' / ' : null}
+              {job.sl_pct ? <span className='text-red-500/70'>SL {job.sl_pct}%</span> : null}
+            </div>
           )}
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant='ghost' size='icon' className='h-7 w-7' onClick={onSettings}>
-                  <Settings className='h-3.5 w-3.5' />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Prompt 和止盈止损设置</TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-          {canReset && (
+        </TableCell>
+
+        {/* 操作 */}
+        <TableCell className='text-right'>
+          <div className='flex items-center justify-end gap-1'>
+            {job.status === 'running' ? (
+              <Button variant='ghost' size='icon' className='h-7 w-7' onClick={onPause}>
+                <Pause className='h-3.5 w-3.5' />
+              </Button>
+            ) : (
+              <Button variant='ghost' size='icon' className='h-7 w-7' onClick={onStart}>
+                <Play className='h-3.5 w-3.5' />
+              </Button>
+            )}
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant='ghost' size='icon' className='h-7 w-7' onClick={onReset}>
-                    <RotateCcw className='h-3.5 w-3.5' />
+                  <Button variant='ghost' size='icon' className='h-7 w-7' onClick={onSettings}>
+                    <Settings className='h-3.5 w-3.5' />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>重置账户余额和统计</TooltipContent>
+                <TooltipContent>Prompt 和止盈止损设置</TooltipContent>
               </Tooltip>
             </TooltipProvider>
-          )}
-          <Button variant='ghost' size='icon' className='h-7 w-7 text-destructive hover:text-destructive' onClick={onDelete}>
-            <Trash2 className='h-3.5 w-3.5' />
-          </Button>
-        </div>
-      </TableCell>
-    </TableRow>
+            {canReset && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant='ghost' size='icon' className='h-7 w-7' onClick={onReset}>
+                      <RotateCcw className='h-3.5 w-3.5' />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>重置账户余额和统计</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+            <Button variant='ghost' size='icon' className='h-7 w-7 text-destructive hover:text-destructive' onClick={onDelete}>
+              <Trash2 className='h-3.5 w-3.5' />
+            </Button>
+          </div>
+        </TableCell>
+      </TableRow>
+
+      <TradeLogsDialog
+        open={logsDialogOpen}
+        onOpenChange={setLogsDialogOpen}
+        coin={job.coin}
+        logs={logs}
+      />
+    </>
+  )
+}
+
+// ── 交易日志弹窗 ──
+
+function TradeLogsDialog({
+  open,
+  onOpenChange,
+  coin,
+  logs,
+}: {
+  open: boolean
+  onOpenChange: (v: boolean) => void
+  coin: string
+  logs: BotLog[]
+}) {
+  const [tab, setTab] = useState<'trade' | 'all'>('trade')
+  const tradeLogs = logs.filter((l) => l.level === 'trade')
+  const displayLogs = tab === 'trade' ? tradeLogs : logs
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className='sm:max-w-2xl max-h-[85vh] flex flex-col'>
+        <DialogHeader>
+          <DialogTitle className='flex items-center gap-2'>
+            <ScrollText className='h-4 w-4' />
+            {coin} 交易日志
+          </DialogTitle>
+        </DialogHeader>
+        <Tabs value={tab} onValueChange={(v) => setTab(v as 'trade' | 'all')} className='flex-1 flex flex-col min-h-0'>
+          <TabsList className='grid w-full grid-cols-2'>
+            <TabsTrigger value='trade'>
+              交易记录
+              {tradeLogs.length > 0 && <Badge variant='secondary' className='ml-1.5 text-[10px] px-1.5 py-0'>{tradeLogs.length}</Badge>}
+            </TabsTrigger>
+            <TabsTrigger value='all'>
+              全部日志
+              <Badge variant='secondary' className='ml-1.5 text-[10px] px-1.5 py-0'>{logs.length}</Badge>
+            </TabsTrigger>
+          </TabsList>
+          <TabsContent value={tab} className='flex-1 overflow-y-auto max-h-[60vh] mt-2'>
+            {displayLogs.length === 0 ? (
+              <div className='py-8 text-center text-muted-foreground text-sm'>暂无日志</div>
+            ) : (
+              <div className='divide-y rounded-md border'>
+                {displayLogs.map((log) =>
+                  tab === 'trade' ? (
+                    <TradeLogRow key={log.id} log={log} />
+                  ) : (
+                    <BotLogRow key={log.id} log={log} />
+                  ),
+                )}
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
+      </DialogContent>
+    </Dialog>
   )
 }
 
