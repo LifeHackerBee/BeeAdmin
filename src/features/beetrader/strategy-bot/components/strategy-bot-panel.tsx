@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useStrategyBotJobs, type StrategyBotJob, type UpdateBotJobData, type DefaultPrompts, type BotMode, type CreateBotJobData } from '../hooks/use-strategy-bot-jobs'
 import { useBotSignalTasks, calcPnl, type BacktestTrackerTask } from '../hooks/use-bot-signal-tasks'
 import { useBotLogs, type BotLog } from '../hooks/use-bot-logs'
+import { useLiveStatus } from '../hooks/use-live-status'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -52,6 +53,11 @@ import {
   AlertTriangle,
   Info,
   Settings,
+  ShieldCheck,
+  Wifi,
+  WifiOff,
+  Eye,
+  EyeOff,
 } from 'lucide-react'
 
 // ── 状态 Badge ──
@@ -279,22 +285,144 @@ function CreateBotDialog({
   )
 }
 
+// ── 现网验证门控 ──
+
+function LiveVerifyGate({ liveStatus }: { liveStatus: ReturnType<typeof useLiveStatus> }) {
+  const [address, setAddress] = useState('')
+  const [secret, setSecret] = useState('')
+  const [showSecret, setShowSecret] = useState(false)
+  const [verifying, setVerifying] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleVerify = async () => {
+    if (!address.trim() || !secret.trim()) return
+    setVerifying(true)
+    setError(null)
+    const res = await liveStatus.verify(address.trim(), secret.trim())
+    if (!res.success) setError(res.error || '验证失败')
+    setVerifying(false)
+  }
+
+  return (
+    <div className='flex items-center justify-center py-16'>
+      <Card className='w-full max-w-md'>
+        <CardContent className='pt-6 space-y-4'>
+          <div className='text-center space-y-1'>
+            <ShieldCheck className='h-10 w-10 mx-auto text-muted-foreground/50' />
+            <h3 className='text-lg font-semibold'>现网交易验证</h3>
+            <p className='text-sm text-muted-foreground'>请输入 config.json 中的账户信息以解锁现网交易</p>
+          </div>
+
+          <div className='space-y-3'>
+            <div className='space-y-1'>
+              <Label>Account Address</Label>
+              <Input
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                placeholder='0x...'
+                className='font-mono text-xs'
+              />
+            </div>
+            <div className='space-y-1'>
+              <Label>Secret Key</Label>
+              <div className='relative'>
+                <Input
+                  type={showSecret ? 'text' : 'password'}
+                  value={secret}
+                  onChange={(e) => setSecret(e.target.value)}
+                  placeholder='0x...'
+                  className='font-mono text-xs pr-8'
+                  onKeyDown={(e) => e.key === 'Enter' && handleVerify()}
+                />
+                <button
+                  type='button'
+                  onClick={() => setShowSecret(!showSecret)}
+                  className='absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground'
+                >
+                  {showSecret ? <EyeOff className='h-3.5 w-3.5' /> : <Eye className='h-3.5 w-3.5' />}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {error && (
+            <Alert variant='destructive'>
+              <AlertCircle className='h-3 w-3' />
+              <AlertDescription className='text-xs'>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          <Button onClick={handleVerify} disabled={verifying || !address.trim() || !secret.trim()} className='w-full'>
+            {verifying ? '验证中...' : '验证并解锁'}
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+// ── 现网 API 状态栏 ──
+
+function LiveStatusBar({ health, loading, onRefresh }: {
+  health: ReturnType<typeof useLiveStatus>['health']
+  loading: boolean
+  onRefresh: () => void
+}) {
+  const online = health?.online ?? false
+
+  return (
+    <Card className={online ? 'border-green-500/30 bg-green-500/5' : 'border-red-500/30 bg-red-500/5'}>
+      <CardContent className='px-4 py-2 flex items-center justify-between'>
+        <div className='flex items-center gap-3'>
+          {online ? (
+            <Wifi className='h-4 w-4 text-green-500' />
+          ) : (
+            <WifiOff className='h-4 w-4 text-red-500' />
+          )}
+          <div>
+            <div className='flex items-center gap-2'>
+              <span className='text-xs font-medium'>{online ? 'Hyperliquid API 在线' : 'API 离线'}</span>
+              <Badge variant={online ? 'default' : 'destructive'} className='text-[10px] px-1.5 py-0 h-4'>
+                {online ? 'LIVE' : 'OFFLINE'}
+              </Badge>
+            </div>
+            {online && health && (
+              <div className='flex items-center gap-3 text-[10px] text-muted-foreground mt-0.5'>
+                <span className='font-mono'>{health.account_address?.slice(0, 6)}...{health.account_address?.slice(-4)}</span>
+                <span>账户: <span className='text-foreground font-medium'>${health.account_value?.toFixed(2)}</span></span>
+                <span>持仓: <span className='text-foreground font-medium'>{health.positions_count ?? 0}</span></span>
+              </div>
+            )}
+            {!online && health?.error && (
+              <p className='text-[10px] text-red-500'>{health.error}</p>
+            )}
+          </div>
+        </div>
+        <Button variant='ghost' size='icon' className='h-7 w-7' onClick={onRefresh} disabled={loading}>
+          <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+        </Button>
+      </CardContent>
+    </Card>
+  )
+}
+
 // ── 主组件 ──
 
 export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
+  const isLive = mode === 'live'
   const {
     jobs, loading, error, createJob, startJob, pauseJob, deleteJob, resetAccount, updateJob, fetchDefaultPrompts, fetchJobs,
   } = useStrategyBotJobs(mode)
   const signalTasks = useBotSignalTasks()
   const botLogs = useBotLogs()
+  const liveStatus = useLiveStatus(isLive)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [settingsJob, setSettingsJob] = useState<StrategyBotJob | null>(null)
   const [refreshing, setRefreshing] = useState(false)
 
-
   const handleRefresh = async () => {
     setRefreshing(true)
-    await Promise.all([fetchJobs(), signalTasks.refetch(), botLogs.refetch()])
+    await Promise.all([fetchJobs(), signalTasks.refetch(), botLogs.refetch(), ...(isLive ? [liveStatus.checkHealth()] : [])])
     setRefreshing(false)
   }
 
@@ -318,17 +446,25 @@ export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
     return pnl != null ? sum + pnl : sum
   }, 0)
 
+  // 现网模式: 未验证时显示验证门控
+  if (isLive && !liveStatus.verified) {
+    return <LiveVerifyGate liveStatus={liveStatus} />
+  }
+
   return (
     <div className='space-y-3'>
+      {/* 现网 API 状态栏 */}
+      {isLive && <LiveStatusBar health={liveStatus.health} loading={liveStatus.loading} onRefresh={liveStatus.checkHealth} />}
+
       {/* 顶部操作栏 */}
       <div className='flex items-center justify-end gap-2'>
         <Button variant='outline' size='sm' onClick={handleRefresh} disabled={refreshing}>
           <RefreshCw className={`h-4 w-4 mr-1 ${refreshing ? 'animate-spin' : ''}`} />
           刷新
         </Button>
-        <Button size='sm' onClick={() => setDialogOpen(true)}>
+        <Button size='sm' onClick={() => setDialogOpen(true)} variant={isLive ? 'destructive' : 'default'}>
           <Plus className='h-4 w-4 mr-1' />
-          添加机器人
+          {isLive ? '添加现网机器人' : '添加机器人'}
         </Button>
       </div>
 
