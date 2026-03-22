@@ -17,8 +17,7 @@ import {
   Brain,
   BarChart3,
 } from 'lucide-react'
-import { useOrderRadar } from '../hooks/use-order-radar'
-import { useBeeTraderStrategy } from '../../strategies/hooks/use-beetrader-strategy'
+import { useUnifiedAnalysis } from '../hooks/use-unified-analysis'
 import { useAiStrategy } from '../../strategies/hooks/use-ai-strategy'
 import { useLiquidationMap } from '../hooks/use-liquidation-map'
 import { AiStrategyPanel } from './ai-comparison'
@@ -57,9 +56,10 @@ export function UnifiedAnalysis() {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  // 两套数据引擎 — 始终并行调用
-  const radar = useOrderRadar()
-  const strategy = useBeeTraderStrategy()
+  // 统一分析引擎（共享 K 线数据，一次请求）
+  const unified = useUnifiedAnalysis()
+  const radar = { data: unified.radarData, loading: unified.loading, error: unified.error }
+  const strategy = { data: unified.strategyData, loading: unified.loading, error: unified.error }
 
   // 大镖客 AI 策略（手动触发）
   const aiStrategy = useAiStrategy()
@@ -67,18 +67,15 @@ export function UnifiedAnalysis() {
   // 清算热力图
   const liqMap = useLiquidationMap()
 
-  const loading = radar.loading || strategy.loading
+  const loading = unified.loading
   const loadingRef = useRef(loading)
   loadingRef.current = loading
 
   const doAnalyze = useCallback(async (targetCoin: string) => {
     if (loadingRef.current) return
-    await Promise.all([
-      radar.analyze(targetCoin.trim()).catch(() => {}),
-      strategy.analyze(targetCoin.trim()).catch(() => {}),
-    ])
+    await unified.analyze(targetCoin.trim()).catch(() => {})
     setLastUpdated(new Date())
-  }, [radar.analyze, strategy.analyze])
+  }, [unified.analyze])
 
   // 页面加载时获取最新历史记录，然后自动触发实时分析
   const [historyLoaded, setHistoryLoaded] = useState(false)
@@ -91,7 +88,7 @@ export function UnifiedAnalysis() {
     ).then((res) => {
       if (res.record) {
         setCoin(res.record.coin)
-        strategy.setData(res.record.strategy_data)
+        unified.setStrategy(res.record.strategy_data)
         setHistoryTime(res.record.created_at)
         setLastUpdated(new Date(res.record.created_at))
         // 历史记录加载后，自动发起实时分析（覆盖历史数据）
@@ -107,8 +104,7 @@ export function UnifiedAnalysis() {
 
   const handleAnalyze = () => {
     if (!coin.trim()) return
-    radar.reset()
-    strategy.reset()
+    unified.reset()
     aiStrategy.reset()
     setHistoryTime(null)
     doAnalyze(coin)
@@ -151,7 +147,7 @@ export function UnifiedAnalysis() {
   }
 
   const hasAnyData = radar.data || strategy.data
-  const hasError = radar.error || strategy.error
+  const hasError = unified.error
 
   // ── 从 radar + strategy 数据构建 K 线图叠加线 ──
   const chartKeyLevels = useMemo<KeyLevelOverlay[]>(() => {
@@ -230,7 +226,7 @@ export function UnifiedAnalysis() {
         )}
         {lastUpdated && (
           <span className='text-xs text-muted-foreground ml-auto'>
-            {historyTime && !radar.data && !strategy.loading ? '历史记录 · ' : ''}
+            {historyTime && !radar.data && !loading ? '历史记录 · ' : ''}
             更新于 {lastUpdated.toLocaleTimeString()}
           </span>
         )}
@@ -246,8 +242,7 @@ export function UnifiedAnalysis() {
             className='text-xs h-7 px-2'
             onClick={() => {
               setCoin(c)
-              radar.reset()
-              strategy.reset()
+              unified.reset()
               aiStrategy.reset()
               doAnalyze(c)
               setCountdown(AUTO_REFRESH_INTERVAL)
@@ -261,22 +256,11 @@ export function UnifiedAnalysis() {
 
       {/* 错误提示 */}
       {hasError && (
-        <div className='space-y-2'>
-          {radar.error && (
-            <Alert variant='destructive'>
-              <AlertCircle className='h-4 w-4' />
-              <AlertTitle>订单流数据获取失败</AlertTitle>
-              <AlertDescription>{radar.error.message}</AlertDescription>
-            </Alert>
-          )}
-          {strategy.error && (
-            <Alert variant='destructive'>
-              <AlertCircle className='h-4 w-4' />
-              <AlertTitle>技术指标数据获取失败</AlertTitle>
-              <AlertDescription>{strategy.error.message}</AlertDescription>
-            </Alert>
-          )}
-        </div>
+        <Alert variant='destructive'>
+          <AlertCircle className='h-4 w-4' />
+          <AlertTitle>分析失败</AlertTitle>
+          <AlertDescription>{unified.error?.message}</AlertDescription>
+        </Alert>
       )}
 
       {/* ══════════════════════════════════════
