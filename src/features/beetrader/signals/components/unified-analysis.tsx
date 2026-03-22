@@ -16,6 +16,7 @@ import {
   Flame,
   Brain,
   BarChart3,
+  Globe,
 } from 'lucide-react'
 import { useUnifiedAnalysis } from '../hooks/use-unified-analysis'
 import { useAiStrategy } from '../../strategies/hooks/use-ai-strategy'
@@ -185,275 +186,309 @@ export function UnifiedAnalysis() {
 
   const currentPrice = radar.data?.current_price ?? strategy.data?.current_price
 
+  // ── 左侧导航定义 ──
+  const NAV_SECTIONS = [
+    { id: 'macro', label: '宏观市场', icon: Globe },
+    { id: 'technical', label: '技术指标', icon: BarChart3 },
+    { id: 'strategy', label: '策略总览', icon: Brain },
+  ] as const
+
+  const scrollToSection = (id: string) => {
+    document.getElementById(`section-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
   return (
-    <div className='space-y-3'>
-      {/* 控制区 */}
-      <div className='flex flex-wrap items-center gap-2'>
-        <Input
-          value={coin}
-          onChange={(e) => setCoin(e.target.value.toUpperCase())}
-          onKeyDown={(e) => e.key === 'Enter' && handleAnalyze()}
-          placeholder='输入币种，如 BTC'
-          className='w-32'
-        />
-        <Button onClick={handleAnalyze} disabled={loading || !coin.trim()}>
-          {loading ? (
-            <>
-              <RefreshCw className='h-4 w-4 mr-1 animate-spin' />
-              分析中...
-            </>
-          ) : (
-            '刷新分析'
-          )}
-        </Button>
-
-        <Button
-          variant={autoRefresh ? 'default' : 'outline'}
-          size='sm'
-          onClick={toggleAutoRefresh}
-          className='gap-1'
-        >
-          {autoRefresh ? (
-            <><TimerOff className='h-4 w-4' />停止刷新</>
-          ) : (
-            <><Timer className='h-4 w-4' />自动刷新</>
-          )}
-        </Button>
-        {autoRefresh && hasAnyData && (
-          <Badge variant='secondary' className='text-xs tabular-nums'>
-            {countdown}s 后刷新
-          </Badge>
-        )}
-        {lastUpdated && (
-          <span className='text-xs text-muted-foreground ml-auto'>
-            {historyTime && !radar.data && !loading ? '历史记录 · ' : ''}
-            更新于 {lastUpdated.toLocaleTimeString()}
-          </span>
-        )}
-      </div>
-
-      {/* 币种快捷按钮 */}
-      <div className='flex items-center gap-1 flex-wrap'>
-        {POPULAR_COINS.map((c) => (
-          <Button
-            key={c}
-            variant={coin === c ? 'default' : 'outline'}
-            size='sm'
-            className='text-xs h-7 px-2'
-            onClick={() => {
-              setCoin(c)
-              unified.reset()
-              aiStrategy.reset()
-              doAnalyze(c)
-              setCountdown(AUTO_REFRESH_INTERVAL)
-            }}
-            disabled={loading}
+    <div className='flex gap-4'>
+      {/* ════════════════════════════════════
+           左侧导航栏
+         ════════════════════════════════════ */}
+      <nav className='hidden lg:flex flex-col gap-1 w-36 flex-shrink-0 sticky top-4 self-start'>
+        {NAV_SECTIONS.map(({ id, label, icon: Icon }) => (
+          <button
+            key={id}
+            type='button'
+            onClick={() => scrollToSection(id)}
+            className='flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors text-left'
           >
-            {c}
-          </Button>
+            <Icon className='h-3.5 w-3.5 flex-shrink-0' />
+            {label}
+          </button>
         ))}
-      </div>
+      </nav>
 
-      {/* 错误提示 */}
-      {hasError && (
-        <Alert variant='destructive'>
-          <AlertCircle className='h-4 w-4' />
-          <AlertTitle>分析失败</AlertTitle>
-          <AlertDescription>{unified.error?.message}</AlertDescription>
-        </Alert>
-      )}
-
-      {/* ══════════════════════════════════════
-           宏观市场
-         ══════════════════════════════════════ */}
-      <div className='flex flex-col bg-card rounded-lg border p-6 shadow-sm'>
-        <div className='mb-4'>
-          <h3 className='text-xl font-semibold'>宏观市场</h3>
-        </div>
-        <Macroscopic />
-      </div>
-
-      {/* ══════════════════════════════════════
-           模块一：策略概览（数据到达即显示）
-         ══════════════════════════════════════ */}
-      {(radar.data || strategy.data || (loading && !hasAnyData)) && (
-        <Card>
-          <CardHeader className='pb-3'>
-            <CardTitle className='text-base flex items-center gap-2'>
-              <Brain className='h-5 w-5' />
-              策略概览
-              {loading && <RefreshCw className='h-3.5 w-3.5 animate-spin text-muted-foreground' />}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className='space-y-4'>
-            {/* 趋势过滤 — radar 先到就先展示 */}
-            {radar.data ? (
-              <TrendFilterCard
-                trendFilter={radar.data.trend_filter}
-                coin={radar.data.coin}
-                currentPrice={radar.data.current_price}
-              />
-            ) : radar.loading ? (
-              <Skeleton className='h-20 w-full' />
-            ) : null}
-
-            {/* 多周期状态 + 多空分水岭 + 策略建议 — strategy 先到就先展示 */}
-            {strategy.data ? (
-              <>
-                <TimeframeStatusCards data={strategy.data.timeframe_status} />
-                <BullBearLineCard data={strategy.data.bull_bear_line} currentPrice={strategy.data.current_price} />
-                <StaircasePatternPanel data={strategy.data.staircase_pattern} />
-                <StrategyRecommendation data={strategy.data.strategy} currentPrice={strategy.data.current_price} />
-              </>
-            ) : strategy.loading ? (
-              <div className='space-y-3'>
-                <Skeleton className='h-24 w-full' />
-                <Skeleton className='h-16 w-full' />
-              </div>
-            ) : null}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* ══════════════════════════════════════
-           模块二：AI 策略（手动触发）
-         ══════════════════════════════════════ */}
-      {(aiStrategy.loading || aiStrategy.result) ? (
-        <AiStrategyPanel
-          coin={coin}
-          result={aiStrategy.result}
-          loading={aiStrategy.loading}
-        />
-      ) : strategy.data ? (
-        <div className='flex items-center justify-center py-3'>
-          <Button
-            variant='outline'
-            onClick={handleGenerateAI}
-            className='gap-1.5'
-          >
-            <Sparkles className='h-4 w-4' />
-            生成 AI 策略分析
-          </Button>
-        </div>
-      ) : null}
-
-      {/* ══════════════════════════════════════
-           K线观察（叠加支撑压力位 + 多空分界线）
-         ══════════════════════════════════════ */}
-      <div
-        className='flex flex-col bg-card rounded-lg border p-6 shadow-sm'
-        style={{ height: '560px', minHeight: '480px' }}
-      >
-        <div className='mb-4 flex-shrink-0'>
-          <h3 className='text-xl font-semibold'>K线观察</h3>
-        </div>
-        <div className='flex-1 min-h-0 overflow-hidden'>
-          <Candles
-            coin={coin}
-            keyLevels={chartKeyLevels}
-            currentPrice={currentPrice}
+      {/* ════════════════════════════════════
+           主内容区
+         ════════════════════════════════════ */}
+      <div className='flex-1 min-w-0 space-y-3'>
+        {/* 控制区 */}
+        <div className='flex flex-wrap items-center gap-2'>
+          <Input
+            value={coin}
+            onChange={(e) => setCoin(e.target.value.toUpperCase())}
+            onKeyDown={(e) => e.key === 'Enter' && handleAnalyze()}
+            placeholder='输入币种，如 BTC'
+            className='w-32'
           />
-        </div>
-      </div>
-
-      {/* ══════════════════════════════════════
-           模块三：技术指标（数据到达即显示）
-         ══════════════════════════════════════ */}
-      {(radar.data || strategy.data || (loading && !hasAnyData)) && (
-        <Card>
-          <CardHeader className='pb-3'>
-            <CardTitle className='text-base flex items-center gap-2'>
-              <BarChart3 className='h-5 w-5' />
-              技术指标
-              {loading && <RefreshCw className='h-3.5 w-3.5 animate-spin text-muted-foreground' />}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className='space-y-4'>
-            {/* 订单流指标 — radar 数据 */}
-            {radar.data ? (
+          <Button onClick={handleAnalyze} disabled={loading || !coin.trim()}>
+            {loading ? (
               <>
-                <SrLevelsCard srLevels={radar.data.entry_trigger.sr_levels} />
-                <OiFundingCard oi={radar.data.entry_trigger.oi} />
+                <RefreshCw className='h-4 w-4 mr-1 animate-spin' />
+                分析中...
               </>
-            ) : radar.loading ? (
-              <div className='space-y-3'>
-                <Skeleton className='h-24 w-full' />
-                <Skeleton className='h-20 w-full' />
-              </div>
-            ) : null}
-
-            {/* 技术指标 — strategy 数据 */}
-            {strategy.data ? (
-              <>
-                <div className='grid grid-cols-1 md:grid-cols-2 gap-3'>
-                  <MacdPanel data={strategy.data.indicators.macd} />
-                  <BollingerPanel data={strategy.data.indicators.bollinger} />
-                  <RsiPanel data={strategy.data.indicators.rsi} />
-                  <KdjPanel data={strategy.data.indicators.kdj} />
-                </div>
-                <MovingAveragesPanel data={strategy.data.indicators.moving_averages} currentPrice={strategy.data.current_price} />
-                <FibonacciPanel data={strategy.data.indicators.fibonacci} currentPrice={strategy.data.current_price} />
-                <VolumeAnalysisPanel data={strategy.data.volume_analysis} />
-              </>
-            ) : strategy.loading ? (
-              <div className='space-y-3'>
-                <div className='grid grid-cols-1 md:grid-cols-2 gap-3'>
-                  <Skeleton className='h-40' />
-                  <Skeleton className='h-40' />
-                </div>
-                <Skeleton className='h-32 w-full' />
-              </div>
-            ) : null}
-
-            {/* 清算热力图 */}
-            {radar.data && (
-              liqMap.data ? (
-                <LiquidationMapChart data={liqMap.data} coin={radar.data.coin} />
-              ) : (
-                <div className='flex flex-col items-center py-4 gap-2 border rounded-lg'>
-                  {liqMap.loading ? (
-                    <>
-                      <div className='text-sm text-muted-foreground'>正在从 CoinGlass 抓取清算数据，约需 10-30 秒...</div>
-                      <Skeleton className='h-[280px] w-full' />
-                    </>
-                  ) : liqMap.error ? (
-                    <div className='text-sm text-red-500'>{liqMap.error.message}</div>
-                  ) : (
-                    <>
-                      <span className='text-sm text-muted-foreground'>点击加载清算热力图（数据来源: CoinGlass，约需 10-30 秒）</span>
-                      <Button
-                        variant='outline'
-                        size='sm'
-                        onClick={() => liqMap.fetch(radar.data!.coin)}
-                        className='gap-1'
-                      >
-                        <Flame className='h-4 w-4' />
-                        加载清算图
-                      </Button>
-                    </>
-                  )}
-                </div>
-              )
+            ) : (
+              '刷新分析'
             )}
-          </CardContent>
-        </Card>
-      )}
+          </Button>
 
-      {/* ══════════════════════════════════════
-           市场深度分析
-         ══════════════════════════════════════ */}
-      <div className='flex flex-col bg-card rounded-lg border p-6 shadow-sm'>
-        <MarketDepth />
-      </div>
-
-      {/* 空状态 */}
-      {!loading && !hasAnyData && !hasError && (
-        <div className='flex flex-col items-center justify-center py-12 text-muted-foreground'>
-          <Radar className='h-12 w-12 mb-3 opacity-30' />
-          <p className='text-lg font-medium mb-1'>交易分析</p>
-          <p className='text-sm'>正在加载分析数据...</p>
+          <Button
+            variant={autoRefresh ? 'default' : 'outline'}
+            size='sm'
+            onClick={toggleAutoRefresh}
+            className='gap-1'
+          >
+            {autoRefresh ? (
+              <><TimerOff className='h-4 w-4' />停止刷新</>
+            ) : (
+              <><Timer className='h-4 w-4' />自动刷新</>
+            )}
+          </Button>
+          {autoRefresh && hasAnyData && (
+            <Badge variant='secondary' className='text-xs tabular-nums'>
+              {countdown}s 后刷新
+            </Badge>
+          )}
+          {lastUpdated && (
+            <span className='text-xs text-muted-foreground ml-auto'>
+              {historyTime && !radar.data && !loading ? '历史记录 · ' : ''}
+              更新于 {lastUpdated.toLocaleTimeString()}
+            </span>
+          )}
         </div>
-      )}
+
+        {/* 币种快捷按钮 */}
+        <div className='flex items-center gap-1 flex-wrap'>
+          {POPULAR_COINS.map((c) => (
+            <Button
+              key={c}
+              variant={coin === c ? 'default' : 'outline'}
+              size='sm'
+              className='text-xs h-7 px-2'
+              onClick={() => {
+                setCoin(c)
+                unified.reset()
+                aiStrategy.reset()
+                doAnalyze(c)
+                setCountdown(AUTO_REFRESH_INTERVAL)
+              }}
+              disabled={loading}
+            >
+              {c}
+            </Button>
+          ))}
+        </div>
+
+        {/* 错误提示 */}
+        {hasError && (
+          <Alert variant='destructive'>
+            <AlertCircle className='h-4 w-4' />
+            <AlertTitle>分析失败</AlertTitle>
+            <AlertDescription>{unified.error?.message}</AlertDescription>
+          </Alert>
+        )}
+
+        {/* ══════════════════════════════════════
+             Section 1: 宏观市场
+           ══════════════════════════════════════ */}
+        <div id='section-macro' className='scroll-mt-4'>
+          <div className='flex flex-col bg-card rounded-lg border p-6 shadow-sm'>
+            <div className='mb-4'>
+              <h3 className='text-xl font-semibold flex items-center gap-2'>
+                <Globe className='h-5 w-5' />
+                宏观市场
+              </h3>
+            </div>
+            <Macroscopic />
+          </div>
+        </div>
+
+        {/* ══════════════════════════════════════
+             Section 2: 技术指标（含 K线 + 市场深度）
+           ══════════════════════════════════════ */}
+        <div id='section-technical' className='scroll-mt-4 space-y-3'>
+          {/* K线观察 */}
+          <div
+            className='flex flex-col bg-card rounded-lg border p-6 shadow-sm'
+            style={{ height: '560px', minHeight: '480px' }}
+          >
+            <div className='flex-1 min-h-0 overflow-hidden'>
+              <Candles
+                coin={coin}
+                keyLevels={chartKeyLevels}
+                currentPrice={currentPrice}
+              />
+            </div>
+          </div>
+
+          {/* 技术指标数据 */}
+          {(radar.data || strategy.data || (loading && !hasAnyData)) && (
+            <Card>
+              <CardHeader className='pb-3'>
+                <CardTitle className='text-base flex items-center gap-2'>
+                  <BarChart3 className='h-5 w-5' />
+                  技术指标
+                  {loading && <RefreshCw className='h-3.5 w-3.5 animate-spin text-muted-foreground' />}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className='space-y-4'>
+                {/* S/R 战术双线 + OI */}
+                {radar.data ? (
+                  <>
+                    <SrLevelsCard srLevels={radar.data.entry_trigger.sr_levels} />
+                    <OiFundingCard oi={radar.data.entry_trigger.oi} />
+                  </>
+                ) : loading ? (
+                  <div className='space-y-3'>
+                    <Skeleton className='h-24 w-full' />
+                    <Skeleton className='h-20 w-full' />
+                  </div>
+                ) : null}
+
+                {/* MACD / 布林带 / RSI / KDJ */}
+                {strategy.data ? (
+                  <>
+                    <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3'>
+                      <MacdPanel data={strategy.data.indicators.macd} />
+                      <BollingerPanel data={strategy.data.indicators.bollinger} />
+                      <RsiPanel data={strategy.data.indicators.rsi} />
+                      <KdjPanel data={strategy.data.indicators.kdj} />
+                    </div>
+                    <MovingAveragesPanel data={strategy.data.indicators.moving_averages} currentPrice={strategy.data.current_price} />
+                    <FibonacciPanel data={strategy.data.indicators.fibonacci} currentPrice={strategy.data.current_price} />
+                    <VolumeAnalysisPanel data={strategy.data.volume_analysis} />
+                  </>
+                ) : loading ? (
+                  <div className='space-y-3'>
+                    <div className='grid grid-cols-1 md:grid-cols-2 gap-3'>
+                      <Skeleton className='h-40' />
+                      <Skeleton className='h-40' />
+                    </div>
+                    <Skeleton className='h-32 w-full' />
+                  </div>
+                ) : null}
+
+                {/* 清算热力图 */}
+                {radar.data && (
+                  liqMap.data ? (
+                    <LiquidationMapChart data={liqMap.data} coin={radar.data.coin} />
+                  ) : (
+                    <div className='flex flex-col items-center py-4 gap-2 border rounded-lg'>
+                      {liqMap.loading ? (
+                        <>
+                          <div className='text-sm text-muted-foreground'>正在从 CoinGlass 抓取清算数据，约需 10-30 秒...</div>
+                          <Skeleton className='h-[280px] w-full' />
+                        </>
+                      ) : liqMap.error ? (
+                        <div className='text-sm text-red-500'>{liqMap.error.message}</div>
+                      ) : (
+                        <>
+                          <span className='text-sm text-muted-foreground'>点击加载清算热力图（数据来源: CoinGlass，约需 10-30 秒）</span>
+                          <Button
+                            variant='outline'
+                            size='sm'
+                            onClick={() => liqMap.fetch(radar.data!.coin)}
+                            className='gap-1'
+                          >
+                            <Flame className='h-4 w-4' />
+                            加载清算图
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  )
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* 市场深度分析 */}
+          <div className='flex flex-col bg-card rounded-lg border p-6 shadow-sm'>
+            <MarketDepth />
+          </div>
+        </div>
+
+        {/* ══════════════════════════════════════
+             Section 3: 策略总览（策略概览 + AI 策略）
+           ══════════════════════════════════════ */}
+        <div id='section-strategy' className='scroll-mt-4 space-y-3'>
+          {(radar.data || strategy.data || (loading && !hasAnyData)) && (
+            <Card>
+              <CardHeader className='pb-3'>
+                <CardTitle className='text-base flex items-center gap-2'>
+                  <Brain className='h-5 w-5' />
+                  策略总览
+                  {loading && <RefreshCw className='h-3.5 w-3.5 animate-spin text-muted-foreground' />}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className='space-y-4'>
+                {/* 趋势过滤 */}
+                {radar.data ? (
+                  <TrendFilterCard
+                    trendFilter={radar.data.trend_filter}
+                    coin={radar.data.coin}
+                    currentPrice={radar.data.current_price}
+                  />
+                ) : loading ? (
+                  <Skeleton className='h-20 w-full' />
+                ) : null}
+
+                {/* 多周期状态 + 多空分界线 + 阶梯 + 策略建议 */}
+                {strategy.data ? (
+                  <>
+                    <TimeframeStatusCards data={strategy.data.timeframe_status} />
+                    <BullBearLineCard data={strategy.data.bull_bear_line} currentPrice={strategy.data.current_price} />
+                    <StaircasePatternPanel data={strategy.data.staircase_pattern} />
+                    <StrategyRecommendation data={strategy.data.strategy} currentPrice={strategy.data.current_price} />
+                  </>
+                ) : loading ? (
+                  <div className='space-y-3'>
+                    <Skeleton className='h-24 w-full' />
+                    <Skeleton className='h-16 w-full' />
+                  </div>
+                ) : null}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* AI 策略（手动触发） */}
+          {(aiStrategy.loading || aiStrategy.result) ? (
+            <AiStrategyPanel
+              coin={coin}
+              result={aiStrategy.result}
+              loading={aiStrategy.loading}
+            />
+          ) : strategy.data ? (
+            <div className='flex items-center justify-center py-3'>
+              <Button
+                variant='outline'
+                onClick={handleGenerateAI}
+                className='gap-1.5'
+              >
+                <Sparkles className='h-4 w-4' />
+                生成 AI 策略分析
+              </Button>
+            </div>
+          ) : null}
+        </div>
+
+        {/* 空状态 */}
+        {!loading && !hasAnyData && !hasError && (
+          <div className='flex flex-col items-center justify-center py-12 text-muted-foreground'>
+            <Radar className='h-12 w-12 mb-3 opacity-30' />
+            <p className='text-lg font-medium mb-1'>交易分析</p>
+            <p className='text-sm'>正在加载分析数据...</p>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
