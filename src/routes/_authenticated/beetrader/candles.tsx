@@ -4,7 +4,7 @@ export const Route = createFileRoute('/_authenticated/beetrader/candles' as any)
   beforeLoad: () => {
     throw redirect({
       to: '/beetrader/signals' as any,
-      search: { tab: 'market' } as any,
+      search: {} as any,
     })
   },
 })

@@ -8,7 +8,7 @@ import { hyperliquidApiGet } from '@/lib/hyperliquid-api-client'
 export interface SrLevel {
   price: number
   source: string
-  strength: 'strong' | 'moderate' | 'weak'
+  strength: 'institutional_wall' | 'strong_resonance' | 'strong' | 'moderate' | 'weak'
 }
 
 export interface SrTier {
@@ -16,10 +16,22 @@ export interface SrTier {
   resistances: SrLevel[]
 }
 
+export interface TacticalLine {
+  price: number
+  level: number  // 1-5 强度等级
+  source: string
+}
+
+export interface TacticalLines {
+  resistances: { R1: TacticalLine | null; R2: TacticalLine | null }
+  supports: { S1: TacticalLine | null; S2: TacticalLine | null }
+}
+
 export interface SrLevels {
-  short_term: SrTier   // ±5%
-  medium_term: SrTier  // 5%~10%
-  long_term: SrTier    // 10%~20%
+  short_term: SrTier
+  medium_term: SrTier
+  long_term: SrTier
+  tactical: TacticalLines
   hint: string
 }
 

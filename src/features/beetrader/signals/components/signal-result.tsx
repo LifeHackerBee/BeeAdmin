@@ -41,18 +41,31 @@ function HintText({ text }: { text: string }) {
 }
 
 // ============================================
-// S/R 支撑压力区间
+// S/R 支撑压力 — 战术双线
 // ============================================
+
+const LEVEL_LABELS: Record<number, { text: string; color: string }> = {
+  5: { text: '机构墙', color: 'text-purple-600 dark:text-purple-400' },
+  4: { text: '强共振', color: 'text-orange-600 dark:text-orange-400' },
+  3: { text: '强',     color: 'text-blue-600 dark:text-blue-400' },
+  2: { text: '中',     color: 'text-slate-500' },
+  1: { text: '弱',     color: 'text-slate-400' },
+}
 
 export function SrLevelsCard({
   srLevels,
 }: {
   srLevels: OrderRadarData['entry_trigger']['sr_levels']
 }) {
-  const tiers = [
-    { key: 'short_term' as const, label: '短期', timeframe: '15m', data: srLevels.short_term },
-    { key: 'medium_term' as const, label: '中期', timeframe: '1h', data: srLevels.medium_term },
-    { key: 'long_term' as const, label: '长期', timeframe: '4h', data: srLevels.long_term },
+  const tactical = srLevels.tactical
+  const { R1, R2 } = tactical?.resistances ?? { R1: null, R2: null }
+  const { S1, S2 } = tactical?.supports ?? { S1: null, S2: null }
+
+  const lines = [
+    { key: 'R2', label: 'R2 远端结构', data: R2, isResistance: true },
+    { key: 'R1', label: 'R1 近端战术', data: R1, isResistance: true },
+    { key: 'S1', label: 'S1 近端战术', data: S1, isResistance: false },
+    { key: 'S2', label: 'S2 远端结构', data: S2, isResistance: false },
   ]
 
   return (
@@ -61,57 +74,46 @@ export function SrLevelsCard({
         <div className='flex items-center justify-between'>
           <CardTitle className='text-sm flex items-center gap-2'>
             <Target className='h-4 w-4' />
-            S/R 支撑压力区间
+            S/R 战术双线
           </CardTitle>
           <span className='text-[10px] text-muted-foreground'>
-            各周期成交量聚类 + 摆动点 + L2挂单墙
+            ATR动态桶 + 加权成交量 + FVG共振 + L2盘口
           </span>
         </div>
       </CardHeader>
       <CardContent className='text-sm'>
-        <div className='grid grid-cols-1 md:grid-cols-3 gap-3'>
-          {tiers.map(({ key, label, timeframe, data }) => {
-            if (!data) return null
-            const supports = data.supports ?? []
-            const resistances = data.resistances ?? []
-            const hasSupport = supports.length > 0
-            const hasResistance = resistances.length > 0
-
-            const sMin = hasSupport ? Math.min(...supports.map((s) => s.price)) : null
-            const sMax = hasSupport ? Math.max(...supports.map((s) => s.price)) : null
-            const rMin = hasResistance ? Math.min(...resistances.map((r) => r.price)) : null
-            const rMax = hasResistance ? Math.max(...resistances.map((r) => r.price)) : null
+        <div className='grid grid-cols-2 md:grid-cols-4 gap-2'>
+          {lines.map(({ key, label, data, isResistance }) => {
+            const levelInfo = data ? LEVEL_LABELS[data.level] ?? LEVEL_LABELS[1] : null
+            const priceColor = isResistance
+              ? 'text-red-600 dark:text-red-400'
+              : 'text-green-600 dark:text-green-400'
 
             return (
-              <div key={key} className='rounded-md border p-2.5 space-y-1.5'>
+              <div key={key} className='rounded-md border p-2.5 space-y-1'>
                 <div className='flex items-center justify-between'>
-                  <span className='text-xs font-semibold'>{label}</span>
-                  <span className='text-[10px] text-muted-foreground'>{timeframe} K线</span>
+                  <span className={`text-xs font-semibold ${isResistance ? 'text-red-500' : 'text-green-500'}`}>
+                    {key}
+                  </span>
+                  <span className='text-[10px] text-muted-foreground'>{label.split(' ').slice(1).join(' ')}</span>
                 </div>
-                {hasSupport && sMin != null && sMax != null ? (
-                  <div className='flex items-center justify-between'>
-                    <span className='text-green-500 text-xs'>支撑</span>
-                    <span className='font-mono text-xs text-green-600 dark:text-green-400'>
-                      {fmtPrice(sMin)}{sMin !== sMax ? ` – ${fmtPrice(sMax)}` : ''}
-                    </span>
-                  </div>
+                {data ? (
+                  <>
+                    <div className={`font-mono text-sm font-medium tabular-nums ${priceColor}`}>
+                      {fmtPrice(data.price)}
+                    </div>
+                    <div className='flex items-center gap-1.5'>
+                      <span className={`text-[10px] font-medium ${levelInfo?.color}`}>
+                        Lv.{data.level} {levelInfo?.text}
+                      </span>
+                    </div>
+                    <div className='text-[10px] text-muted-foreground/60 truncate' title={data.source}>
+                      {data.source}
+                    </div>
+                  </>
                 ) : (
-                  <div className='flex items-center justify-between'>
-                    <span className='text-green-500 text-xs'>支撑</span>
-                    <span className='text-xs text-muted-foreground/50'>—</span>
-                  </div>
-                )}
-                {hasResistance && rMin != null && rMax != null ? (
-                  <div className='flex items-center justify-between'>
-                    <span className='text-red-500 text-xs'>压力</span>
-                    <span className='font-mono text-xs text-red-600 dark:text-red-400'>
-                      {fmtPrice(rMin)}{rMin !== rMax ? ` – ${fmtPrice(rMax)}` : ''}
-                    </span>
-                  </div>
-                ) : (
-                  <div className='flex items-center justify-between'>
-                    <span className='text-red-500 text-xs'>压力</span>
-                    <span className='text-xs text-muted-foreground/50'>—</span>
+                  <div className='text-xs text-muted-foreground/40 py-1'>
+                    真空区 — 无有效{isResistance ? '压力' : '支撑'}
                   </div>
                 )}
               </div>

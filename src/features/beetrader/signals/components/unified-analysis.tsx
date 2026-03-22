@@ -1,12 +1,11 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import type { KeyLevelOverlay } from '../../candles/components/candlestick-chart'
 import {
   AlertCircle,
   Radar,
@@ -43,13 +42,15 @@ import { VolumeAnalysisPanel } from '../../strategies/components/volume-analysis
 import { MovingAveragesPanel, StaircasePatternPanel } from '../../strategies/components/moving-averages-panel'
 import { hyperliquidApiGet } from '@/lib/hyperliquid-api-client'
 import type { BeeTraderStrategyData } from '../../strategies/types'
+import { Macroscopic } from '../../macroscopic'
+import { Candles } from '../../candles'
+import { MarketDepth } from '../../market/components/market-depth'
 
 const POPULAR_COINS = ['BTC', 'ETH', 'SOL', 'HYPE', 'SUI', 'DOGE', 'xyz:GOLD', 'xyz:BRENTOIL', 'xyz:SILVER']
 const AUTO_REFRESH_INTERVAL = 60 // 秒
 
 export function UnifiedAnalysis() {
   const [coin, setCoin] = useState('BTC')
-  const [enableAI, setEnableAI] = useState(true)
   const [autoRefresh, setAutoRefresh] = useState(false)
   const [countdown, setCountdown] = useState(AUTO_REFRESH_INTERVAL)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
@@ -60,29 +61,11 @@ export function UnifiedAnalysis() {
   const radar = useOrderRadar()
   const strategy = useBeeTraderStrategy()
 
-  // 大镖客 AI 策略
+  // 大镖客 AI 策略（手动触发）
   const aiStrategy = useAiStrategy()
 
   // 清算热力图
   const liqMap = useLiquidationMap()
-
-  // 页面加载时获取最新分析记录
-  const [historyLoaded, setHistoryLoaded] = useState(false)
-  const [historyTime, setHistoryTime] = useState<string | null>(null)
-  useEffect(() => {
-    if (historyLoaded) return
-    setHistoryLoaded(true)
-    hyperliquidApiGet<{ success: boolean; record: { coin: string; strategy_data: BeeTraderStrategyData; created_at: string } | null }>(
-      '/api/beetrader_strategy/history/latest'
-    ).then((res) => {
-      if (res.record) {
-        setCoin(res.record.coin)
-        strategy.setData(res.record.strategy_data)
-        setHistoryTime(res.record.created_at)
-        setLastUpdated(new Date(res.record.created_at))
-      }
-    }).catch(() => {})
-  }, [historyLoaded]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const loading = radar.loading || strategy.loading
   const loadingRef = useRef(loading)
@@ -96,6 +79,31 @@ export function UnifiedAnalysis() {
     ])
     setLastUpdated(new Date())
   }, [radar.analyze, strategy.analyze])
+
+  // 页面加载时获取最新历史记录，然后自动触发实时分析
+  const [historyLoaded, setHistoryLoaded] = useState(false)
+  const [historyTime, setHistoryTime] = useState<string | null>(null)
+  useEffect(() => {
+    if (historyLoaded) return
+    setHistoryLoaded(true)
+    hyperliquidApiGet<{ success: boolean; record: { coin: string; strategy_data: BeeTraderStrategyData; created_at: string } | null }>(
+      '/api/beetrader_strategy/history/latest'
+    ).then((res) => {
+      if (res.record) {
+        setCoin(res.record.coin)
+        strategy.setData(res.record.strategy_data)
+        setHistoryTime(res.record.created_at)
+        setLastUpdated(new Date(res.record.created_at))
+        // 历史记录加载后，自动发起实时分析（覆盖历史数据）
+        doAnalyze(res.record.coin)
+      } else {
+        // 无历史记录，直接分析默认币种
+        doAnalyze('BTC')
+      }
+    }).catch(() => {
+      doAnalyze('BTC')
+    })
+  }, [historyLoaded]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleAnalyze = () => {
     if (!coin.trim()) return
@@ -126,19 +134,12 @@ export function UnifiedAnalysis() {
     }
   }, [autoRefresh, coin, radar.data, strategy.data, doAnalyze])
 
-  // enableAI 开启时，大镖客数据到达后自动触发 AI
-  const prevStrategyDataRef = useRef(strategy.data)
-  useEffect(() => {
-    if (!enableAI) {
-      prevStrategyDataRef.current = strategy.data
-      return
-    }
-    if (strategy.data && strategy.data !== prevStrategyDataRef.current) {
-      prevStrategyDataRef.current = strategy.data
-      aiStrategy.reset()
-      aiStrategy.generate(strategy.data)
-    }
-  }, [strategy.data, enableAI]) // eslint-disable-line react-hooks/exhaustive-deps
+  // AI 手动触发
+  const handleGenerateAI = () => {
+    if (!strategy.data) return
+    aiStrategy.reset()
+    aiStrategy.generate(strategy.data)
+  }
 
   const toggleAutoRefresh = () => {
     if (!radar.data && !strategy.data) {
@@ -151,6 +152,42 @@ export function UnifiedAnalysis() {
 
   const hasAnyData = radar.data || strategy.data
   const hasError = radar.error || strategy.error
+
+  // ── 从 radar + strategy 数据构建 K 线图叠加线 ──
+  const chartKeyLevels = useMemo<KeyLevelOverlay[]>(() => {
+    const levels: KeyLevelOverlay[] = []
+
+    // 1. S/R 战术双线 (来自 radar)
+    if (radar.data) {
+      const tactical = radar.data.entry_trigger.sr_levels.tactical
+      const cp = radar.data.current_price
+      if (cp > 0 && tactical) {
+        const { R1, R2 } = tactical.resistances
+        const { S1, S2 } = tactical.supports
+
+        if (R1) levels.push({ name: `R1 压力`, price: R1.price, is_resistance: true, dist_pct: ((R1.price - cp) / cp) * 100 })
+        if (R2) levels.push({ name: `R2 压力`, price: R2.price, is_resistance: true, dist_pct: ((R2.price - cp) / cp) * 100 })
+        if (S1) levels.push({ name: `S1 支撑`, price: S1.price, is_resistance: false, dist_pct: ((S1.price - cp) / cp) * 100 })
+        if (S2) levels.push({ name: `S2 支撑`, price: S2.price, is_resistance: false, dist_pct: ((S2.price - cp) / cp) * 100 })
+      }
+    }
+
+    // 2. 多空分界线 (来自 strategy)
+    if (strategy.data?.bull_bear_line) {
+      const bb = strategy.data.bull_bear_line
+      const cp = strategy.data.current_price
+      levels.push({
+        name: `分界线(${bb.status === 'above' ? '多' : bb.status === 'below' ? '空' : '震荡'})`,
+        price: bb.price,
+        is_resistance: cp < bb.price,
+        dist_pct: ((bb.price - cp) / cp) * 100,
+      })
+    }
+
+    return levels
+  }, [radar.data, strategy.data])
+
+  const currentPrice = radar.data?.current_price ?? strategy.data?.current_price
 
   return (
     <div className='space-y-3'>
@@ -170,24 +207,9 @@ export function UnifiedAnalysis() {
               分析中...
             </>
           ) : (
-            '分析'
+            '刷新分析'
           )}
         </Button>
-
-        {/* AI 开关 */}
-        <div className='flex items-center gap-3 border rounded-md px-3 py-1.5'>
-          <div className='flex items-center gap-1.5'>
-            <Checkbox
-              id='enable-ai'
-              checked={enableAI}
-              onCheckedChange={(checked) => setEnableAI(!!checked)}
-            />
-            <Label htmlFor='enable-ai' className='text-xs cursor-pointer flex items-center gap-1'>
-              <Sparkles className='h-3 w-3' />
-              AI 策略分析
-            </Label>
-          </div>
-        </div>
 
         <Button
           variant={autoRefresh ? 'default' : 'outline'}
@@ -227,10 +249,7 @@ export function UnifiedAnalysis() {
               radar.reset()
               strategy.reset()
               aiStrategy.reset()
-              Promise.all([
-                radar.analyze(c).catch(() => {}),
-                strategy.analyze(c).catch(() => {}),
-              ]).then(() => setLastUpdated(new Date()))
+              doAnalyze(c)
               setCountdown(AUTO_REFRESH_INTERVAL)
             }}
             disabled={loading}
@@ -259,6 +278,16 @@ export function UnifiedAnalysis() {
           )}
         </div>
       )}
+
+      {/* ══════════════════════════════════════
+           宏观市场
+         ══════════════════════════════════════ */}
+      <div className='flex flex-col bg-card rounded-lg border p-6 shadow-sm'>
+        <div className='mb-4'>
+          <h3 className='text-xl font-semibold'>宏观市场</h3>
+        </div>
+        <Macroscopic />
+      </div>
 
       {/* ══════════════════════════════════════
            模块一：策略概览（数据到达即显示）
@@ -303,15 +332,45 @@ export function UnifiedAnalysis() {
       )}
 
       {/* ══════════════════════════════════════
-           模块二：AI 策略（LLM 异步加载）
+           模块二：AI 策略（手动触发）
          ══════════════════════════════════════ */}
-      {enableAI && (strategy.data || aiStrategy.loading || aiStrategy.result) && (
+      {(aiStrategy.loading || aiStrategy.result) ? (
         <AiStrategyPanel
           coin={coin}
           result={aiStrategy.result}
           loading={aiStrategy.loading}
         />
-      )}
+      ) : strategy.data ? (
+        <div className='flex items-center justify-center py-3'>
+          <Button
+            variant='outline'
+            onClick={handleGenerateAI}
+            className='gap-1.5'
+          >
+            <Sparkles className='h-4 w-4' />
+            生成 AI 策略分析
+          </Button>
+        </div>
+      ) : null}
+
+      {/* ══════════════════════════════════════
+           K线观察（叠加支撑压力位 + 多空分界线）
+         ══════════════════════════════════════ */}
+      <div
+        className='flex flex-col bg-card rounded-lg border p-6 shadow-sm'
+        style={{ height: '560px', minHeight: '480px' }}
+      >
+        <div className='mb-4 flex-shrink-0'>
+          <h3 className='text-xl font-semibold'>K线观察</h3>
+        </div>
+        <div className='flex-1 min-h-0 overflow-hidden'>
+          <Candles
+            coin={coin}
+            keyLevels={chartKeyLevels}
+            currentPrice={currentPrice}
+          />
+        </div>
+      </div>
 
       {/* ══════════════════════════════════════
            模块三：技术指标（数据到达即显示）
@@ -396,12 +455,19 @@ export function UnifiedAnalysis() {
         </Card>
       )}
 
+      {/* ══════════════════════════════════════
+           市场深度分析
+         ══════════════════════════════════════ */}
+      <div className='flex flex-col bg-card rounded-lg border p-6 shadow-sm'>
+        <MarketDepth />
+      </div>
+
       {/* 空状态 */}
       {!loading && !hasAnyData && !hasError && (
         <div className='flex flex-col items-center justify-center py-12 text-muted-foreground'>
           <Radar className='h-12 w-12 mb-3 opacity-30' />
           <p className='text-lg font-medium mb-1'>交易分析</p>
-          <p className='text-sm'>选择币种，点击分析获取全量技术指标</p>
+          <p className='text-sm'>正在加载分析数据...</p>
         </div>
       )}
     </div>

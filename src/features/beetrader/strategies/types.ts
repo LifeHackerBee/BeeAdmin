@@ -95,12 +95,16 @@ export interface BullBearLineComponent {
   name: string
   value: number
   weight: number
+  above?: boolean
 }
 
 export interface BullBearLine {
   price: number
-  status: 'above' | 'below' | 'unknown'
+  status: 'above' | 'below' | 'neutral' | 'unknown'
   duration_hours: number
+  trend_score?: number
+  trend_grade?: 'strong_bull' | 'ranging' | 'bearish'
+  base_source?: string
   components: BullBearLineComponent[]
   hint: string
 }

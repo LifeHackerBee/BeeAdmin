@@ -14,13 +14,18 @@ export interface BotSignalStats {
   totalPnl: number
 }
 
-export function calcPnl(t: BacktestTrackerTask): number | null {
+const DEFAULT_TAKER_FEE_RATE = 0.000410 // 0.0410%
+
+export function calcPnl(t: BacktestTrackerTask, feeRate: number = DEFAULT_TAKER_FEE_RATE): number | null {
   if (t.final_pnl != null) return t.final_pnl
   if (!t.entry_price || !t.last_tracked_price || !t.entry_direction) return null
   const change = (t.last_tracked_price - t.entry_price) / t.entry_price
-  return t.entry_direction === 'long'
-    ? change * t.test_amount * t.test_leverage
-    : -change * t.test_amount * t.test_leverage
+  const positionValue = t.test_amount * t.test_leverage
+  const grossPnl = t.entry_direction === 'long'
+    ? change * positionValue
+    : -change * positionValue
+  const fee = positionValue * feeRate * 2 // 开 + 平
+  return grossPnl - fee
 }
 
 export function useBotSignalTasks() {

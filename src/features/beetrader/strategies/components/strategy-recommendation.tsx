@@ -17,10 +17,8 @@ interface Props {
   currentPrice: number
 }
 
-export function StrategyRecommendation({ data, currentPrice }: Props) {
+export function StrategyRecommendation({ data }: Props) {
   const biasConfig = BIAS_CONFIG[data.bias] || { variant: 'outline' as const, label: data.bias }
-  const levels = data.key_levels
-  const hasEntryZone = levels.entry_zone[0] > 0 && levels.entry_zone[1] > 0
 
   return (
     <Card>
@@ -43,39 +41,6 @@ export function StrategyRecommendation({ data, currentPrice }: Props) {
             <span className='font-medium'>{data.entry_strategy}</span>
           </div>
         </div>
-
-        {/* 关键价位 */}
-        {hasEntryZone && (
-          <div className='grid grid-cols-2 md:grid-cols-4 gap-3'>
-            <PriceLevel
-              label='入场区间'
-              value={`$${levels.entry_zone[0].toLocaleString()} - $${levels.entry_zone[1].toLocaleString()}`}
-              type='entry'
-              currentPrice={currentPrice}
-            />
-            <PriceLevel
-              label='止损'
-              value={`$${levels.stop_loss.toLocaleString()}`}
-              type='stop'
-              currentPrice={currentPrice}
-              price={levels.stop_loss}
-            />
-            <PriceLevel
-              label='止盈 1'
-              value={`$${levels.take_profit_1.toLocaleString()}`}
-              type='profit'
-              currentPrice={currentPrice}
-              price={levels.take_profit_1}
-            />
-            <PriceLevel
-              label='止盈 2'
-              value={`$${levels.take_profit_2.toLocaleString()}`}
-              type='profit'
-              currentPrice={currentPrice}
-              price={levels.take_profit_2}
-            />
-          </div>
-        )}
 
         {/* 共振指标明细 */}
         <div className='flex flex-wrap gap-1'>
@@ -122,46 +87,5 @@ export function StrategyRecommendation({ data, currentPrice }: Props) {
         )}
       </CardContent>
     </Card>
-  )
-}
-
-function PriceLevel({
-  label,
-  value,
-  type,
-  currentPrice,
-  price,
-}: {
-  label: string
-  value: string
-  type: 'entry' | 'stop' | 'profit'
-  currentPrice: number
-  price?: number
-}) {
-  const colorClass =
-    type === 'stop'
-      ? 'text-red-600 dark:text-red-400'
-      : type === 'profit'
-        ? 'text-green-600 dark:text-green-400'
-        : 'text-blue-600 dark:text-blue-400'
-
-  const distancePct =
-    price && currentPrice > 0
-      ? (((price - currentPrice) / currentPrice) * 100).toFixed(2)
-      : null
-
-  return (
-    <div className='rounded-md border p-2'>
-      <div className='text-xs text-muted-foreground'>{label}</div>
-      <div className={`text-sm font-medium tabular-nums ${colorClass}`}>
-        {value}
-      </div>
-      {distancePct && (
-        <div className='text-xs text-muted-foreground tabular-nums'>
-          {Number(distancePct) > 0 ? '+' : ''}
-          {distancePct}%
-        </div>
-      )}
-    </div>
   )
 }
