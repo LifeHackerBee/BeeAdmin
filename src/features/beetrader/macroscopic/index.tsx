@@ -1,18 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useMarketPrices } from './hooks/use-market-prices'
-import { usePriceChanges, type TimeFrame } from './hooks/use-price-changes'
+import { usePriceChanges } from './hooks/use-price-changes'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { AlertCircle, RefreshCw, ArrowUp, ArrowDown } from 'lucide-react'
+import { AlertCircle, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { format } from 'date-fns'
 import { zhCN } from 'date-fns/locale'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import {
   Table,
   TableBody,
@@ -62,16 +55,33 @@ const formatPrice = (p: number) => {
   }
 }
 
+function ChangeCell({ value }: { value: number | undefined }) {
+  if (value == null) return <span className='text-muted-foreground/40'>-</span>
+  const color = value > 0
+    ? 'text-green-600 dark:text-green-400'
+    : value < 0
+      ? 'text-red-600 dark:text-red-400'
+      : 'text-muted-foreground'
+  return (
+    <span className={`font-medium tabular-nums ${color}`}>
+      {value > 0 ? '+' : ''}{value.toFixed(2)}%
+    </span>
+  )
+}
+
 export function Macroscopic() {
-  const { prices, loading, error, refetch } = useMarketPrices(5000, ALL_COINS) // 每5秒刷新一次
+  const { prices, loading, error, refetch } = useMarketPrices(5000, ALL_COINS)
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date())
   const [isManualRefreshing, setIsManualRefreshing] = useState(false)
-  const [timeFrame, setTimeFrame] = useState<TimeFrame>('15m')
 
-  // 获取所有币种的价格变化（每10秒刷新一次）
-  const { priceChanges, loading: changesLoading, refetch: refetchChanges } = usePriceChanges(ALL_COINS, timeFrame, 10000)
+  // 4 个时间周期并行获取
+  const c15m = usePriceChanges(ALL_COINS, '15m', 15000)
+  const c1h  = usePriceChanges(ALL_COINS, '1h',  30000)
+  const c4h  = usePriceChanges(ALL_COINS, '4h',  60000)
+  const c1d  = usePriceChanges(ALL_COINS, '24h', 60000)
 
-  // 当价格更新时，更新最后更新时间
+  const allLoading = loading || c15m.loading || c1h.loading || c4h.loading || c1d.loading
+
   useEffect(() => {
     if (Object.keys(prices).length > 0 && !loading) {
       setLastUpdate(new Date())
@@ -80,13 +90,13 @@ export function Macroscopic() {
 
   const handleManualRefresh = async () => {
     setIsManualRefreshing(true)
-    await Promise.all([refetch(), refetchChanges()])
+    await Promise.all([refetch(), c15m.refetch(), c1h.refetch(), c4h.refetch(), c1d.refetch()])
     setLastUpdate(new Date())
     setIsManualRefreshing(false)
   }
 
   return (
-    <div className='flex flex-col space-y-4 h-full'>
+    <div className='flex flex-col space-y-3 h-full'>
       <div className='flex items-center justify-between flex-shrink-0'>
         <div className='flex items-center gap-4'>
           <div className='text-sm text-muted-foreground'>
@@ -95,25 +105,11 @@ export function Macroscopic() {
               {format(lastUpdate, 'HH:mm:ss', { locale: zhCN })}
             </span>
           </div>
-          <div className='flex items-center gap-2'>
-            <span className='text-sm text-muted-foreground'>趋势:</span>
-            <Select value={timeFrame} onValueChange={(value) => setTimeFrame(value as TimeFrame)}>
-              <SelectTrigger className='w-[110px]'>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value='15m'>15分钟</SelectItem>
-                <SelectItem value='1h'>1小时</SelectItem>
-                <SelectItem value='4h'>4小时</SelectItem>
-                <SelectItem value='24h'>24小时</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
           <Button
             variant='outline'
             size='sm'
             onClick={handleManualRefresh}
-            disabled={isManualRefreshing || loading}
+            disabled={isManualRefreshing || allLoading}
           >
             <RefreshCw
               className={`h-4 w-4 mr-2 ${isManualRefreshing ? 'animate-spin' : ''}`}
@@ -135,52 +131,44 @@ export function Macroscopic() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className='w-[100px]'>币种</TableHead>
-                  <TableHead className='w-[150px]'>名称</TableHead>
-                  <TableHead className='text-right w-[150px]'>价格</TableHead>
-                  <TableHead className='text-right w-[120px]'>涨跌幅</TableHead>
+                  <TableHead className='w-[80px]'>币种</TableHead>
+                  <TableHead className='w-[100px]'>名称</TableHead>
+                  <TableHead className='text-right w-[120px]'>价格</TableHead>
+                  <TableHead className='text-right w-[80px]'>15m</TableHead>
+                  <TableHead className='text-right w-[80px]'>1H</TableHead>
+                  <TableHead className='text-right w-[80px]'>4H</TableHead>
+                  <TableHead className='text-right w-[80px]'>1D</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {loading || changesLoading ? (
+                {loading ? (
                   <TableRow>
-                    <TableCell colSpan={4} className='text-center text-muted-foreground'>
+                    <TableCell colSpan={7} className='text-center text-muted-foreground'>
                       加载中...
                     </TableCell>
                   </TableRow>
                 ) : (
                   ALL_COINS.map((symbol) => {
-                    // allMids 返回的 key 可能不带 xyz: 前缀
                     const price = prices[symbol] || prices[symbol.replace('xyz:', '')] || 0
-                    const priceChange = priceChanges[symbol]
-                    const isPositive = priceChange && priceChange.changePercent > 0
-                    const isNegative = priceChange && priceChange.changePercent < 0
-                    const changeColor = isPositive 
-                      ? 'text-green-600 dark:text-green-400' 
-                      : isNegative 
-                      ? 'text-red-600 dark:text-red-400' 
-                      : 'text-muted-foreground'
 
                     return (
                       <TableRow key={symbol} className='hover:bg-muted/50'>
-                        <TableCell className='font-semibold'>{symbol.replace('xyz:', '')}</TableCell>
-                        <TableCell className='text-muted-foreground'>{getCoinName(symbol)}</TableCell>
-                        <TableCell className='text-right font-mono font-medium'>
+                        <TableCell className='font-semibold text-xs'>{symbol.replace('xyz:', '')}</TableCell>
+                        <TableCell className='text-muted-foreground text-xs'>{getCoinName(symbol)}</TableCell>
+                        <TableCell className='text-right font-mono font-medium text-xs'>
                           {price > 0 ? formatPrice(price) : '-'}
                         </TableCell>
-                        <TableCell className={`text-right font-medium ${changeColor}`}>
-                          {priceChange ? (
-                            <div className='flex items-center justify-end gap-1'>
-                              {isPositive && <ArrowUp className='h-3 w-3' />}
-                              {isNegative && <ArrowDown className='h-3 w-3' />}
-                              <span>
-                                {isPositive && '+'}
-                                {priceChange.changePercent.toFixed(2)}%
-                              </span>
-                            </div>
-                          ) : (
-                            '-'
-                          )}
+                        <TableCell className='text-right text-xs'>
+                          <ChangeCell value={c15m.priceChanges[symbol]?.changePercent} />
+                        </TableCell>
+                        <TableCell className='text-right text-xs'>
+                          <ChangeCell value={c1h.priceChanges[symbol]?.changePercent} />
+                        </TableCell>
+                        <TableCell className='text-right text-xs'>
+                          <ChangeCell value={c4h.priceChanges[symbol]?.changePercent} />
+                        </TableCell>
+                        <TableCell className='text-right text-xs'>
+                          <ChangeCell value={c1d.priceChanges[symbol]?.changePercent} />
                         </TableCell>
                       </TableRow>
                     )
@@ -194,4 +182,3 @@ export function Macroscopic() {
     </div>
   )
 }
-

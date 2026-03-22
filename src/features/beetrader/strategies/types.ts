@@ -124,6 +124,7 @@ export interface ResonanceDetail {
   indicator: string
   signal: 'bullish' | 'bearish' | 'neutral' | 'confirmed' | 'warning'
   weight: number
+  state?: string
 }
 
 // ── 关键位 ──

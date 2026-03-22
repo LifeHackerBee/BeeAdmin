@@ -20,6 +20,11 @@ interface Props {
 export function StrategyRecommendation({ data }: Props) {
   const biasConfig = BIAS_CONFIG[data.bias] || { variant: 'outline' as const, label: data.bias }
 
+  // entry_strategy 可能是多行文本（包含战术点位）
+  const entryLines = data.entry_strategy.split('\n')
+  const entryTitle = entryLines[0]
+  const tacticLines = entryLines.slice(1).filter(Boolean)
+
   return (
     <Card>
       <CardHeader className='pb-3'>
@@ -34,12 +39,21 @@ export function StrategyRecommendation({ data }: Props) {
         </div>
       </CardHeader>
       <CardContent className='space-y-3'>
-        {/* 策略描述 */}
-        <div className='flex items-center gap-4 text-sm'>
+        {/* 入场策略 + 战术点位 */}
+        <div className='text-sm space-y-1'>
           <div>
             <span className='text-muted-foreground'>入场策略: </span>
-            <span className='font-medium'>{data.entry_strategy}</span>
+            <span className='font-medium'>{entryTitle}</span>
           </div>
+          {tacticLines.length > 0 && (
+            <div className='rounded-md border bg-muted/30 p-2.5 space-y-0.5'>
+              {tacticLines.map((line, i) => (
+                <div key={i} className='text-xs text-muted-foreground font-mono'>
+                  {line}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* 共振指标明细 */}
@@ -55,8 +69,11 @@ export function StrategyRecommendation({ data }: Props) {
                     ? 'text-red-600 border-red-300 dark:text-red-400 dark:border-red-700'
                     : 'text-slate-500 border-slate-300 dark:text-slate-400 dark:border-slate-600'
               }`}
+              title={d.state || undefined}
             >
               {d.indicator}: {d.signal === 'bullish' ? '多' : d.signal === 'bearish' ? '空' : d.signal === 'confirmed' ? '确认' : d.signal === 'warning' ? '警告' : '中性'}
+              {d.state ? ` · ${d.state}` : ''}
+              {d.weight > 0 ? ` (×${d.weight})` : ''}
             </Badge>
           ))}
         </div>
