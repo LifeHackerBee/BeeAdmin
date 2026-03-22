@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useStrategyBotJobs, type StrategyBotJob, type UpdateBotJobData, type DefaultPrompts } from '../hooks/use-strategy-bot-jobs'
+import { useStrategyBotJobs, type StrategyBotJob, type UpdateBotJobData, type DefaultPrompts, type BotMode, type CreateBotJobData } from '../hooks/use-strategy-bot-jobs'
 import { useBotSignalTasks, calcPnl, type BacktestTrackerTask } from '../hooks/use-bot-signal-tasks'
 import { useBotLogs, type BotLog } from '../hooks/use-bot-logs'
 import { Button } from '@/components/ui/button'
@@ -158,24 +158,35 @@ function CreateBotDialog({
   open,
   onOpenChange,
   onCreate,
+  mode,
 }: {
   open: boolean
   onOpenChange: (v: boolean) => void
-  onCreate: (coin: string, interval: number, autoTrade: boolean, balance: number) => Promise<unknown>
+  onCreate: (data: CreateBotJobData) => Promise<unknown>
+  mode: BotMode
 }) {
+  const isLive = mode === 'live'
   const [coin, setCoin] = useState('')
   const [interval, setInterval] = useState(120)
   const [autoTrade, setAutoTrade] = useState(true)
-  const [balance, setBalance] = useState(20000)
+  const [balance, setBalance] = useState(isLive ? 50 : 20000)
+  const [maxOrderUsd, setMaxOrderUsd] = useState(50)
   const [creating, setCreating] = useState(false)
 
   const handleCreate = async () => {
     if (!coin.trim()) return
     setCreating(true)
     try {
-      await onCreate(coin.trim(), interval, autoTrade, balance)
+      await onCreate({
+        coin: coin.trim(),
+        analyze_interval_seconds: interval,
+        auto_trade: autoTrade,
+        account_balance: balance,
+        mode,
+        ...(isLive ? { max_order_usd: maxOrderUsd } : {}),
+      })
       setCoin('')
-      setBalance(20000)
+      setBalance(isLive ? 50 : 20000)
       onOpenChange(false)
     } catch {
       // error handled by hook
@@ -188,7 +199,10 @@ function CreateBotDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className='sm:max-w-sm'>
         <DialogHeader>
-          <DialogTitle>添加交易机器人</DialogTitle>
+          <DialogTitle>
+            {isLive ? '添加现网机器人' : '添加模拟机器人'}
+            {isLive && <Badge variant='destructive' className='ml-2 text-[10px]'>LIVE</Badge>}
+          </DialogTitle>
         </DialogHeader>
         <div className='space-y-3 py-2'>
           <div className='space-y-1'>
@@ -201,17 +215,33 @@ function CreateBotDialog({
             />
           </div>
           <div className='space-y-1'>
-            <Label>虚拟账户额度 ($)</Label>
+            <Label>{isLive ? '账户额度 ($)' : '虚拟账户额度 ($)'}</Label>
             <Input
               type='number'
               value={balance}
               onChange={(e) => setBalance(Number(e.target.value))}
-              min={100}
-              max={1000000}
-              step={1000}
+              min={isLive ? 10 : 100}
+              max={isLive ? 10000 : 1000000}
+              step={isLive ? 10 : 1000}
             />
-            <p className='text-[10px] text-muted-foreground'>每笔交易使用全部余额开仓</p>
+            <p className='text-[10px] text-muted-foreground'>
+              {isLive ? '现网交易额度，受单笔限额约束' : '每笔交易使用全部余额开仓'}
+            </p>
           </div>
+          {isLive && (
+            <div className='space-y-1'>
+              <Label>单笔最大下单额 ($)</Label>
+              <Input
+                type='number'
+                value={maxOrderUsd}
+                onChange={(e) => setMaxOrderUsd(Number(e.target.value))}
+                min={10}
+                max={10000}
+                step={10}
+              />
+              <p className='text-[10px] text-muted-foreground'>硬性限制每笔订单最大金额</p>
+            </div>
+          )}
           <div className='space-y-1'>
             <Label>分析间隔 (秒)</Label>
             <Input
@@ -229,11 +259,19 @@ function CreateBotDialog({
               AI 信号触发时自动交易
             </Label>
           </div>
+          {isLive && (
+            <Alert>
+              <AlertCircle className='h-3 w-3' />
+              <AlertDescription className='text-[11px]'>
+                现网模式将使用真实资金在 Hyperliquid 主网交易，请谨慎操作。
+              </AlertDescription>
+            </Alert>
+          )}
         </div>
         <DialogFooter>
           <Button variant='outline' onClick={() => onOpenChange(false)}>取消</Button>
-          <Button onClick={handleCreate} disabled={creating || !coin.trim()}>
-            {creating ? '创建中...' : '创建'}
+          <Button onClick={handleCreate} disabled={creating || !coin.trim()} variant={isLive ? 'destructive' : 'default'}>
+            {creating ? '创建中...' : isLive ? '创建现网机器人' : '创建'}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -243,10 +281,10 @@ function CreateBotDialog({
 
 // ── 主组件 ──
 
-export function StrategyBotPanel() {
+export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
   const {
     jobs, loading, error, createJob, startJob, pauseJob, deleteJob, resetAccount, updateJob, fetchDefaultPrompts, fetchJobs,
-  } = useStrategyBotJobs()
+  } = useStrategyBotJobs(mode)
   const signalTasks = useBotSignalTasks()
   const botLogs = useBotLogs()
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -431,7 +469,7 @@ export function StrategyBotPanel() {
         </Card>
       )}
 
-      <CreateBotDialog open={dialogOpen} onOpenChange={setDialogOpen} onCreate={createJob} />
+      <CreateBotDialog open={dialogOpen} onOpenChange={setDialogOpen} onCreate={createJob} mode={mode} />
       {settingsJob && (
         <BotSettingsDialog
           job={settingsJob}

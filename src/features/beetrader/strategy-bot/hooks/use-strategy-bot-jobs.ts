@@ -6,10 +6,13 @@ import {
   hyperliquidApiPatch,
 } from '@/lib/hyperliquid-api-client'
 
+export type BotMode = 'paper' | 'live'
+
 export interface StrategyBotJob {
   id: number
   coin: string
   status: 'running' | 'paused' | 'error'
+  mode: BotMode
   analyze_interval_seconds: number
   auto_trade: boolean
   last_analyzed_at: string | null
@@ -32,6 +35,9 @@ export interface StrategyBotJob {
   custom_user_prompt: string | null
   tp_pct: number | null
   sl_pct: number | null
+  taker_fee_rate: number
+  maker_fee_rate: number
+  max_order_usd: number
   scale_in_count: number
   scale_out_count: number
   created_at: string
@@ -45,6 +51,20 @@ export interface UpdateBotJobData {
   custom_user_prompt?: string | null
   tp_pct?: number | null
   sl_pct?: number | null
+  taker_fee_rate?: number
+  maker_fee_rate?: number
+  max_order_usd?: number
+}
+
+export interface CreateBotJobData {
+  coin: string
+  analyze_interval_seconds?: number
+  auto_trade?: boolean
+  account_balance?: number
+  mode?: BotMode
+  taker_fee_rate?: number
+  maker_fee_rate?: number
+  max_order_usd?: number
 }
 
 export interface DefaultPrompts {
@@ -64,7 +84,7 @@ interface JobResponse {
 
 const API_PREFIX = '/api/strategy_bot/jobs'
 
-export function useStrategyBotJobs() {
+export function useStrategyBotJobs(mode?: BotMode) {
   const [jobs, setJobs] = useState<StrategyBotJob[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<Error | null>(null)
@@ -72,13 +92,14 @@ export function useStrategyBotJobs() {
 
   const fetchJobs = useCallback(async () => {
     try {
-      const res = await hyperliquidApiGet<ListJobsResponse>(API_PREFIX)
+      const params = mode ? `?mode=${mode}` : ''
+      const res = await hyperliquidApiGet<ListJobsResponse>(`${API_PREFIX}${params}`)
       setJobs(res.jobs)
       setError(null)
     } catch (e) {
       setError(e instanceof Error ? e : new Error(String(e)))
     }
-  }, [])
+  }, [mode])
 
   useEffect(() => {
     setLoading(true)
@@ -102,14 +123,9 @@ export function useStrategyBotJobs() {
   }, [jobs, fetchJobs])
 
   const createJob = useCallback(
-    async (coin: string, interval: number = 120, autoTrade: boolean = true, accountBalance: number = 20000) => {
+    async (data: CreateBotJobData) => {
       try {
-        const res = await hyperliquidApiPost<JobResponse>(API_PREFIX, {
-          coin,
-          analyze_interval_seconds: interval,
-          auto_trade: autoTrade,
-          account_balance: accountBalance,
-        })
+        const res = await hyperliquidApiPost<JobResponse>(API_PREFIX, data)
         await fetchJobs()
         return res.job
       } catch (e) {
