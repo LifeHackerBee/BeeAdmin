@@ -35,6 +35,13 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
   Plus,
   Play,
   Pause,
@@ -58,7 +65,9 @@ import {
   WifiOff,
   Eye,
   EyeOff,
+  Star,
 } from 'lucide-react'
+import { useStrategyPrompts, type StrategyPrompt } from '../../signals/hooks/use-strategy-prompts'
 
 // ── 状态 Badge ──
 
@@ -1054,6 +1063,7 @@ function BotSettingsDialog({
   const [saving, setSaving] = useState(false)
   const [defaults, setDefaults] = useState<DefaultPrompts | null>(null)
   const [loadingDefaults, setLoadingDefaults] = useState(false)
+  const strategyPrompts = useStrategyPrompts()
 
   // 加载默认 prompt
   useEffect(() => {
@@ -1090,6 +1100,18 @@ function BotSettingsDialog({
     if (defaults) setUserPrompt(defaults.user_prompt_template)
   }
 
+  // 从策略模板库加载 prompt 到编辑区
+  const handleSelectTemplate = (templateId: string) => {
+    if (templateId === '_default') {
+      handleResetSystemPrompt()
+      return
+    }
+    const template = strategyPrompts.prompts.find((p) => p.id === Number(templateId))
+    if (template) {
+      setSystemPrompt(template.system_prompt)
+    }
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className='sm:max-w-2xl max-h-[85vh] overflow-y-auto'>
@@ -1100,14 +1122,51 @@ function BotSettingsDialog({
           </DialogTitle>
         </DialogHeader>
 
-        <Tabs defaultValue='prompt' className='w-full'>
-          <TabsList className='grid w-full grid-cols-2'>
-            <TabsTrigger value='prompt'>AI Prompt</TabsTrigger>
+        <Tabs defaultValue='analysis' className='w-full'>
+          <TabsList className='grid w-full grid-cols-3'>
+            <TabsTrigger value='analysis'>分析策略</TabsTrigger>
+            <TabsTrigger value='trading'>交易策略</TabsTrigger>
             <TabsTrigger value='tpsl'>止盈止损</TabsTrigger>
           </TabsList>
 
-          <TabsContent value='prompt' className='space-y-4 mt-4'>
-            {/* System Prompt */}
+          {/* ── 分析策略 (System Prompt) ── */}
+          <TabsContent value='analysis' className='space-y-4 mt-4'>
+            <p className='text-xs text-muted-foreground'>
+              定义 AI 的分析方法论，包括多周期分析原则、指标权重、风控规则等。决定 AI「怎么看盘」。
+            </p>
+
+            {/* 模板选择器 */}
+            <div className='space-y-2'>
+              <Label className='text-sm font-medium'>从策略模板加载</Label>
+              <div className='flex items-center gap-2'>
+                <Select onValueChange={handleSelectTemplate}>
+                  <SelectTrigger className='h-8 text-xs'>
+                    <SelectValue placeholder='选择模板加载到编辑区...' />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value='_default'>
+                      <span className='text-xs'>内置默认 (大镖客策略)</span>
+                    </SelectItem>
+                    {strategyPrompts.prompts.map((p) => (
+                      <SelectItem key={p.id} value={p.id.toString()}>
+                        <span className='text-xs flex items-center gap-1'>
+                          {p.is_default && <Star className='h-3 w-3 text-yellow-500 fill-yellow-500' />}
+                          {p.name}
+                          {p.description && (
+                            <span className='text-muted-foreground ml-1'>— {p.description}</span>
+                          )}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <p className='text-[10px] text-muted-foreground'>
+                策略模板在「信号分析」页面管理。选择后会加载到下方编辑区，可进一步修改。
+              </p>
+            </div>
+
+            {/* System Prompt 编辑 */}
             <div className='space-y-2'>
               <div className='flex items-center justify-between'>
                 <Label className='text-sm font-medium'>System Prompt</Label>
@@ -1124,16 +1183,22 @@ function BotSettingsDialog({
               <Textarea
                 value={systemPrompt}
                 onChange={(e) => setSystemPrompt(e.target.value)}
-                placeholder={loadingDefaults ? '加载中...' : defaults?.system_prompt ?? '使用默认 System Prompt'}
-                rows={8}
+                placeholder={loadingDefaults ? '加载中...' : defaults?.system_prompt ?? '留空则使用默认分析策略'}
+                rows={10}
                 className='font-mono text-xs'
               />
               <p className='text-[10px] text-muted-foreground'>
-                留空则使用默认 System Prompt。定义 AI 的角色、核心原则和输出格式。
+                留空则使用内置默认策略。定义 AI 的角色、核心分析原则和输出格式。
               </p>
             </div>
+          </TabsContent>
 
-            {/* User Prompt */}
+          {/* ── 交易策略 (User Prompt Template) ── */}
+          <TabsContent value='trading' className='space-y-4 mt-4'>
+            <p className='text-xs text-muted-foreground'>
+              定义发送给 AI 的数据模板，控制哪些技术指标数据参与决策、以什么格式呈现。决定 AI「看什么数据」。
+            </p>
+
             <div className='space-y-2'>
               <div className='flex items-center justify-between'>
                 <Label className='text-sm font-medium'>User Prompt 模板</Label>
@@ -1150,17 +1215,22 @@ function BotSettingsDialog({
               <Textarea
                 value={userPrompt}
                 onChange={(e) => setUserPrompt(e.target.value)}
-                placeholder={loadingDefaults ? '加载中...' : defaults?.user_prompt_template ?? '使用默认 User Prompt 模板'}
-                rows={12}
+                placeholder={loadingDefaults ? '加载中...' : defaults?.user_prompt_template ?? '留空则使用默认交易策略模板'}
+                rows={14}
                 className='font-mono text-xs'
               />
-              <p className='text-[10px] text-muted-foreground'>
-                留空则使用默认模板。可用变量: {'{coin}'}, {'{current_price}'}, {'{account_ctx}'}, {'{bias}'}, {'{resonance_score}'} 等。
-                点击「恢复默认」可查看完整模板。
-              </p>
+              <div className='text-[10px] text-muted-foreground space-y-1'>
+                <p>留空则使用默认模板。点击「恢复默认」可查看完整模板。</p>
+                <p>
+                  可用变量: {'{coin}'}, {'{current_price}'}, {'{account_ctx}'}, {'{bias}'}, {'{resonance_score}'},
+                  {' '}{'{macd_info}'}, {'{bollinger_info}'}, {'{rsi_info}'}, {'{kdj_info}'}, {'{ma_info}'},
+                  {' '}{'{vol_trend}'}, {'{staircase_info}'}, {'{fib_position}'} 等。
+                </p>
+              </div>
             </div>
           </TabsContent>
 
+          {/* ── 止盈止损 ── */}
           <TabsContent value='tpsl' className='space-y-4 mt-4'>
             {(() => {
               const bal = job.account_balance ?? 20000
