@@ -216,7 +216,10 @@ function CreateBotDialog({
         account_balance: balance,
         mode,
         ...(isLive ? { max_order_usd: maxOrderUsd } : {}),
-        ...(selectedPrompt ? { custom_system_prompt: selectedPrompt.system_prompt } : {}),
+        ...(selectedPrompt ? {
+          custom_system_prompt: selectedPrompt.system_prompt,
+          ...(selectedPrompt.user_prompt_template ? { custom_user_prompt: selectedPrompt.user_prompt_template } : {}),
+        } : {}),
       })
       setCoin('')
       setBalance(isLive ? 50 : 20000)
@@ -488,6 +491,7 @@ export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
   const signalTasks = useBotSignalTasks()
   const botLogs = useBotLogs()
   const liveStatus = useLiveStatus(isLive)
+  const strategyPrompts = useStrategyPrompts()
   const [dialogOpen, setDialogOpen] = useState(false)
   const [settingsJob, setSettingsJob] = useState<StrategyBotJob | null>(null)
   const [refreshing, setRefreshing] = useState(false)
@@ -664,6 +668,7 @@ export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
                     job={job}
                     trackerTasks={signalTasks.tasks}
                     logs={botLogs.logs.filter((l) => l.job_id === job.id)}
+                    promptTemplates={strategyPrompts.prompts}
                     onStart={() => startJob(job.id)}
                     onPause={() => pauseJob(job.id)}
                     onDelete={() => deleteJob(job.id)}
@@ -697,11 +702,12 @@ export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
 // ── Job 行 ──
 
 function JobRow({
-  job, trackerTasks, logs, onStart, onPause, onDelete, onReset, onSettings,
+  job, trackerTasks, logs, promptTemplates, onStart, onPause, onDelete, onReset, onSettings,
 }: {
   job: StrategyBotJob
   trackerTasks: BacktestTrackerTask[]
   logs: BotLog[]
+  promptTemplates: { id: number; name: string; system_prompt: string; is_default: boolean }[]
   onStart: () => void
   onPause: () => void
   onDelete: () => void
@@ -730,11 +736,40 @@ function JobRow({
 
   const tradeLogs = logs.filter((l) => l.level === 'trade')
 
+  // 匹配当前使用的策略模板名称
+  const matchedTemplate = job.custom_system_prompt
+    ? promptTemplates.find((p) => p.system_prompt === job.custom_system_prompt)
+    : null
+  const strategyLabel = job.custom_system_prompt
+    ? matchedTemplate?.name ?? '自定义策略'
+    : '默认策略'
+
   return (
     <>
       <TableRow>
         {/* 1. 币种 */}
-        <TableCell className='font-medium'>{job.coin}</TableCell>
+        <TableCell>
+          <div className='flex flex-col'>
+            <span className='font-medium'>{job.coin}</span>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className='text-[10px] text-muted-foreground truncate max-w-[80px] cursor-help'>
+                    {strategyLabel}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side='bottom' className='max-w-sm'>
+                  <p className='text-xs font-medium mb-1'>分析策略: {strategyLabel}</p>
+                  <pre className='text-[10px] text-muted-foreground whitespace-pre-wrap max-h-40 overflow-y-auto'>
+                    {job.custom_system_prompt
+                      ? job.custom_system_prompt.slice(0, 300) + (job.custom_system_prompt.length > 300 ? '...' : '')
+                      : '使用内置大镖客策略'}
+                  </pre>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+        </TableCell>
 
         {/* 2. 状态 */}
         <TableCell>
@@ -1172,21 +1207,25 @@ function BotSettingsDialog({
     if (defaults) setUserPrompt(defaults.user_prompt_template)
   }
 
-  // 选择已有模板
+  // 选择已有模板（同时加载 system_prompt 和 user_prompt_template）
   const handleSelectTemplate = (templateId: string) => {
     if (templateId === '_default') {
       handleResetSystemPrompt()
+      handleResetUserPrompt()
       return
     }
     const id = Number(templateId)
     const template = strategyPrompts.prompts.find((p) => p.id === id)
     if (template) {
       setSystemPrompt(template.system_prompt)
+      if (template.user_prompt_template) {
+        setUserPrompt(template.user_prompt_template)
+      }
       setActiveTemplateId(id)
     }
   }
 
-  // 保存当前内容为新模板
+  // 保存当前内容为新模板（包含两个 prompt）
   const handleSaveAsTemplate = async () => {
     if (!templateName.trim() || !systemPrompt.trim()) return
     setSavingTemplate(true)
@@ -1195,6 +1234,7 @@ function BotSettingsDialog({
         name: templateName.trim(),
         description: templateDesc.trim() || undefined,
         system_prompt: systemPrompt.trim(),
+        user_prompt_template: userPrompt.trim() || undefined,
       })
       if (created) setActiveTemplateId(created.id)
       setSaveTemplateOpen(false)
@@ -1207,13 +1247,14 @@ function BotSettingsDialog({
     }
   }
 
-  // 更新当前选中的模板内容
+  // 更新当前选中的模板内容（包含两个 prompt）
   const handleUpdateTemplate = async () => {
     if (!activeTemplateId || !systemPrompt.trim()) return
     setSavingTemplate(true)
     try {
       await strategyPrompts.updatePrompt(activeTemplateId, {
         system_prompt: systemPrompt.trim(),
+        user_prompt_template: userPrompt.trim(),
       })
     } catch {
       // ignore

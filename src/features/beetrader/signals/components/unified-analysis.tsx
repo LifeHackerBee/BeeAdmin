@@ -82,28 +82,25 @@ export function UnifiedAnalysis() {
     setLastUpdated(new Date())
   }, [unified.analyze])
 
-  // 页面加载时获取最新历史记录，然后自动触发实时分析
+  // 页面加载时从缓存加载最新分析记录（不自动发起实时分析）
   const [historyLoaded, setHistoryLoaded] = useState(false)
-  const [historyTime, setHistoryTime] = useState<string | null>(null)
+  const [usingCache, setUsingCache] = useState(false)
   useEffect(() => {
     if (historyLoaded) return
     setHistoryLoaded(true)
-    hyperliquidApiGet<{ success: boolean; record: { coin: string; strategy_data: BeeTraderStrategyData; created_at: string } | null }>(
+    hyperliquidApiGet<{ success: boolean; record: { coin: string; strategy_data: BeeTraderStrategyData; radar_data?: unknown; created_at: string } | null }>(
       '/api/beetrader_strategy/history/latest'
     ).then((res) => {
       if (res.record) {
         setCoin(res.record.coin)
         unified.setStrategy(res.record.strategy_data)
-        setHistoryTime(res.record.created_at)
+
         setLastUpdated(new Date(res.record.created_at))
-        // 历史记录加载后，自动发起实时分析（覆盖历史数据）
-        doAnalyze(res.record.coin)
-      } else {
-        // 无历史记录，直接分析默认币种
-        doAnalyze('BTC')
+        setUsingCache(true)
       }
+      // 不自动发起实时分析，使用缓存数据
     }).catch(() => {
-      doAnalyze('BTC')
+      // 缓存加载失败，仍不自动分析，等用户手动触发
     })
   }, [historyLoaded]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -111,7 +108,8 @@ export function UnifiedAnalysis() {
     if (!coin.trim()) return
     unified.reset()
     aiStrategy.reset()
-    setHistoryTime(null)
+
+    setUsingCache(false)
     doAnalyze(coin)
     setCountdown(AUTO_REFRESH_INTERVAL)
   }
@@ -263,8 +261,11 @@ export function UnifiedAnalysis() {
           )}
           {lastUpdated && (
             <span className='text-xs text-muted-foreground ml-auto'>
-              {historyTime && !radar.data && !loading ? '历史记录 · ' : ''}
+              {usingCache ? (
+                <Badge variant='outline' className='text-[10px] mr-1.5 px-1.5 py-0 h-4 font-normal'>缓存</Badge>
+              ) : null}
               更新于 {lastUpdated.toLocaleTimeString()}
+              {usingCache && <span className='ml-1'>· 点击「分析」获取最新数据</span>}
             </span>
           )}
         </div>

@@ -29,8 +29,8 @@ interface Props {
   prompts: StrategyPrompt[]
   selectedId: number | null
   onSelect: (id: number | null) => void
-  onCreate: (data: { name: string; description?: string; system_prompt: string; is_default?: boolean }) => Promise<unknown>
-  onUpdate: (id: number, data: { name?: string; description?: string; system_prompt?: string }) => Promise<unknown>
+  onCreate: (data: { name: string; description?: string; system_prompt: string; user_prompt_template?: string; is_default?: boolean }) => Promise<unknown>
+  onUpdate: (id: number, data: { name?: string; description?: string; system_prompt?: string; user_prompt_template?: string }) => Promise<unknown>
   onDelete: (id: number) => Promise<void>
   onSetDefault: (id: number) => Promise<void>
 }
