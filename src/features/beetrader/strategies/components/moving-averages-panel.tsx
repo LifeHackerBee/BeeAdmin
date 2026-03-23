@@ -1,9 +1,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import type { MovingAverages, StaircasePattern } from '../types'
 
 // ============================================
-// 均线面板
+// 均线面板 — 紧凑表格
 // ============================================
 
 interface MaPanelProps {
@@ -13,59 +12,62 @@ interface MaPanelProps {
 
 function fmtMa(v: number | null): string {
   if (v == null) return '-'
-  if (v >= 10_000) return `$${v.toLocaleString('en-US', { maximumFractionDigits: 0 })}`
-  if (v >= 100) return `$${v.toFixed(2)}`
-  return `$${v.toFixed(4)}`
+  if (v >= 10_000) return v.toLocaleString('en-US', { maximumFractionDigits: 0 })
+  if (v >= 100) return v.toFixed(2)
+  return v.toFixed(4)
 }
 
-const ALIGNMENT_LABELS: Record<string, { label: string; color: string }> = {
-  bullish: { label: '多头排列', color: 'text-green-500' },
-  bearish: { label: '空头排列', color: 'text-red-500' },
-  mixed: { label: '交叉', color: 'text-yellow-500' },
-  unknown: { label: '-', color: 'text-muted-foreground' },
+const ALIGN_LABEL: Record<string, { text: string; color: string }> = {
+  bullish: { text: '多', color: 'text-green-500' },
+  bearish: { text: '空', color: 'text-red-500' },
+  mixed: { text: '交叉', color: 'text-yellow-500' },
+  unknown: { text: '-', color: 'text-muted-foreground' },
 }
 
 export function MovingAveragesPanel({ data, currentPrice }: MaPanelProps) {
   if (!data) return null
   const timeframes = Object.keys(data)
+  const periods = [5, 7, 20, 60] as const
 
   return (
     <Card>
       <CardHeader className='pb-2'>
-        <CardTitle className='text-sm'>均线 MA (5/7/20/60)</CardTitle>
+        <CardTitle className='text-sm'>均线 MA</CardTitle>
       </CardHeader>
-      <CardContent>
-        <div className='space-y-3'>
-          {timeframes.map((tf) => {
-            const ma = data[tf]
-            const align = ALIGNMENT_LABELS[ma.alignment] ?? ALIGNMENT_LABELS.unknown
-            return (
-              <div key={tf} className='space-y-1'>
-                <div className='flex items-center justify-between'>
-                  <span className='text-xs font-medium'>{tf.toUpperCase()}</span>
-                  <Badge variant='outline' className={`text-[10px] h-4 px-1 ${align.color}`}>
-                    {align.label}
-                  </Badge>
-                </div>
-                <div className='grid grid-cols-4 gap-1 text-xs'>
-                  {([5, 7, 20, 60] as const).map((period) => {
+      <CardContent className='p-0'>
+        <table className='w-full text-xs'>
+          <thead>
+            <tr className='border-b text-muted-foreground'>
+              <th className='text-left font-medium px-3 py-1.5 w-12'></th>
+              {periods.map((p) => (
+                <th key={p} className='text-right font-medium px-2 py-1.5'>MA{p}</th>
+              ))}
+              <th className='text-right font-medium px-3 py-1.5 w-12'>排列</th>
+            </tr>
+          </thead>
+          <tbody>
+            {timeframes.map((tf) => {
+              const ma = data[tf]
+              const align = ALIGN_LABEL[ma.alignment] ?? ALIGN_LABEL.unknown
+              return (
+                <tr key={tf} className='border-b last:border-0 hover:bg-muted/30'>
+                  <td className='font-medium px-3 py-1.5'>{tf.toUpperCase()}</td>
+                  {periods.map((period) => {
                     const key = `ma${period}` as keyof MovingAverages
                     const val = ma[key] as number | null
-                    const isAbove = val != null && currentPrice > val
+                    const above = val != null && currentPrice > val
                     return (
-                      <div key={period}>
-                        <span className='text-muted-foreground'>MA{period}</span>
-                        <div className={`font-mono tabular-nums text-[11px] ${val != null ? (isAbove ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400') : ''}`}>
-                          {fmtMa(val)}
-                        </div>
-                      </div>
+                      <td key={period} className={`text-right font-mono tabular-nums px-2 py-1.5 ${val != null ? (above ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400') : 'text-muted-foreground'}`}>
+                        {fmtMa(val)}
+                      </td>
                     )
                   })}
-                </div>
-              </div>
-            )
-          })}
-        </div>
+                  <td className={`text-right px-3 py-1.5 font-medium ${align.color}`}>{align.text}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
       </CardContent>
     </Card>
   )

@@ -40,7 +40,6 @@ import {
   KdjPanel,
 } from '../../strategies/components/indicator-panels'
 import { FibonacciPanel } from '../../strategies/components/fibonacci-panel'
-import { VolumeAnalysisPanel } from '../../strategies/components/volume-analysis'
 import { MovingAveragesPanel, StaircasePatternPanel } from '../../strategies/components/moving-averages-panel'
 import { hyperliquidApiGet } from '@/lib/hyperliquid-api-client'
 import type { BeeTraderStrategyData } from '../../strategies/types'
@@ -369,7 +368,6 @@ export function UnifiedAnalysis() {
                     </div>
                     <MovingAveragesPanel data={strategy.data.indicators.moving_averages} currentPrice={strategy.data.current_price} />
                     <FibonacciPanel data={strategy.data.indicators.fibonacci} currentPrice={strategy.data.current_price} />
-                    <VolumeAnalysisPanel data={strategy.data.volume_analysis} />
                   </>
                 ) : loading ? (
                   <div className='space-y-3'>
@@ -415,10 +413,8 @@ export function UnifiedAnalysis() {
             </Card>
           )}
 
-          {/* 市场深度分析 */}
-          <div className='flex flex-col bg-card rounded-lg border p-6 shadow-sm'>
-            <MarketDepth />
-          </div>
+          {/* 成交量 · 筹码分布 · 多空流向 */}
+          <MarketDepth />
         </div>
 
         {/* ══════════════════════════════════════
