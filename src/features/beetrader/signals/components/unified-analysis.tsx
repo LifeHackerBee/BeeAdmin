@@ -21,7 +21,9 @@ import {
 import { useUnifiedAnalysis } from '../hooks/use-unified-analysis'
 import { useAiStrategy } from '../../strategies/hooks/use-ai-strategy'
 import { useLiquidationMap } from '../hooks/use-liquidation-map'
+import { useStrategyPrompts } from '../hooks/use-strategy-prompts'
 import { AiStrategyPanel } from './ai-comparison'
+import { PromptManager } from './prompt-manager'
 import {
   TrendFilterCard,
   SrLevelsCard,
@@ -64,6 +66,9 @@ export function UnifiedAnalysis() {
 
   // 大镖客 AI 策略（手动触发）
   const aiStrategy = useAiStrategy()
+
+  // 策略 Prompt 模板库
+  const promptLib = useStrategyPrompts()
 
   // 清算热力图
   const liqMap = useLiquidationMap()
@@ -131,11 +136,11 @@ export function UnifiedAnalysis() {
     }
   }, [autoRefresh, coin, radar.data, strategy.data, doAnalyze])
 
-  // AI 手动触发
+  // AI 手动触发（使用选中的自定义 prompt）
   const handleGenerateAI = () => {
     if (!strategy.data) return
     aiStrategy.reset()
-    aiStrategy.generate(strategy.data)
+    aiStrategy.generate(strategy.data, promptLib.selectedPrompt?.system_prompt)
   }
 
   const toggleAutoRefresh = () => {
@@ -459,25 +464,37 @@ export function UnifiedAnalysis() {
             </Card>
           )}
 
-          {/* AI 策略（手动触发） */}
-          {(aiStrategy.loading || aiStrategy.result) ? (
+          {/* AI 策略（手动触发 + Prompt 选择） */}
+          {strategy.data && (
+            <div className='flex items-center justify-between flex-wrap gap-2 px-1'>
+              <PromptManager
+                prompts={promptLib.prompts}
+                selectedId={promptLib.selectedId}
+                onSelect={promptLib.setSelectedId}
+                onCreate={promptLib.createPrompt}
+                onUpdate={promptLib.updatePrompt}
+                onDelete={promptLib.deletePrompt}
+                onSetDefault={promptLib.setDefault}
+              />
+              <Button
+                variant='outline'
+                size='sm'
+                onClick={handleGenerateAI}
+                disabled={aiStrategy.loading}
+                className='gap-1.5'
+              >
+                <Sparkles className='h-4 w-4' />
+                {aiStrategy.loading ? '生成中...' : '生成 AI 策略'}
+              </Button>
+            </div>
+          )}
+          {(aiStrategy.loading || aiStrategy.result) && (
             <AiStrategyPanel
               coin={coin}
               result={aiStrategy.result}
               loading={aiStrategy.loading}
             />
-          ) : strategy.data ? (
-            <div className='flex items-center justify-center py-3'>
-              <Button
-                variant='outline'
-                onClick={handleGenerateAI}
-                className='gap-1.5'
-              >
-                <Sparkles className='h-4 w-4' />
-                生成 AI 策略分析
-              </Button>
-            </div>
-          ) : null}
+          )}
         </div>
 
         {/* 空状态 */}

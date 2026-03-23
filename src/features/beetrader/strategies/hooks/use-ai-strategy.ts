@@ -46,9 +46,9 @@ export const aiStrategySchema = z.object({
 
 export type AiStrategyOutput = z.infer<typeof aiStrategySchema>
 
-// ── System Prompt ──
+// ── 默认 System Prompt ──
 
-const SYSTEM_PROMPT = `你是一位专业的加密货币交易策略分析师，擅长多周期技术分析。
+export const DEFAULT_AI_SYSTEM_PROMPT = `你是一位专业的加密货币交易策略分析师，擅长多周期技术分析。
 
 你将收到一份币种的完整技术分析数据，包含：
 1. **多周期状态** (短线1H-4H / 中线日线 / 长线周线)
@@ -87,7 +87,7 @@ export function useAiStrategy() {
   const [error, setError] = useState<Error | null>(null)
   const [result, setResult] = useState<AiStrategyOutput | null>(null)
 
-  const generate = useCallback(async (data: BeeTraderStrategyData) => {
+  const generate = useCallback(async (data: BeeTraderStrategyData, customSystemPrompt?: string) => {
     try {
       setLoading(true)
       setError(null)
@@ -111,8 +111,10 @@ export function useAiStrategy() {
 
       const structured = model.withStructuredOutput(aiStrategySchema)
 
+      const systemPrompt = customSystemPrompt || DEFAULT_AI_SYSTEM_PROMPT
+
       const prompt = ChatPromptTemplate.fromMessages([
-        ['system', SYSTEM_PROMPT],
+        ['system', systemPrompt],
         ['human', `请分析以下 {coin} 的技术指标数据并生成交易策略：
 
 当前价格: ${data.current_price}
