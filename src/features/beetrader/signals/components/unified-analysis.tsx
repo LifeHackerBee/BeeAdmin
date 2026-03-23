@@ -301,9 +301,9 @@ export function UnifiedAnalysis() {
         )}
 
         {/* ══════════════════════════════════════
-             Section 1: 宏观市场
+             Section 1: 宏观市场（含 K 线图）
            ══════════════════════════════════════ */}
-        <div id='section-macro' className='scroll-mt-4'>
+        <div id='section-macro' className='scroll-mt-4 space-y-3'>
           <div className='flex flex-col bg-card rounded-lg border p-6 shadow-sm'>
             <div className='mb-4'>
               <h3 className='text-xl font-semibold flex items-center gap-2'>
@@ -313,12 +313,7 @@ export function UnifiedAnalysis() {
             </div>
             <Macroscopic />
           </div>
-        </div>
 
-        {/* ══════════════════════════════════════
-             Section 2: 技术指标（含 K线 + 市场深度）
-           ══════════════════════════════════════ */}
-        <div id='section-technical' className='scroll-mt-4 space-y-3'>
           {/* K线观察 */}
           <div
             className='flex flex-col bg-card rounded-lg border p-6 shadow-sm'
@@ -332,8 +327,12 @@ export function UnifiedAnalysis() {
               />
             </div>
           </div>
+        </div>
 
-          {/* 技术指标数据 */}
+        {/* ══════════════════════════════════════
+             Section 2: 技术指标（含成交量）
+           ══════════════════════════════════════ */}
+        <div id='section-technical' className='scroll-mt-4'>
           {(radar.data || strategy.data || (loading && !hasAnyData)) && (
             <Card>
               <CardHeader className='pb-3'>
@@ -379,6 +378,9 @@ export function UnifiedAnalysis() {
                   </div>
                 ) : null}
 
+                {/* 5分钟量级变化 */}
+                <MarketDepth />
+
                 {/* 清算热力图 */}
                 {radar.data && (
                   liqMap.data ? (
@@ -412,9 +414,6 @@ export function UnifiedAnalysis() {
               </CardContent>
             </Card>
           )}
-
-          {/* 成交量 · 筹码分布 · 多空流向 */}
-          <MarketDepth />
         </div>
 
         {/* ══════════════════════════════════════
