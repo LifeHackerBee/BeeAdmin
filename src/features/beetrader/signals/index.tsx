@@ -1,6 +1,8 @@
 import { Radar } from 'lucide-react'
 import { UnifiedAnalysis } from './components/unified-analysis'
 
+const APP_VERSION = __APP_VERSION__
+
 export function TradingSignals() {
   return (
     <div className='flex flex-col space-y-3'>
@@ -9,6 +11,7 @@ export function TradingSignals() {
         <div className='flex items-center gap-2'>
           <Radar className='h-5 w-5' />
           <h1 className='text-xl font-bold'>交易分析中心</h1>
+          <span className='text-xs text-muted-foreground/50 tabular-nums'>v{APP_VERSION}</span>
           <span className='text-sm text-muted-foreground'>市场观察与交易指标分析</span>
         </div>
       </div>
