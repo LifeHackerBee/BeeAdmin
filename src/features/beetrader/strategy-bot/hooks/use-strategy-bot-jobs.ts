@@ -65,6 +65,9 @@ export interface CreateBotJobData {
   taker_fee_rate?: number
   maker_fee_rate?: number
   max_order_usd?: number
+  // 前端扩展: 创建后自动 PATCH 到 job
+  custom_system_prompt?: string | null
+  custom_user_prompt?: string | null
 }
 
 export interface DefaultPrompts {
@@ -125,7 +128,15 @@ export function useStrategyBotJobs(mode?: BotMode) {
   const createJob = useCallback(
     async (data: CreateBotJobData) => {
       try {
-        const res = await hyperliquidApiPost<JobResponse>(API_PREFIX, data)
+        const { custom_system_prompt, custom_user_prompt, ...createData } = data
+        const res = await hyperliquidApiPost<JobResponse>(API_PREFIX, createData)
+        // 创建后自动应用自定义 prompt
+        if (custom_system_prompt || custom_user_prompt) {
+          await hyperliquidApiPatch<JobResponse>(`${API_PREFIX}/${res.job.id}`, {
+            custom_system_prompt: custom_system_prompt || null,
+            custom_user_prompt: custom_user_prompt || null,
+          })
+        }
         await fetchJobs()
         return res.job
       } catch (e) {

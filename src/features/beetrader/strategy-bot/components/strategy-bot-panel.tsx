@@ -197,6 +197,13 @@ function CreateBotDialog({
   const [balance, setBalance] = useState(isLive ? 50 : 20000)
   const [maxOrderUsd, setMaxOrderUsd] = useState(50)
   const [creating, setCreating] = useState(false)
+  const strategyPrompts = useStrategyPrompts()
+  const [selectedStrategyId, setSelectedStrategyId] = useState<string>('_default')
+  const [showPromptPreview, setShowPromptPreview] = useState(false)
+
+  const selectedPrompt = selectedStrategyId === '_default'
+    ? null
+    : strategyPrompts.prompts.find((p) => p.id === Number(selectedStrategyId)) ?? null
 
   const handleCreate = async () => {
     if (!coin.trim()) return
@@ -209,9 +216,11 @@ function CreateBotDialog({
         account_balance: balance,
         mode,
         ...(isLive ? { max_order_usd: maxOrderUsd } : {}),
+        ...(selectedPrompt ? { custom_system_prompt: selectedPrompt.system_prompt } : {}),
       })
       setCoin('')
       setBalance(isLive ? 50 : 20000)
+      setSelectedStrategyId('_default')
       onOpenChange(false)
     } catch {
       // error handled by hook
@@ -222,7 +231,7 @@ function CreateBotDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className='sm:max-w-sm'>
+      <DialogContent className='sm:max-w-md'>
         <DialogHeader>
           <DialogTitle>
             {isLive ? '添加现网机器人' : '添加模拟机器人'}
@@ -230,6 +239,50 @@ function CreateBotDialog({
           </DialogTitle>
         </DialogHeader>
         <div className='space-y-3 py-2'>
+          {/* 策略选择 — 放在最前面 */}
+          <div className='space-y-1'>
+            <Label>分析策略</Label>
+            <Select value={selectedStrategyId} onValueChange={setSelectedStrategyId}>
+              <SelectTrigger className='h-9 text-xs'>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value='_default'>
+                  <span className='text-xs'>内置默认 (大镖客策略)</span>
+                </SelectItem>
+                {strategyPrompts.prompts.map((p) => (
+                  <SelectItem key={p.id} value={p.id.toString()}>
+                    <span className='text-xs flex items-center gap-1'>
+                      {p.is_default && <Star className='h-3 w-3 text-yellow-500 fill-yellow-500' />}
+                      {p.name}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <div className='flex items-center justify-between'>
+              <p className='text-[10px] text-muted-foreground'>
+                {selectedPrompt
+                  ? selectedPrompt.description || `使用「${selectedPrompt.name}」策略`
+                  : '多周期技术分析 + 量价共振'}
+              </p>
+              {selectedPrompt && (
+                <button
+                  type='button'
+                  className='text-[10px] text-blue-500 hover:underline'
+                  onClick={() => setShowPromptPreview(!showPromptPreview)}
+                >
+                  {showPromptPreview ? '收起' : '预览 Prompt'}
+                </button>
+              )}
+            </div>
+            {showPromptPreview && selectedPrompt && (
+              <pre className='text-[10px] font-mono text-muted-foreground bg-muted/50 rounded p-2 max-h-32 overflow-y-auto whitespace-pre-wrap'>
+                {selectedPrompt.system_prompt}
+              </pre>
+            )}
+          </div>
+
           <div className='space-y-1'>
             <Label>币种</Label>
             <Input
