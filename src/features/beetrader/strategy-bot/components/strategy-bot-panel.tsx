@@ -67,7 +67,7 @@ import {
   EyeOff,
   Star,
 } from 'lucide-react'
-import { useStrategyPrompts, type StrategyPrompt } from '../../signals/hooks/use-strategy-prompts'
+import { useStrategyPrompts } from '../../signals/hooks/use-strategy-prompts'
 
 // ── 状态 Badge ──
 
