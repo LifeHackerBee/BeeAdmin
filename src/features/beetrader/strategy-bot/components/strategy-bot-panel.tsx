@@ -499,7 +499,7 @@ export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
           <Card>
             <CardContent className='px-3 py-2'>
               <p className='text-[10px] text-muted-foreground'>总资产</p>
-              <p className='text-lg font-bold tabular-nums'>${totalBalance.toFixed(0)}</p>
+              <p className='text-lg font-bold tabular-nums'>${totalBalance.toFixed(2)}</p>
               {totalInitial > 0 && (
                 <p className={`text-[10px] font-mono ${totalBalance - totalInitial >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                   {totalBalance - totalInitial >= 0 ? '+' : ''}{((totalBalance - totalInitial) / totalInitial * 100).toFixed(1)}%
@@ -689,7 +689,7 @@ function JobRow({
         {/* 3. 账户资产 */}
         <TableCell>
           <div className='flex flex-col'>
-            <span className='text-xs font-mono font-medium'>${balance.toFixed(0)}</span>
+            <span className='text-xs font-mono font-medium'>${balance.toFixed(2)}</span>
             <span className='text-[10px] font-mono text-muted-foreground'>初始 ${initialBalance.toFixed(0)}</span>
             {pnlFromBalance !== 0 && (
               <span className={`text-[10px] font-mono ${pnlFromBalance >= 0 ? 'text-green-500' : 'text-red-500'}`}>
