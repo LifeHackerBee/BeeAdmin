@@ -29,6 +29,7 @@ const GRADE_LABELS: Record<string, { text: string; color: string }> = {
 export function BullBearLineCard({ data, currentPrice }: Props) {
   const isAbove = data.status === 'above'
   const isNeutral = data.status === 'neutral'
+  const isCounter = data.status === 'counter_trend_pullback'
   const distance = currentPrice - data.price
   const distancePct = ((distance / data.price) * 100).toFixed(2)
   const score = data.trend_score ?? 0
@@ -39,7 +40,9 @@ export function BullBearLineCard({ data, currentPrice }: Props) {
     ? 'border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-950/20'
     : isNeutral
       ? 'border-yellow-200 dark:border-yellow-800 bg-yellow-50/50 dark:bg-yellow-950/20'
-      : 'border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-950/20'
+      : isCounter
+        ? 'border-orange-200 dark:border-orange-800 bg-orange-50/50 dark:bg-orange-950/20'
+        : 'border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-950/20'
 
   return (
     <Card className={`border ${borderColor}`}>
@@ -64,7 +67,7 @@ export function BullBearLineCard({ data, currentPrice }: Props) {
               variant={isAbove ? 'default' : isNeutral ? 'secondary' : 'destructive'}
               className='text-xs'
             >
-              {isAbove ? '偏多' : isNeutral ? '震荡' : '偏空'}
+              {isAbove ? '偏多' : isNeutral ? '震荡' : isCounter ? '逆势回调' : '偏空'}
               {data.duration_hours > 0 && ` ${data.duration_hours}h`}
             </Badge>
             <span className={`text-xs font-semibold ${gradeInfo.color}`}>

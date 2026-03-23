@@ -90,7 +90,18 @@ export interface TimeframeStatus {
   long_term: TimeframeItem
 }
 
-// ── 多空分界线 ──
+// ── 核心关键位（宏观战略锚点） ──
+export interface CoreKeyLevel {
+  price: number
+  source: string
+  macro_trend: 'bullish' | 'bearish' | 'neutral'
+  fib_618?: number
+  ma60?: number | null
+  swing_high?: number
+  swing_low?: number
+}
+
+// ── 多空分界线（日内情绪枢纽） ──
 export interface BullBearLineComponent {
   name: string
   value: number
@@ -100,7 +111,7 @@ export interface BullBearLineComponent {
 
 export interface BullBearLine {
   price: number
-  status: 'above' | 'below' | 'neutral' | 'unknown'
+  status: 'above' | 'below' | 'neutral' | 'counter_trend_pullback' | 'unknown'
   duration_hours: number
   trend_score?: number
   trend_grade?: 'strong_bull' | 'ranging' | 'bearish'
@@ -154,6 +165,7 @@ export interface BeeTraderStrategyData {
   timestamp: string
   timeframe_status: TimeframeStatus
   indicators: Indicators
+  core_key_level?: CoreKeyLevel
   bull_bear_line: BullBearLine
   volume_analysis: VolumeAnalysis
   staircase_pattern: Record<string, StaircasePattern>

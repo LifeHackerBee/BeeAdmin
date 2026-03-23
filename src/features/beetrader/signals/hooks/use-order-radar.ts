@@ -20,6 +20,7 @@ export interface TacticalLine {
   price: number
   level: number  // 1-5 强度等级
   source: string
+  confluence?: string[]  // 共振指标列表
 }
 
 export interface TacticalLines {

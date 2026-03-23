@@ -110,6 +110,15 @@ export function SrLevelsCard({
                     <div className='text-[10px] text-muted-foreground/60 truncate' title={data.source}>
                       {data.source}
                     </div>
+                    {data.confluence && data.confluence.length > 0 && (
+                      <div className='flex flex-wrap gap-0.5'>
+                        {data.confluence.map((c) => (
+                          <span key={c} className='text-[9px] bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded px-1'>
+                            {c}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </>
                 ) : (
                   <div className='text-xs text-muted-foreground/40 py-1'>
