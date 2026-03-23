@@ -66,7 +66,17 @@ import {
   Eye,
   EyeOff,
   Star,
+  Save,
+  MoreVertical,
+  Copy,
 } from 'lucide-react'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { useStrategyPrompts } from '../../signals/hooks/use-strategy-prompts'
 
 // ── 状态 Badge ──
@@ -1065,6 +1075,14 @@ function BotSettingsDialog({
   const [loadingDefaults, setLoadingDefaults] = useState(false)
   const strategyPrompts = useStrategyPrompts()
 
+  // 保存为模板相关
+  const [saveTemplateOpen, setSaveTemplateOpen] = useState(false)
+  const [templateName, setTemplateName] = useState('')
+  const [templateDesc, setTemplateDesc] = useState('')
+  const [savingTemplate, setSavingTemplate] = useState(false)
+  // 当前选中的模板 id（用于跟踪编辑状态）
+  const [activeTemplateId, setActiveTemplateId] = useState<number | null>(null)
+
   // 加载默认 prompt
   useEffect(() => {
     if (!open) return
@@ -1095,22 +1113,82 @@ function BotSettingsDialog({
 
   const handleResetSystemPrompt = () => {
     if (defaults) setSystemPrompt(defaults.system_prompt)
+    setActiveTemplateId(null)
   }
   const handleResetUserPrompt = () => {
     if (defaults) setUserPrompt(defaults.user_prompt_template)
   }
 
-  // 从策略模板库加载 prompt 到编辑区
+  // 选择已有模板
   const handleSelectTemplate = (templateId: string) => {
     if (templateId === '_default') {
       handleResetSystemPrompt()
       return
     }
-    const template = strategyPrompts.prompts.find((p) => p.id === Number(templateId))
+    const id = Number(templateId)
+    const template = strategyPrompts.prompts.find((p) => p.id === id)
     if (template) {
       setSystemPrompt(template.system_prompt)
+      setActiveTemplateId(id)
     }
   }
+
+  // 保存当前内容为新模板
+  const handleSaveAsTemplate = async () => {
+    if (!templateName.trim() || !systemPrompt.trim()) return
+    setSavingTemplate(true)
+    try {
+      const created = await strategyPrompts.createPrompt({
+        name: templateName.trim(),
+        description: templateDesc.trim() || undefined,
+        system_prompt: systemPrompt.trim(),
+      })
+      if (created) setActiveTemplateId(created.id)
+      setSaveTemplateOpen(false)
+      setTemplateName('')
+      setTemplateDesc('')
+    } catch {
+      // ignore
+    } finally {
+      setSavingTemplate(false)
+    }
+  }
+
+  // 更新当前选中的模板内容
+  const handleUpdateTemplate = async () => {
+    if (!activeTemplateId || !systemPrompt.trim()) return
+    setSavingTemplate(true)
+    try {
+      await strategyPrompts.updatePrompt(activeTemplateId, {
+        system_prompt: systemPrompt.trim(),
+      })
+    } catch {
+      // ignore
+    } finally {
+      setSavingTemplate(false)
+    }
+  }
+
+  // 复制模板为新模板
+  const handleDuplicateTemplate = (p: { name: string; system_prompt: string }) => {
+    setSystemPrompt(p.system_prompt)
+    setActiveTemplateId(null)
+    setTemplateName(`${p.name} (副本)`)
+    setTemplateDesc('')
+    setSaveTemplateOpen(true)
+  }
+
+  // 删除模板
+  const handleDeleteTemplate = async (id: number) => {
+    await strategyPrompts.deletePrompt(id)
+    if (activeTemplateId === id) {
+      setActiveTemplateId(null)
+    }
+  }
+
+  const activeTemplate = activeTemplateId
+    ? strategyPrompts.prompts.find((p) => p.id === activeTemplateId) ?? null
+    : null
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -1135,13 +1213,16 @@ function BotSettingsDialog({
               定义 AI 的分析方法论，包括多周期分析原则、指标权重、风控规则等。决定 AI「怎么看盘」。
             </p>
 
-            {/* 模板选择器 */}
+            {/* 策略模板选择器 + 管理 */}
             <div className='space-y-2'>
-              <Label className='text-sm font-medium'>从策略模板加载</Label>
+              <Label className='text-sm font-medium'>策略模板</Label>
               <div className='flex items-center gap-2'>
-                <Select onValueChange={handleSelectTemplate}>
-                  <SelectTrigger className='h-8 text-xs'>
-                    <SelectValue placeholder='选择模板加载到编辑区...' />
+                <Select
+                  value={activeTemplateId?.toString() ?? '_default'}
+                  onValueChange={handleSelectTemplate}
+                >
+                  <SelectTrigger className='h-8 text-xs flex-1'>
+                    <SelectValue placeholder='选择策略模板...' />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value='_default'>
@@ -1152,18 +1233,68 @@ function BotSettingsDialog({
                         <span className='text-xs flex items-center gap-1'>
                           {p.is_default && <Star className='h-3 w-3 text-yellow-500 fill-yellow-500' />}
                           {p.name}
-                          {p.description && (
-                            <span className='text-muted-foreground ml-1'>— {p.description}</span>
-                          )}
                         </span>
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+
+                {/* 选中模板时的操作菜单 */}
+                {activeTemplate && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant='ghost' size='sm' className='h-8 w-8 p-0 shrink-0'>
+                        <MoreVertical className='h-4 w-4' />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align='end'>
+                      <DropdownMenuItem onClick={handleUpdateTemplate} disabled={savingTemplate}>
+                        <Save className='h-3.5 w-3.5 mr-2' />
+                        保存修改到「{activeTemplate.name}」
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleDuplicateTemplate(activeTemplate)}>
+                        <Copy className='h-3.5 w-3.5 mr-2' />
+                        复制为新模板
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => strategyPrompts.setDefault(activeTemplate.id)}>
+                        <Star className='h-3.5 w-3.5 mr-2' />
+                        设为默认
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        className='text-red-600'
+                        onClick={() => handleDeleteTemplate(activeTemplate.id)}
+                      >
+                        <Trash2 className='h-3.5 w-3.5 mr-2' />
+                        删除模板
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+
+                {/* 保存为新模板 */}
+                <Button
+                  variant='outline'
+                  size='sm'
+                  className='h-8 text-xs shrink-0 gap-1'
+                  onClick={() => {
+                    setTemplateName('')
+                    setTemplateDesc('')
+                    setSaveTemplateOpen(true)
+                  }}
+                  disabled={!systemPrompt.trim()}
+                >
+                  <Plus className='h-3.5 w-3.5' />
+                  存为模板
+                </Button>
               </div>
-              <p className='text-[10px] text-muted-foreground'>
-                策略模板在「信号分析」页面管理。选择后会加载到下方编辑区，可进一步修改。
-              </p>
+
+              {activeTemplate && (
+                <p className='text-[10px] text-muted-foreground'>
+                  当前使用:「{activeTemplate.name}」
+                  {activeTemplate.description && ` — ${activeTemplate.description}`}
+                </p>
+              )}
             </div>
 
             {/* System Prompt 编辑 */}
@@ -1312,6 +1443,42 @@ function BotSettingsDialog({
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      {/* 保存为模板弹窗 */}
+      <Dialog open={saveTemplateOpen} onOpenChange={setSaveTemplateOpen}>
+        <DialogContent className='sm:max-w-sm' onClick={(e) => e.stopPropagation()}>
+          <DialogHeader>
+            <DialogTitle className='text-sm'>保存为策略模板</DialogTitle>
+          </DialogHeader>
+          <div className='space-y-3 py-2'>
+            <div className='space-y-1'>
+              <Label className='text-xs'>模板名称</Label>
+              <Input
+                value={templateName}
+                onChange={(e) => setTemplateName(e.target.value)}
+                placeholder='如: 保守短线 / 激进突破 / 震荡回归'
+                className='text-sm'
+                onKeyDown={(e) => e.key === 'Enter' && handleSaveAsTemplate()}
+              />
+            </div>
+            <div className='space-y-1'>
+              <Label className='text-xs'>描述 (可选)</Label>
+              <Input
+                value={templateDesc}
+                onChange={(e) => setTemplateDesc(e.target.value)}
+                placeholder='简短描述策略特点'
+                className='text-sm'
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant='outline' size='sm' onClick={() => setSaveTemplateOpen(false)}>取消</Button>
+            <Button size='sm' onClick={handleSaveAsTemplate} disabled={savingTemplate || !templateName.trim()}>
+              {savingTemplate ? '保存中...' : '保存'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   )
 }
