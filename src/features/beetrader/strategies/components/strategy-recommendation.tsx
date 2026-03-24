@@ -59,17 +59,15 @@ interface Props {
 export function StrategyRecommendation({ data }: Props) {
   const biasConfig = BIAS_CONFIG[data.bias] || { variant: 'outline' as const, label: data.bias, emoji: '⚪' }
 
-  const entryLines = data.entry_strategy.split('\n')
-  const entryTitle = entryLines[0]
-  const tacticLines = entryLines.slice(1).filter(Boolean)
-
   const summary = buildResonanceSummary(data.resonance_details, data.resonance_score)
 
-  // 统计多空数量
+  // 统计多空中性数量
   const bullCount = data.resonance_details.filter((d) => d.signal === 'bullish' || d.signal === 'confirmed').length
   const bearCount = data.resonance_details.filter((d) => d.signal === 'bearish' || d.signal === 'warning').length
   const total = data.resonance_details.length
+  const neutralCount = total - bullCount - bearCount
   const bullPct = total > 0 ? (bullCount / total) * 100 : 0
+  const neutralPct = total > 0 ? (neutralCount / total) * 100 : 0
   const bearPct = total > 0 ? (bearCount / total) * 100 : 0
 
   // 按指标类别分组
@@ -83,7 +81,7 @@ export function StrategyRecommendation({ data }: Props) {
     <Card>
       <CardHeader className='pb-3'>
         <div className='flex items-center justify-between'>
-          <CardTitle className='text-base'>策略建议</CardTitle>
+          <CardTitle className='text-base'>共振分析</CardTitle>
           <Badge variant={biasConfig.variant} className='text-sm px-3 py-1'>
             {biasConfig.label}
           </Badge>
@@ -91,7 +89,7 @@ export function StrategyRecommendation({ data }: Props) {
       </CardHeader>
       <CardContent className='space-y-4'>
         {/* ── 共振趋势总览 ── */}
-        <div className='rounded-lg border p-3 space-y-2'>
+        <div className='rounded-lg border p-3 space-y-3'>
           <div className='flex items-center justify-between'>
             <div className='flex items-center gap-2'>
               <CircleDot className='h-4 w-4 text-purple-500' />
@@ -102,44 +100,37 @@ export function StrategyRecommendation({ data }: Props) {
             </span>
           </div>
 
-          {/* 多空比例条 */}
-          <div className='space-y-1'>
-            <div className='flex h-2 rounded-full overflow-hidden bg-muted'>
+          {/* 多空比例条 — 三段连续 */}
+          <div className='space-y-1.5'>
+            <div className='flex h-2.5 rounded-full overflow-hidden'>
               {bullPct > 0 && (
                 <div className='bg-green-500 transition-all' style={{ width: `${bullPct}%` }} />
               )}
+              {neutralPct > 0 && (
+                <div className='bg-slate-300 dark:bg-slate-600 transition-all' style={{ width: `${neutralPct}%` }} />
+              )}
               {bearPct > 0 && (
-                <div className='bg-red-500 transition-all ml-auto' style={{ width: `${bearPct}%` }} />
+                <div className='bg-red-500 transition-all' style={{ width: `${bearPct}%` }} />
               )}
             </div>
-            <div className='flex justify-between text-[10px] text-muted-foreground'>
-              <span className='text-green-600 dark:text-green-400'>
-                看多 {bullCount}/{total}
+            <div className='flex items-center gap-3 text-[11px]'>
+              <span className='flex items-center gap-1'>
+                <span className='inline-block w-2 h-2 rounded-full bg-green-500' />
+                <span className='text-green-600 dark:text-green-400 font-medium'>看多 {bullCount}</span>
               </span>
-              <span className='text-red-600 dark:text-red-400'>
-                看空 {bearCount}/{total}
+              <span className='flex items-center gap-1'>
+                <span className='inline-block w-2 h-2 rounded-full bg-slate-300 dark:bg-slate-600' />
+                <span className='text-muted-foreground'>中性 {neutralCount}</span>
               </span>
+              <span className='flex items-center gap-1'>
+                <span className='inline-block w-2 h-2 rounded-full bg-red-500' />
+                <span className='text-red-600 dark:text-red-400 font-medium'>看空 {bearCount}</span>
+              </span>
+              <span className='text-muted-foreground ml-auto'>共 {total} 项</span>
             </div>
           </div>
 
           <p className='text-xs text-muted-foreground'>{summary}</p>
-        </div>
-
-        {/* ── 入场策略 + 战术点位 ── */}
-        <div className='text-sm space-y-1'>
-          <div>
-            <span className='text-muted-foreground'>入场策略: </span>
-            <span className='font-medium'>{entryTitle}</span>
-          </div>
-          {tacticLines.length > 0 && (
-            <div className='rounded-md border bg-muted/30 p-2.5 space-y-0.5'>
-              {tacticLines.map((line, i) => (
-                <div key={i} className='text-xs text-muted-foreground font-mono'>
-                  {line}
-                </div>
-              ))}
-            </div>
-          )}
         </div>
 
         {/* ── 共振指标明细 — 按类别分组 ── */}
