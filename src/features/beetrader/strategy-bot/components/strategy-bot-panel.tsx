@@ -1663,12 +1663,12 @@ function DefaultPromptManager({
         <Tabs defaultValue='system' className='w-full'>
           <TabsList className='grid w-full grid-cols-2'>
             <TabsTrigger value='system'>分析策略 (System Prompt)</TabsTrigger>
-            <TabsTrigger value='user'>数据模板 (User Prompt)</TabsTrigger>
+            <TabsTrigger value='user'>交易执行 (Agent Prompt)</TabsTrigger>
           </TabsList>
 
           <TabsContent value='system' className='space-y-2 mt-3'>
             <p className='text-[10px] text-muted-foreground'>
-              定义 AI 的角色、分析原则和输出 JSON 格式。AI 根据此 prompt 决定交易方向和价位。
+              定义 AI 的角色、分析原则和输出 JSON 格式。AI 根据此 prompt 分析技术指标并生成结构化策略信号。
             </p>
             <Textarea
               value={systemPrompt}
@@ -1681,12 +1681,12 @@ function DefaultPromptManager({
 
           <TabsContent value='user' className='space-y-2 mt-3'>
             <p className='text-[10px] text-muted-foreground'>
-              定义发送给 AI 的技术指标数据模板。可用变量: {'{coin}'}, {'{current_price}'}, {'{account_ctx}'}, {'{macd_info}'}, {'{bollinger_info}'} 等。
+              定义交易 Agent 的行为规则。Agent 根据 AI 策略信号 + 实时价格 + 账户状态，通过 Tool Call 执行具体交易动作（开多/开空/平仓/观望）。
             </p>
             <Textarea
               value={userPrompt}
               onChange={(e) => setUserPrompt(e.target.value)}
-              placeholder='User Prompt Template...'
+              placeholder={`示例：\n你是交易执行 Agent，根据 AI 策略信号决定交易动作。\n\n规则:\n1. 信号为"回踩做多"且实时价在入场区间内 → 调用 open_long\n2. 信号为"反弹做空"且实时价在入场区间内 → 调用 open_short\n3. 实时价触及止损位 → 调用 close_position\n4. 信号为"观望"或实时价不在入场区间 → 调用 wait\n5. 入场价与实时价偏差 > 3% → 强制 wait`}
               rows={18}
               className='font-mono text-xs'
             />
