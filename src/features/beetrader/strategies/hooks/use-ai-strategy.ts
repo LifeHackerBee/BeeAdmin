@@ -206,5 +206,5 @@ export function useAiStrategy() {
     setError(null)
   }, [])
 
-  return { generate, loading, error, result, reset }
+  return { generate, loading, error, result, reset, setResult }
 }

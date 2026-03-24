@@ -41,7 +41,7 @@ import {
 } from '../../strategies/components/indicator-panels'
 import { FibonacciPanel } from '../../strategies/components/fibonacci-panel'
 import { MovingAveragesPanel, StaircasePatternPanel } from '../../strategies/components/moving-averages-panel'
-import { hyperliquidApiGet } from '@/lib/hyperliquid-api-client'
+import { hyperliquidApiGet, hyperliquidApiPost } from '@/lib/hyperliquid-api-client'
 import type { BeeTraderStrategyData } from '../../strategies/types'
 import { Macroscopic } from '../../macroscopic'
 import { Candles } from '../../candles'
@@ -88,20 +88,28 @@ export function UnifiedAnalysis() {
   useEffect(() => {
     if (historyLoaded) return
     setHistoryLoaded(true)
-    hyperliquidApiGet<{ success: boolean; record: { coin: string; strategy_data: BeeTraderStrategyData; radar_data?: unknown; created_at: string } | null }>(
+    hyperliquidApiGet<{ success: boolean; record: {
+      coin: string
+      strategy_data: BeeTraderStrategyData
+      ai_strategy_sections?: { key: string; title: string; content: string }[]
+      created_at: string
+    } | null }>(
       '/api/beetrader_strategy/history/latest'
     ).then((res) => {
       if (res.record) {
         setCoin(res.record.coin)
         unified.setStrategy(res.record.strategy_data)
-
         setLastUpdated(new Date(res.record.created_at))
         setUsingCache(true)
+        // 恢复缓存的 AI 策略
+        if (res.record.ai_strategy_sections?.length) {
+          aiAutoTriggered.current = true // 有缓存就不再自动触发
+          const sections = res.record.ai_strategy_sections as import('../../strategies/hooks/use-ai-strategy').AiStrategySection[]
+          const fullContent = sections.map((s) => `## ${s.title}\n\n${s.content}`).join('\n\n---\n\n')
+          aiStrategy.setResult({ content: fullContent, sections })
+        }
       }
-      // 不自动发起实时分析，使用缓存数据
-    }).catch(() => {
-      // 缓存加载失败，仍不自动分析，等用户手动触发
-    })
+    }).catch(() => {})
   }, [historyLoaded]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleAnalyze = () => {
@@ -133,11 +141,26 @@ export function UnifiedAnalysis() {
     }
   }, [autoRefresh, coin, radar.data, strategy.data, doAnalyze])
 
-  // AI 手动触发（使用选中的自定义 prompt）
+  // 生成 AI 策略并保存到 Supabase
+  const generateAndSave = useCallback(async (targetCoin: string, strategyData: BeeTraderStrategyData) => {
+    try {
+      const output = await aiStrategy.generate(strategyData, promptLib.selectedPrompt?.system_prompt)
+      if (output?.sections) {
+        hyperliquidApiPost('/api/beetrader_strategy/history/ai-strategy', {
+          coin: targetCoin,
+          sections: output.sections,
+        }).catch(() => {})
+      }
+    } catch {
+      // error handled by hook
+    }
+  }, [aiStrategy.generate, promptLib.selectedPrompt]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // AI 手动触发
   const handleGenerateAI = () => {
     if (!strategy.data) return
     aiStrategy.reset()
-    aiStrategy.generate(strategy.data, promptLib.selectedPrompt?.system_prompt)
+    generateAndSave(coin, strategy.data)
   }
 
   // 策略数据就绪后自动触发 AI 分析
@@ -145,7 +168,7 @@ export function UnifiedAnalysis() {
   useEffect(() => {
     if (strategy.data && !aiStrategy.result && !aiStrategy.loading && !aiAutoTriggered.current) {
       aiAutoTriggered.current = true
-      aiStrategy.generate(strategy.data, promptLib.selectedPrompt?.system_prompt)
+      generateAndSave(coin, strategy.data)
     }
   }, [strategy.data]) // eslint-disable-line react-hooks/exhaustive-deps
 
