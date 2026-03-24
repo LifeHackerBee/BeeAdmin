@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { hyperliquidApiGet } from '@/lib/hyperliquid-api-client'
 
 export interface BotLog {
