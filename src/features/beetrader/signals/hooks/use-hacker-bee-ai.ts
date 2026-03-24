@@ -77,8 +77,6 @@ export function useHackerBeeAI() {
         temperature: 0.3,
       })
 
-      const structured = model.withStructuredOutput(aiStrategySchema)
-
       const prompt = ChatPromptTemplate.fromMessages([
         ['system', SYSTEM_PROMPT],
         ['human', `请分析以下 {coin} 的订单流数据并生成交易策略：
@@ -119,8 +117,8 @@ MACD: {macd_val}, 信号线: {macd_signal}, 柱状: {macd_hist}
       const { vwap, ema } = trend_filter
       const { bollinger, macd } = tp_sl_reference
 
-      const chain = prompt.pipe(structured)
-      const output = await chain.invoke({
+      const chain = prompt.pipe(model)
+      const response = await chain.invoke({
         coin: data.coin,
         current_price: data.current_price,
         // S/R
@@ -158,6 +156,8 @@ MACD: {macd_val}, 信号线: {macd_signal}, 柱状: {macd_hist}
         macd_hist_trend: macd.histogram_trend === 'expanding' ? '扩张' : '收缩',
       })
 
+      const content = typeof response.content === 'string' ? response.content : JSON.stringify(response.content)
+      const output: AiStrategyOutput = { content }
       setResult(output)
       return output
     } catch (err) {
