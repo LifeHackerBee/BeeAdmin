@@ -1,67 +1,54 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { AlertTriangle, Shield, TrendingUp, TrendingDown, Minus } from 'lucide-react'
+import { AlertTriangle, Shield, TrendingUp, TrendingDown, Minus, CircleDot } from 'lucide-react'
 import type { Strategy, ResonanceDetail } from '../types'
 
-const BIAS_CONFIG: Record<string, { variant: 'default' | 'destructive' | 'outline' | 'secondary'; label: string; color: string }> = {
-  '强势看多': { variant: 'default', label: '强势看多', color: 'text-green-600 dark:text-green-400' },
-  '震荡偏多': { variant: 'default', label: '震荡偏多', color: 'text-green-600 dark:text-green-400' },
-  '观望': { variant: 'secondary', label: '观望', color: 'text-muted-foreground' },
-  '震荡偏空': { variant: 'destructive', label: '震荡偏空', color: 'text-red-600 dark:text-red-400' },
-  '强势看空': { variant: 'destructive', label: '强势看空', color: 'text-red-600 dark:text-red-400' },
+const BIAS_CONFIG: Record<string, { variant: 'default' | 'destructive' | 'outline' | 'secondary'; label: string; emoji: string }> = {
+  '强势看多': { variant: 'default', label: '强势看多', emoji: '🟢' },
+  '震荡偏多': { variant: 'default', label: '震荡偏多', emoji: '🟡' },
+  '观望': { variant: 'secondary', label: '观望', emoji: '⚪' },
+  '震荡偏空': { variant: 'destructive', label: '震荡偏空', emoji: '🟡' },
+  '强势看空': { variant: 'destructive', label: '强势看空', emoji: '🔴' },
 }
 
-const SIGNAL_ICON = {
-  bullish: TrendingUp,
-  confirmed: TrendingUp,
-  bearish: TrendingDown,
-  warning: AlertTriangle,
-  neutral: Minus,
+// 权重 → 周期标签 (1h=1, 4h=2, 1d=3, 1w=4)
+function weightToTimeframe(indicator: string, weight: number): string {
+  if (indicator.includes('1w')) return '周线'
+  if (indicator.includes('1d')) return '日线'
+  if (indicator.includes('4h')) return '4小时'
+  if (indicator.includes('1h')) return '1小时'
+  if (weight >= 4) return '周线'
+  if (weight >= 3) return '日线'
+  if (weight >= 2) return '4小时'
+  return '1小时'
 }
 
-const SIGNAL_LABEL: Record<string, string> = {
-  bullish: '看多',
-  bearish: '看空',
-  confirmed: '确认',
-  warning: '警告',
-  neutral: '中性',
+// 提取指标类别名（去掉周期后缀）
+function indicatorCategory(name: string): string {
+  return name.replace(/\s*\d[hHdDwW]+$/, '')
 }
 
-const SIGNAL_COLOR: Record<string, string> = {
-  bullish: 'text-green-600 dark:text-green-400',
-  confirmed: 'text-green-600 dark:text-green-400',
-  bearish: 'text-red-600 dark:text-red-400',
-  warning: 'text-yellow-600 dark:text-yellow-400',
-  neutral: 'text-muted-foreground',
-}
-
-const SIGNAL_BG: Record<string, string> = {
-  bullish: 'bg-green-50 dark:bg-green-950/20',
-  confirmed: 'bg-green-50 dark:bg-green-950/20',
-  bearish: 'bg-red-50 dark:bg-red-950/20',
-  warning: 'bg-yellow-50 dark:bg-yellow-950/20',
-  neutral: '',
-}
-
-function buildResonanceSummary(details: ResonanceDetail[], score: number, bias: string): string {
+function buildResonanceSummary(details: ResonanceDetail[], score: number): string {
   const bullish = details.filter((d) => d.signal === 'bullish' || d.signal === 'confirmed')
   const bearish = details.filter((d) => d.signal === 'bearish' || d.signal === 'warning')
   const neutral = details.filter((d) => d.signal === 'neutral')
   const parts: string[] = []
 
   if (bullish.length > 0) {
-    parts.push(`${bullish.length} 项指标看多 (${bullish.map((d) => d.indicator.replace(/ \d[hHdDwW]$/, '')).filter((v, i, a) => a.indexOf(v) === i).join('、')})`)
+    const names = bullish.map((d) => indicatorCategory(d.indicator)).filter((v, i, a) => a.indexOf(v) === i)
+    parts.push(`${bullish.length} 项看多 (${names.join('、')})`)
   }
   if (bearish.length > 0) {
-    parts.push(`${bearish.length} 项看空 (${bearish.map((d) => d.indicator.replace(/ \d[hHdDwW]$/, '')).filter((v, i, a) => a.indexOf(v) === i).join('、')})`)
+    const names = bearish.map((d) => indicatorCategory(d.indicator)).filter((v, i, a) => a.indexOf(v) === i)
+    parts.push(`${bearish.length} 项看空 (${names.join('、')})`)
   }
   if (neutral.length > 0) {
     parts.push(`${neutral.length} 项中性`)
   }
 
   const strength = score >= 8 ? '共振强烈' : score >= 6 ? '共振较好' : score >= 4 ? '信号分歧' : '共振较弱'
-  return `${strength}，${parts.join('，')}。综合偏向「${bias}」`
+  return `${strength} · ${parts.join('，')}`
 }
 
 interface Props {
@@ -70,32 +57,75 @@ interface Props {
 }
 
 export function StrategyRecommendation({ data }: Props) {
-  const biasConfig = BIAS_CONFIG[data.bias] || { variant: 'outline' as const, label: data.bias, color: 'text-muted-foreground' }
+  const biasConfig = BIAS_CONFIG[data.bias] || { variant: 'outline' as const, label: data.bias, emoji: '⚪' }
 
-  // entry_strategy 可能是多行文本（包含战术点位）
   const entryLines = data.entry_strategy.split('\n')
   const entryTitle = entryLines[0]
   const tacticLines = entryLines.slice(1).filter(Boolean)
 
-  const summary = buildResonanceSummary(data.resonance_details, data.resonance_score, data.bias)
+  const summary = buildResonanceSummary(data.resonance_details, data.resonance_score)
+
+  // 统计多空数量
+  const bullCount = data.resonance_details.filter((d) => d.signal === 'bullish' || d.signal === 'confirmed').length
+  const bearCount = data.resonance_details.filter((d) => d.signal === 'bearish' || d.signal === 'warning').length
+  const total = data.resonance_details.length
+  const bullPct = total > 0 ? (bullCount / total) * 100 : 0
+  const bearPct = total > 0 ? (bearCount / total) * 100 : 0
+
+  // 按指标类别分组
+  const grouped = data.resonance_details.reduce<Record<string, ResonanceDetail[]>>((acc, d) => {
+    const cat = indicatorCategory(d.indicator)
+    ;(acc[cat] ??= []).push(d)
+    return acc
+  }, {})
 
   return (
     <Card>
       <CardHeader className='pb-3'>
         <div className='flex items-center justify-between'>
           <CardTitle className='text-base'>策略建议</CardTitle>
-          <div className='flex items-center gap-2'>
-            <Badge variant={biasConfig.variant}>{biasConfig.label}</Badge>
-            <Badge variant='outline' className='tabular-nums'>
-              共振 {data.resonance_score}/10
-            </Badge>
-          </div>
+          <Badge variant={biasConfig.variant} className='text-sm px-3 py-1'>
+            {biasConfig.label}
+          </Badge>
         </div>
-        {/* 共振总结描述 */}
-        <p className='text-xs text-muted-foreground mt-1'>{summary}</p>
       </CardHeader>
-      <CardContent className='space-y-3'>
-        {/* 入场策略 + 战术点位 */}
+      <CardContent className='space-y-4'>
+        {/* ── 共振趋势总览 ── */}
+        <div className='rounded-lg border p-3 space-y-2'>
+          <div className='flex items-center justify-between'>
+            <div className='flex items-center gap-2'>
+              <CircleDot className='h-4 w-4 text-purple-500' />
+              <span className='text-sm font-medium'>共振评分</span>
+            </div>
+            <span className='text-2xl font-bold tabular-nums'>
+              {data.resonance_score}<span className='text-sm font-normal text-muted-foreground'>/10</span>
+            </span>
+          </div>
+
+          {/* 多空比例条 */}
+          <div className='space-y-1'>
+            <div className='flex h-2 rounded-full overflow-hidden bg-muted'>
+              {bullPct > 0 && (
+                <div className='bg-green-500 transition-all' style={{ width: `${bullPct}%` }} />
+              )}
+              {bearPct > 0 && (
+                <div className='bg-red-500 transition-all ml-auto' style={{ width: `${bearPct}%` }} />
+              )}
+            </div>
+            <div className='flex justify-between text-[10px] text-muted-foreground'>
+              <span className='text-green-600 dark:text-green-400'>
+                看多 {bullCount}/{total}
+              </span>
+              <span className='text-red-600 dark:text-red-400'>
+                看空 {bearCount}/{total}
+              </span>
+            </div>
+          </div>
+
+          <p className='text-xs text-muted-foreground'>{summary}</p>
+        </div>
+
+        {/* ── 入场策略 + 战术点位 ── */}
         <div className='text-sm space-y-1'>
           <div>
             <span className='text-muted-foreground'>入场策略: </span>
@@ -112,60 +142,96 @@ export function StrategyRecommendation({ data }: Props) {
           )}
         </div>
 
-        {/* 共振指标明细 — 清晰列表 */}
-        <div className='space-y-1.5'>
+        {/* ── 共振指标明细 — 按类别分组 ── */}
+        <div className='space-y-2'>
           <p className='text-xs font-medium text-muted-foreground'>共振指标明细</p>
-          <div className='grid gap-1'>
-            {data.resonance_details.map((d, i) => {
-              const Icon = SIGNAL_ICON[d.signal] ?? Minus
-              const color = SIGNAL_COLOR[d.signal] ?? ''
-              const bg = SIGNAL_BG[d.signal] ?? ''
-              const label = SIGNAL_LABEL[d.signal] ?? d.signal
+          <div className='space-y-1.5'>
+            {Object.entries(grouped).map(([category, items]) => {
+              // 判断该类别的整体方向
+              const catBull = items.filter((d) => d.signal === 'bullish' || d.signal === 'confirmed').length
+              const catBear = items.filter((d) => d.signal === 'bearish' || d.signal === 'warning').length
+              const catDir = catBull > catBear ? 'bullish' : catBear > catBull ? 'bearish' : 'neutral'
+
               return (
-                <div
-                  key={i}
-                  className={`flex items-center gap-2 rounded px-2 py-1 text-xs ${bg}`}
-                >
-                  <Icon className={`h-3 w-3 shrink-0 ${color}`} />
-                  <span className='font-medium min-w-[80px]'>{d.indicator}</span>
-                  <span className={`font-medium ${color}`}>{label}</span>
-                  {d.weight > 0 && (
-                    <span className='text-muted-foreground'>权重 ×{d.weight}</span>
-                  )}
-                  {d.state && (
-                    <span className='text-muted-foreground ml-auto truncate max-w-[200px]' title={d.state}>
-                      {d.state}
+                <div key={category} className='rounded-md border overflow-hidden'>
+                  {/* 类别标题行 */}
+                  <div className={`flex items-center justify-between px-3 py-1.5 text-xs ${
+                    catDir === 'bullish' ? 'bg-green-50 dark:bg-green-950/20'
+                      : catDir === 'bearish' ? 'bg-red-50 dark:bg-red-950/20'
+                        : 'bg-muted/30'
+                  }`}>
+                    <div className='flex items-center gap-1.5'>
+                      {catDir === 'bullish' ? (
+                        <TrendingUp className='h-3 w-3 text-green-600 dark:text-green-400' />
+                      ) : catDir === 'bearish' ? (
+                        <TrendingDown className='h-3 w-3 text-red-600 dark:text-red-400' />
+                      ) : (
+                        <Minus className='h-3 w-3 text-muted-foreground' />
+                      )}
+                      <span className='font-medium'>{category}</span>
+                    </div>
+                    <span className={`font-medium ${
+                      catDir === 'bullish' ? 'text-green-600 dark:text-green-400'
+                        : catDir === 'bearish' ? 'text-red-600 dark:text-red-400'
+                          : 'text-muted-foreground'
+                    }`}>
+                      {catDir === 'bullish' ? '偏多' : catDir === 'bearish' ? '偏空' : '中性'}
                     </span>
-                  )}
+                  </div>
+                  {/* 各周期明细 */}
+                  <div className='divide-y'>
+                    {items.map((d, i) => {
+                      const signalColor = d.signal === 'bullish' || d.signal === 'confirmed'
+                        ? 'text-green-600 dark:text-green-400'
+                        : d.signal === 'bearish' || d.signal === 'warning'
+                          ? 'text-red-600 dark:text-red-400'
+                          : 'text-muted-foreground'
+                      const signalLabel = d.signal === 'bullish' ? '多' : d.signal === 'bearish' ? '空' : d.signal === 'confirmed' ? '确认' : d.signal === 'warning' ? '警告' : '—'
+                      const tf = weightToTimeframe(d.indicator, d.weight)
+
+                      return (
+                        <div key={i} className='flex items-center px-3 py-1 text-xs'>
+                          <span className='text-muted-foreground w-14 shrink-0'>{tf}</span>
+                          <span className={`font-medium w-8 shrink-0 ${signalColor}`}>{signalLabel}</span>
+                          {d.state && (
+                            <span className='text-muted-foreground truncate' title={d.state}>
+                              {d.state}
+                            </span>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
                 </div>
               )
             })}
           </div>
         </div>
 
-        {/* 风险提醒 */}
-        {data.warnings.length > 0 && (
-          <div className='space-y-1'>
-            {data.warnings.map((w, i) => (
-              <div
-                key={i}
-                className='flex items-start gap-2 text-xs text-yellow-700 dark:text-yellow-400'
-              >
-                <AlertTriangle className='h-3 w-3 mt-0.5 shrink-0' />
-                <span>{w}</span>
+        {/* ── 风险与备注 ── */}
+        {(data.warnings.length > 0 || data.error_prevention) && (
+          <div className='rounded-lg border border-yellow-200 bg-yellow-50/50 dark:border-yellow-800/50 dark:bg-yellow-950/20 p-3 space-y-2'>
+            <div className='flex items-center gap-1.5'>
+              <AlertTriangle className='h-3.5 w-3.5 text-yellow-600 dark:text-yellow-400' />
+              <span className='text-xs font-medium text-yellow-700 dark:text-yellow-400'>风险提示</span>
+            </div>
+            {data.warnings.length > 0 && (
+              <div className='space-y-1 pl-5'>
+                {data.warnings.map((w, i) => (
+                  <div key={i} className='flex items-start gap-1.5 text-xs text-yellow-700 dark:text-yellow-400'>
+                    <span className='shrink-0'>•</span>
+                    <span>{w}</span>
+                  </div>
+                ))}
               </div>
-            ))}
+            )}
+            {data.error_prevention && (
+              <div className='flex items-start gap-1.5 pl-5 text-xs text-orange-700 dark:text-orange-400 border-t border-yellow-200 dark:border-yellow-800/50 pt-2'>
+                <Shield className='h-3 w-3 mt-0.5 shrink-0' />
+                <span>{data.error_prevention}</span>
+              </div>
+            )}
           </div>
-        )}
-
-        {/* 防错提醒 */}
-        {data.error_prevention && (
-          <Alert className='border-orange-200 bg-orange-50 dark:border-orange-800 dark:bg-orange-950/30'>
-            <Shield className='h-4 w-4 text-orange-600 dark:text-orange-400' />
-            <AlertDescription className='text-xs text-orange-700 dark:text-orange-400'>
-              {data.error_prevention}
-            </AlertDescription>
-          </Alert>
         )}
       </CardContent>
     </Card>
