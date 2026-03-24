@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Select,
   SelectContent,
@@ -9,8 +9,12 @@ import {
 import { VolumeFlowChart } from './volume-flow-chart'
 import { COINS, coinLabel } from '../coins'
 
-export function MarketDepth() {
-  const [selectedCoin, setSelectedCoin] = useState(COINS[0].value)
+export function MarketDepth({ coin: externalCoin }: { coin?: string }) {
+  const [selectedCoin, setSelectedCoin] = useState(externalCoin || COINS[0].value)
+
+  useEffect(() => {
+    if (externalCoin) setSelectedCoin(externalCoin)
+  }, [externalCoin])
 
   return (
     <div className='space-y-2'>

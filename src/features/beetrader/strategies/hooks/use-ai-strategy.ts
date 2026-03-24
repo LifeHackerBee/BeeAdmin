@@ -1,86 +1,128 @@
 import { useState, useCallback } from 'react'
 import { ChatOpenAI } from '@langchain/openai'
-import { ChatPromptTemplate } from '@langchain/core/prompts'
+import { HumanMessage, SystemMessage } from '@langchain/core/messages'
 import type { BeeTraderStrategyData } from '../types'
 
-// ── 默认 System Prompt ──
+// ── 默认 System Prompt (用户可通过策略模板覆盖) ──
 
-export const DEFAULT_AI_SYSTEM_PROMPT = `你是一位专业的加密货币交易策略分析师，擅长多周期技术分析和大镖客方法论。
+export const DEFAULT_AI_SYSTEM_PROMPT = `你是一位顶级的加密货币交易策略分析师，你的交易哲学深受"大镖客"流派影响：崇尚裸K形态与关键位置的权威性，将多周期共振作为入场前提，并具备极强的风控防守意识。
 
-核心原则:
-1. 多周期协同: 大周期定方向, 小周期找入场
-2. 零轴引力: 日线MACD向零轴修复时, 零轴自带阻力
-3. 量价验证: 无量拉升不追高, 放量突破才有效
-4. 顺大势逆小势: 偏多时等回踩接多, 偏空时等反弹做空
-5. 盈亏比硬约束: >= 1.5:1, 不满足则观望`
+你将收到一份经过底层量化引擎精密计算的技术分析数据，包含：
+1. 三维空间点位：宏观战略锚点 (Core Key Level) / 日内情绪枢纽 (Bull/Bear Pivot) / 近远端战术防线 (T1/T2 S&R Levels，已融合FVG与盘口挂单数据)
+2. 多周期状态与趋势得分：(短线1H-4H / 中线日线 / 长线周线) 及综合状态机打分 (0-5分)
+3. 阶梯形态检测：低点抬高(Higher Lows)、高点降低(Lower Highs)、假突破(False Breakouts)
+4. 指标颗粒度详情：MACD(结合零轴与柱体动能) / RSI(结合50中轴) / KDJ / 均线组(MA5/7/20/60/90)
 
-// ── 四段式 Prompt ──
+## 核心分析原则
 
-const SECTION_PROMPTS = {
-  macro: {
-    title: '战略大局观',
-    prompt: `基于以下技术指标数据，分析 {coin} 的**战略大局观 (Macro Context)**。
+1. 形态绝对优先：K线结构决定最终方向。指标看多但形态破位，以形态为主。
+2. 宏观与日内解耦：Core Key Level 决定大势，Bull/Bear Line 决定日内情绪。
+3. 指标防骗线：MACD焦灼说明动能枯竭；RSI未突破50中轴=弱势震荡；强趋势中超买可能横盘消化。
+4. 战术双线防御：T1近端交火区试探建仓，T2远端核心堡垒止盈/止损。窄幅止损铁律。
 
-请用 Markdown 格式输出，要求：
-- 周线/日线级别的趋势方向和强度
-- 当前处于什么阶段（主升浪/回调/筑底/破位等）
-- 大周期 MACD、RSI、均线排列给出的方向性判断
-- 一句话总结当前大局观`,
+## 输出要求
+请严格只输出一份合法的 JSON 数据，不要包含任何额外文本、Markdown标记或问候语。
+
+JSON 结构：
+{
+  "macro_context": {
+    "direction": "单边上涨 | 单边下跌 | 弱势反弹修复 | 高位震荡",
+    "core_key_level": {
+      "price": 0.0,
+      "strategic_meaning": "一句话说明其战略意义"
+    }
   },
-  sentiment: {
-    title: '日内情绪面',
-    prompt: `基于以下技术指标数据，分析 {coin} 的**日内情绪面 (Intraday Sentiment)**。
-
-请用 Markdown 格式输出，要求：
-- 多空分界线的位置和当前状态
-- 1H/4H 级别的 KDJ、RSI 超买超卖状态
-- 布林带开口方向和价格位置
-- 成交量趋势和量价匹配情况
-- 综合判断当前日内情绪偏多还是偏空`,
+  "intraday_sentiment": {
+    "bull_bear_line_price": 0.0,
+    "momentum_rating": "Strong Bull | Bearish | Neutral",
+    "trend_score": "x.x/5",
+    "contradiction_note": "若大势与日内方向矛盾在此解释，无矛盾填 null"
   },
-  levels: {
-    title: '攻防阵地数据明细',
-    prompt: `基于以下技术指标数据，列出 {coin} 的**攻防阵地数据明细**。
-
-请用 Markdown 表格或列表格式输出，要求：
-- **核心多空分水岭**: 价格及判定依据
-- **上方压力位**: 2-3 个价位，标注来源（如布林上轨、前高、斐波那契位、MA60）
-- **下方支撑位**: 2-3 个价位，标注来源（如布林下轨、前低、斐波那契位）
-- 斐波那契关键回撤/扩展位
-- 均线系统的支撑压力（MA5/7/20/60）`,
+  "levels_radar": {
+    "resistances": {
+      "R1_Near": { "price": 0.0, "reason": "简述共振理由" },
+      "R2_Far": { "price": 0.0, "reason": "简述共振理由" }
+    },
+    "supports": {
+      "S1_Near": { "price": 0.0, "reason": "简述共振理由" },
+      "S2_Far": { "price": 0.0, "reason": "简述共振理由" }
+    }
   },
-  action: {
-    title: '策略动作',
-    prompt: `基于以下技术指标数据和之前的分析背景，给出 {coin} 的**具体策略动作**。
+  "tactical_execution": {
+    "action": "回踩做多 | 反弹做空 | 区间高抛低吸 | 观望",
+    "entry_zone": {
+      "strategy": "说明依托哪道防线入场",
+      "price_range": "具体数值区间"
+    },
+    "stop_loss": {
+      "trigger_condition": "明确止损条件",
+      "price": 0.0
+    },
+    "take_profit": {
+      "target_1_price": 0.0,
+      "target_2_price": 0.0
+    }
+  }
+}`
 
-请用 Markdown 格式输出，要求：
-- **方向**: 做多/做空/观望，信心度 1-10
-- **入场策略**: 具体建仓区间和入场条件
-- **止盈位**: 具体价格和理由
-- **止损位**: 具体价格和理由
-- **盈亏比**: 计算结果
-- **仓位建议**: 轻仓/标准/重仓
-- **风险提示**: 需要注意的反转信号和风险因素
-- **失效条件**: 什么情况下策略失效需要离场`,
-  },
-} as const
+// ── 结构化输出类型 ──
 
-export type AiSectionKey = keyof typeof SECTION_PROMPTS
-
-// ── AI 输出类型（四段式） ──
-
-export interface AiStrategySection {
-  key: AiSectionKey
-  title: string
-  content: string
+export interface AiLevelDetail {
+  price: number
+  reason: string
 }
 
+export interface AiStrategyResult {
+  macro_context: {
+    direction: string
+    core_key_level: {
+      price: number
+      strategic_meaning: string
+    }
+  }
+  intraday_sentiment: {
+    bull_bear_line_price: number
+    momentum_rating: string
+    trend_score: string
+    contradiction_note: string | null
+  }
+  levels_radar: {
+    resistances: {
+      R1_Near: AiLevelDetail
+      R2_Far: AiLevelDetail
+    }
+    supports: {
+      S1_Near: AiLevelDetail
+      S2_Far: AiLevelDetail
+    }
+  }
+  tactical_execution: {
+    action: string
+    entry_zone: {
+      strategy: string
+      price_range: string
+    }
+    stop_loss: {
+      trigger_condition: string
+      price: number
+    }
+    take_profit: {
+      target_1_price: number
+      target_2_price: number
+    }
+  }
+}
+
+// 兼容旧接口
 export interface AiStrategyOutput {
-  content: string // 保持兼容：完整文本
-  sections?: AiStrategySection[]
+  content: string
+  structured?: AiStrategyResult
+  // 兼容旧字段
+  sections?: { key: string; title: string; content: string }[]
+  summary?: string
 }
 
-// ── 构建 user prompt 的数据部分 ──
+// ── 构建数据 Prompt ──
 
 function buildDataPrompt(data: BeeTraderStrategyData): string {
   const macd = data.indicators.macd
@@ -101,10 +143,14 @@ function buildDataPrompt(data: BeeTraderStrategyData): string {
 
 ## 多空分界线
 分界线价格: ${data.bull_bear_line.price}, 当前${data.bull_bear_line.status === 'above' ? '在上方' : '在下方'}分界线, 持续${data.bull_bear_line.duration_hours}小时
+趋势评分: ${data.bull_bear_line.trend_score}/5 (${data.bull_bear_line.trend_grade})
+
+## 宏观核心关键位
+${data.core_key_level ? `价格: ${data.core_key_level.price}, 来源: ${data.core_key_level.source}, 趋势: ${data.core_key_level.macro_trend}` : '无数据'}
 
 ## MACD
-1H: MACD=${macd['1h']?.macd ?? 0}, ${macd['1h']?.cross === 'golden' ? '金叉' : macd['1h']?.cross === 'death' ? '死叉' : '无交叉'}, 零轴${macd['1h']?.above_zero ? '上方' : '下方'}
-4H: MACD=${macd['4h']?.macd ?? 0}, ${macd['4h']?.cross === 'golden' ? '金叉' : macd['4h']?.cross === 'death' ? '死叉' : '无交叉'}, 零轴${macd['4h']?.above_zero ? '上方' : '下方'}
+1H: MACD=${macd['1h']?.macd ?? 0}, ${macd['1h']?.cross === 'golden' ? '金叉' : macd['1h']?.cross === 'death' ? '死叉' : '无交叉'}, 零轴${macd['1h']?.above_zero ? '上方' : '下方'}, 柱体${macd['1h']?.histogram_trend ?? 'unknown'}
+4H: MACD=${macd['4h']?.macd ?? 0}, ${macd['4h']?.cross === 'golden' ? '金叉' : macd['4h']?.cross === 'death' ? '死叉' : '无交叉'}, 零轴${macd['4h']?.above_zero ? '上方' : '下方'}, 柱体${macd['4h']?.histogram_trend ?? 'unknown'}
 日线: MACD=${macd['1d']?.macd ?? 0}, 接近零轴=${macd['1d']?.approaching_zero ? '是' : '否'}, 零轴${macd['1d']?.above_zero ? '上方' : '下方'}
 周线: MACD=${macd['1w']?.macd ?? 0}, 零轴${macd['1w']?.above_zero ? '上方' : '下方'}
 
@@ -116,7 +162,7 @@ function buildDataPrompt(data: BeeTraderStrategyData): string {
 4H: K=${kdj['4h']?.k ?? 50} D=${kdj['4h']?.d ?? 50} J=${kdj['4h']?.j ?? 50} ${kdj['4h']?.cross === 'golden' ? '金叉' : kdj['4h']?.cross === 'death' ? '死叉' : ''}
 
 ## 布林带
-1H: 上轨=${bb['1h']?.upper ?? 0}, 中轨=${bb['1h']?.middle ?? 0}, 下轨=${bb['1h']?.lower ?? 0}, 位置=${bb['1h']?.position_pct ?? 50}%, ${bb['1h']?.bandwidth_direction === 'expanding' ? '开口扩张' : bb['1h']?.bandwidth_direction === 'contracting' ? '开口收缩' : '平稳'}
+1H: 上轨=${bb['1h']?.upper ?? 0}, 中轨=${bb['1h']?.middle ?? 0}, 下轨=${bb['1h']?.lower ?? 0}, 位置=${bb['1h']?.position_pct ?? 50}%, ${bb['1h']?.bandwidth_direction === 'expanding' ? '开口扩张' : bb['1h']?.bandwidth_direction === 'contracting' ? '收缩' : '平稳'}
 4H: 上轨=${bb['4h']?.upper ?? 0}, 中轨=${bb['4h']?.middle ?? 0}, 下轨=${bb['4h']?.lower ?? 0}
 
 ## 斐波那契
@@ -124,10 +170,10 @@ function buildDataPrompt(data: BeeTraderStrategyData): string {
 0.382=${fib.levels['0.382'] ?? 0} | 0.5=${fib.levels['0.5'] ?? 0} | 0.618=${fib.levels['0.618'] ?? 0} | 1.382=${fib.levels['1.382'] ?? 0} | 1.618=${fib.levels['1.618'] ?? 0}
 回撤强度: ${fib.retracement_strength}
 
-## 均线 MA
-1H: MA5=${ma['1h']?.ma5 ?? '-'}, MA7=${ma['1h']?.ma7 ?? '-'}, MA20=${ma['1h']?.ma20 ?? '-'}, MA60=${ma['1h']?.ma60 ?? '-'}, 排列=${ma['1h']?.alignment ?? 'unknown'}
-4H: MA5=${ma['4h']?.ma5 ?? '-'}, MA7=${ma['4h']?.ma7 ?? '-'}, MA20=${ma['4h']?.ma20 ?? '-'}, MA60=${ma['4h']?.ma60 ?? '-'}, 排列=${ma['4h']?.alignment ?? 'unknown'}
-日线: MA5=${ma['1d']?.ma5 ?? '-'}, MA7=${ma['1d']?.ma7 ?? '-'}, MA20=${ma['1d']?.ma20 ?? '-'}, MA60=${ma['1d']?.ma60 ?? '-'}, 排列=${ma['1d']?.alignment ?? 'unknown'}
+## 均线
+1H: MA5=${ma['1h']?.ma5 ?? '-'}, MA7=${ma['1h']?.ma7 ?? '-'}, MA20=${ma['1h']?.ma20 ?? '-'}, MA60=${ma['1h']?.ma60 ?? '-'}, 排列=${ma['1h']?.alignment ?? '-'}
+4H: MA5=${ma['4h']?.ma5 ?? '-'}, MA7=${ma['4h']?.ma7 ?? '-'}, MA20=${ma['4h']?.ma20 ?? '-'}, MA60=${ma['4h']?.ma60 ?? '-'}, 排列=${ma['4h']?.alignment ?? '-'}
+日线: MA5=${ma['1d']?.ma5 ?? '-'}, MA7=${ma['1d']?.ma7 ?? '-'}, MA20=${ma['1d']?.ma20 ?? '-'}, MA60=${ma['1d']?.ma60 ?? '-'}, 排列=${ma['1d']?.alignment ?? '-'}
 
 ## 阶梯形态
 4H: ${sc?.['4h']?.pattern ?? 'unknown'}
@@ -136,9 +182,8 @@ function buildDataPrompt(data: BeeTraderStrategyData): string {
 ## 成交量
 趋势: ${data.volume_analysis.recent_trend}, 量比: ${data.volume_analysis.vol_ratio ?? 1}x, 无量拉升: ${data.volume_analysis.is_hollow_rally ? '是' : '否'}
 
-## 策略引擎建议
+## 策略引擎共振
 偏向: ${data.strategy.bias}, 共振评分: ${data.strategy.resonance_score}/10
-入场策略: ${data.strategy.entry_strategy}
 警告: ${data.strategy.warnings.join('; ') || '无'}`
 }
 
@@ -172,24 +217,24 @@ export function useAiStrategy() {
       const systemPrompt = customSystemPrompt || DEFAULT_AI_SYSTEM_PROMPT
       const dataText = buildDataPrompt(data)
 
-      // 四段并行生成
-      const sectionKeys: AiSectionKey[] = ['macro', 'sentiment', 'levels', 'action']
-      const results = await Promise.all(
-        sectionKeys.map(async (key) => {
-          const cfg = SECTION_PROMPTS[key]
-          const prompt = ChatPromptTemplate.fromMessages([
-            ['system', systemPrompt],
-            ['human', `${cfg.prompt}\n\n---\n\n${dataText}`],
-          ])
-          const chain = prompt.pipe(model)
-          const response = await chain.invoke({ coin: data.coin })
-          const content = typeof response.content === 'string' ? response.content : JSON.stringify(response.content)
-          return { key, title: cfg.title, content } as AiStrategySection
-        }),
-      )
+      // 直接构建 messages，避免 ChatPromptTemplate 解析 JSON 中的 {} 报错
+      const response = await model.invoke([
+        new SystemMessage(systemPrompt),
+        new HumanMessage(`请分析以下 ${data.coin} 的技术指标数据：\n\n${dataText}`),
+      ])
+      const rawContent = typeof response.content === 'string' ? response.content : JSON.stringify(response.content)
 
-      const fullContent = results.map((s) => `## ${s.title}\n\n${s.content}`).join('\n\n---\n\n')
-      const output: AiStrategyOutput = { content: fullContent, sections: results }
+      // 尝试解析 JSON
+      let structured: AiStrategyResult | undefined
+      try {
+        // 去除可能的 markdown 代码块标记
+        const jsonStr = rawContent.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim()
+        structured = JSON.parse(jsonStr)
+      } catch {
+        // 解析失败则只保留原文
+      }
+
+      const output: AiStrategyOutput = { content: rawContent, structured }
       setResult(output)
       return output
     } catch (err) {

@@ -79,7 +79,7 @@ export function usePriceChanges(symbols: string[], timeFrame: TimeFrame = '15m',
       const startTime = endTime - millisBack - 60000 // 多留1分钟余量
 
       // 并行获取所有币种的数据，但分批处理避免过载
-      const batchSize = 3 // 每批3个请求
+      const batchSize = 2 // 每批2个请求，降低并发避免 429
       const changes: PriceChanges = {}
       
       for (let i = 0; i < symbols.length; i += batchSize) {
@@ -153,7 +153,7 @@ export function usePriceChanges(symbols: string[], timeFrame: TimeFrame = '15m',
         
         // 批次间稍微延迟，避免API限流
         if (i + batchSize < symbols.length) {
-          await new Promise(resolve => setTimeout(resolve, 100))
+          await new Promise(resolve => setTimeout(resolve, 300))
         }
       }
 

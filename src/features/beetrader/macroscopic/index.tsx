@@ -70,15 +70,15 @@ function ChangeCell({ value }: { value: number | undefined }) {
 }
 
 export function Macroscopic() {
-  const { prices, loading, error, refetch } = useMarketPrices(5000, ALL_COINS)
+  const { prices, loading, error, refetch } = useMarketPrices(60_000, ALL_COINS)
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date())
   const [isManualRefreshing, setIsManualRefreshing] = useState(false)
 
-  // 4 个时间周期并行获取
-  const c15m = usePriceChanges(ALL_COINS, '15m', 15000)
-  const c1h  = usePriceChanges(ALL_COINS, '1h',  30000)
-  const c4h  = usePriceChanges(ALL_COINS, '4h',  60000)
-  const c1d  = usePriceChanges(ALL_COINS, '24h', 60000)
+  // 4 个时间周期 — 宏观数据变化慢，降低轮询频率避免 429
+  const c15m = usePriceChanges(ALL_COINS, '15m', 60_000)
+  const c1h  = usePriceChanges(ALL_COINS, '1h',  120_000)
+  const c4h  = usePriceChanges(ALL_COINS, '4h',  300_000)
+  const c1d  = usePriceChanges(ALL_COINS, '24h', 300_000)
 
   const allLoading = loading || c15m.loading || c1h.loading || c4h.loading || c1d.loading
 

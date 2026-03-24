@@ -102,11 +102,13 @@ export function UnifiedAnalysis() {
         setLastUpdated(new Date(res.record.created_at))
         setUsingCache(true)
         // 恢复缓存的 AI 策略
-        if (res.record.ai_strategy_sections?.length) {
-          aiAutoTriggered.current = true // 有缓存就不再自动触发
-          const sections = res.record.ai_strategy_sections as import('../../strategies/hooks/use-ai-strategy').AiStrategySection[]
-          const fullContent = sections.map((s) => `## ${s.title}\n\n${s.content}`).join('\n\n---\n\n')
-          aiStrategy.setResult({ content: fullContent, sections })
+        if (res.record.ai_strategy_sections) {
+          aiAutoTriggered.current = true
+          const cached = res.record.ai_strategy_sections as unknown
+          aiStrategy.setResult({
+            content: JSON.stringify(cached, null, 2),
+            structured: cached as import('../../strategies/hooks/use-ai-strategy').AiStrategyResult,
+          })
         }
       }
     }).catch(() => {})
@@ -142,25 +144,21 @@ export function UnifiedAnalysis() {
   }, [autoRefresh, coin, radar.data, strategy.data, doAnalyze])
 
   // 生成 AI 策略并保存到 Supabase
-  const generateAndSave = useCallback(async (targetCoin: string, strategyData: BeeTraderStrategyData) => {
-    try {
-      const output = await aiStrategy.generate(strategyData, promptLib.selectedPrompt?.system_prompt)
-      if (output?.sections) {
-        hyperliquidApiPost('/api/beetrader_strategy/history/ai-strategy', {
-          coin: targetCoin,
-          sections: output.sections,
-        }).catch(() => {})
-      }
-    } catch {
-      // error handled by hook
+  const doGenerateAI = async (targetCoin: string, strategyData: BeeTraderStrategyData) => {
+    const output = await aiStrategy.generate(strategyData, promptLib.selectedPrompt?.system_prompt)
+    if (output?.structured) {
+      hyperliquidApiPost('/api/beetrader_strategy/history/ai-strategy', {
+        coin: targetCoin,
+        sections: output.structured,
+      }).catch(() => {})
     }
-  }, [aiStrategy.generate, promptLib.selectedPrompt]) // eslint-disable-line react-hooks/exhaustive-deps
+  }
 
   // AI 手动触发
   const handleGenerateAI = () => {
     if (!strategy.data) return
     aiStrategy.reset()
-    generateAndSave(coin, strategy.data)
+    doGenerateAI(coin, strategy.data).catch(() => {})
   }
 
   // 策略数据就绪后自动触发 AI 分析
@@ -168,9 +166,9 @@ export function UnifiedAnalysis() {
   useEffect(() => {
     if (strategy.data && !aiStrategy.result && !aiStrategy.loading && !aiAutoTriggered.current) {
       aiAutoTriggered.current = true
-      generateAndSave(coin, strategy.data)
+      doGenerateAI(coin, strategy.data)
     }
-  }, [strategy.data]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [strategy.data, aiStrategy.result, aiStrategy.loading]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggleAutoRefresh = () => {
     if (!radar.data && !strategy.data) {
@@ -417,7 +415,7 @@ export function UnifiedAnalysis() {
                 ) : null}
 
                 {/* 5分钟量级变化 */}
-                <MarketDepth />
+                <MarketDepth coin={coin} />
 
                 {/* 清算热力图 */}
                 {radar.data && (
@@ -537,12 +535,22 @@ export function UnifiedAnalysis() {
                       </p>
                     </div>
 
-                    {(aiStrategy.loading || aiStrategy.result) && (
-                      <AiStrategyPanel
-                        coin={coin}
-                        result={aiStrategy.result}
-                        loading={aiStrategy.loading}
-                      />
+                    {(aiStrategy.loading || aiStrategy.result || aiStrategy.error) && (
+                      <>
+                        <AiStrategyPanel
+                          coin={coin}
+                          result={aiStrategy.result}
+                          loading={aiStrategy.loading}
+                        />
+                        {aiStrategy.error && (
+                          <Alert variant='destructive'>
+                            <AlertCircle className='h-4 w-4' />
+                            <AlertDescription className='text-xs'>
+                              AI 策略生成失败: {aiStrategy.error.message}
+                            </AlertDescription>
+                          </Alert>
+                        )}
+                      </>
                     )}
                   </>
                 )}
