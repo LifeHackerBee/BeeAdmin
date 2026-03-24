@@ -716,6 +716,7 @@ export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
         open={promptMgrOpen}
         onOpenChange={setPromptMgrOpen}
         prompts={strategyPrompts}
+        fetchDefaultPrompts={fetchDefaultPrompts}
       />
     </div>
   )
@@ -1599,64 +1600,126 @@ function BotSettingsDialog({
   )
 }
 
-// ── 默认 Prompt 管理 ──
+// ── Prompt 管理 ──
 
 function DefaultPromptManager({
   open,
   onOpenChange,
   prompts,
+  fetchDefaultPrompts,
 }: {
   open: boolean
   onOpenChange: (v: boolean) => void
   prompts: ReturnType<typeof useStrategyPrompts>
+  fetchDefaultPrompts: () => Promise<DefaultPrompts>
 }) {
+  const [selectedId, setSelectedId] = useState<number | null>(null)
   const [systemPrompt, setSystemPrompt] = useState('')
-  const [userPrompt, setUserPrompt] = useState('')
+  const [agentPrompt, setAgentPrompt] = useState('')
+  const [editName, setEditName] = useState('')
+  const [editDesc, setEditDesc] = useState('')
   const [saving, setSaving] = useState(false)
   const [loaded, setLoaded] = useState(false)
+  const [loadingDefaults, setLoadingDefaults] = useState(false)
 
-  // 打开时加载当前默认 prompt
+  // 打开时选中默认 prompt
   useEffect(() => {
     if (!open || loaded) return
-    const def = prompts.prompts.find((p) => p.is_default)
-    if (def) {
-      setSystemPrompt(def.system_prompt)
-      setUserPrompt(def.user_prompt_template || '')
-    }
     setLoaded(true)
-  }, [open, loaded, prompts.prompts])
+    const def = prompts.prompts.find((p) => p.is_default)
+    if (def) loadPrompt(def)
+  }, [open, loaded, prompts.prompts]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 关闭时重置
   useEffect(() => {
     if (!open) setLoaded(false)
   }, [open])
 
+  const loadPrompt = (p: { id: number; name: string; description: string; system_prompt: string; user_prompt_template: string }) => {
+    setSelectedId(p.id)
+    setEditName(p.name)
+    setEditDesc(p.description)
+    setSystemPrompt(p.system_prompt)
+    setAgentPrompt(p.user_prompt_template || '')
+  }
+
+  const handleSelectPrompt = (id: string) => {
+    const p = prompts.prompts.find((x) => x.id === Number(id))
+    if (p) loadPrompt(p)
+  }
+
+  // 获取内置默认 prompt
+  const handleLoadBuiltinDefaults = async () => {
+    setLoadingDefaults(true)
+    try {
+      const defaults = await fetchDefaultPrompts()
+      setSystemPrompt(defaults.system_prompt)
+      setAgentPrompt(defaults.user_prompt_template)
+    } catch {
+      // ignore
+    } finally {
+      setLoadingDefaults(false)
+    }
+  }
+
+  // 保存当前编辑内容到选中的 prompt
   const handleSave = async () => {
     if (!systemPrompt.trim()) return
     setSaving(true)
     try {
-      const def = prompts.prompts.find((p) => p.is_default)
-      if (def) {
-        await prompts.updatePrompt(def.id, {
+      if (selectedId) {
+        await prompts.updatePrompt(selectedId, {
+          name: editName.trim() || undefined,
+          description: editDesc.trim(),
           system_prompt: systemPrompt.trim(),
-          user_prompt_template: userPrompt.trim(),
-        })
-      } else {
-        await prompts.createPrompt({
-          name: '默认交易策略',
-          description: '交易机器人使用的默认 Prompt',
-          system_prompt: systemPrompt.trim(),
-          user_prompt_template: userPrompt.trim(),
-          is_default: true,
+          user_prompt_template: agentPrompt.trim(),
         })
       }
-      onOpenChange(false)
     } catch {
       // ignore
     } finally {
       setSaving(false)
     }
   }
+
+  // 新建 prompt
+  const handleCreate = async () => {
+    setSaving(true)
+    try {
+      const created = await prompts.createPrompt({
+        name: editName.trim() || '新策略',
+        description: editDesc.trim(),
+        system_prompt: systemPrompt.trim() || '(待填写)',
+        user_prompt_template: agentPrompt.trim(),
+      })
+      if (created) setSelectedId(created.id)
+    } catch {
+      // ignore
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // 删除
+  const handleDelete = async () => {
+    if (!selectedId) return
+    await prompts.deletePrompt(selectedId)
+    setSelectedId(null)
+    setSystemPrompt('')
+    setAgentPrompt('')
+    setEditName('')
+    setEditDesc('')
+    // 自动选中下一个
+    const remaining = prompts.prompts.filter((p) => p.id !== selectedId)
+    if (remaining.length > 0) loadPrompt(remaining[0])
+  }
+
+  // 设为默认
+  const handleSetDefault = async () => {
+    if (!selectedId) return
+    await prompts.setDefault(selectedId)
+  }
+
+  const current = prompts.prompts.find((p) => p.id === selectedId)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -1669,37 +1732,106 @@ function DefaultPromptManager({
         </DialogHeader>
 
         <p className='text-xs text-muted-foreground'>
-          修改所有交易机器人的默认 AI Prompt。未单独配置 Prompt 的机器人将使用此默认配置。保存后约 5 分钟内对所有运行中的机器人生效。
+          管理交易机器人的 AI Prompt。标记为默认的 Prompt 将被所有未单独配置的机器人使用。保存后约 5 分钟内生效。
         </p>
 
+        {/* 模板选择器 */}
+        <div className='flex items-center gap-2 flex-wrap'>
+          <Select
+            value={selectedId?.toString() ?? ''}
+            onValueChange={handleSelectPrompt}
+          >
+            <SelectTrigger className='h-8 text-xs flex-1 min-w-[200px]'>
+              <SelectValue placeholder='选择 Prompt 模板...' />
+            </SelectTrigger>
+            <SelectContent>
+              {prompts.prompts.map((p) => (
+                <SelectItem key={p.id} value={p.id.toString()}>
+                  <span className='text-xs flex items-center gap-1'>
+                    {p.is_default && <Star className='h-3 w-3 text-yellow-500 fill-yellow-500' />}
+                    {p.name}
+                    {p.description && <span className='text-muted-foreground ml-1'>— {p.description}</span>}
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Button variant='outline' size='sm' className='h-8 text-xs gap-1' onClick={handleCreate} disabled={saving}>
+            <Plus className='h-3.5 w-3.5' />
+            新建
+          </Button>
+
+          {current && (
+            <>
+              <Button
+                variant='outline' size='sm' className='h-8 text-xs gap-1'
+                onClick={handleSetDefault} disabled={current.is_default}
+              >
+                <Star className='h-3.5 w-3.5' />
+                {current.is_default ? '已是默认' : '设为默认'}
+              </Button>
+              <Button variant='ghost' size='sm' className='h-8 text-xs gap-1 text-red-500 hover:text-red-600' onClick={handleDelete}>
+                <Trash2 className='h-3.5 w-3.5' />
+                删除
+              </Button>
+            </>
+          )}
+        </div>
+
+        {/* 名称描述 */}
+        {selectedId && (
+          <div className='grid grid-cols-2 gap-2'>
+            <div className='space-y-1'>
+              <Label className='text-xs'>名称</Label>
+              <Input value={editName} onChange={(e) => setEditName(e.target.value)} className='h-8 text-xs' placeholder='策略名称' />
+            </div>
+            <div className='space-y-1'>
+              <Label className='text-xs'>描述</Label>
+              <Input value={editDesc} onChange={(e) => setEditDesc(e.target.value)} className='h-8 text-xs' placeholder='可选描述' />
+            </div>
+          </div>
+        )}
+
+        {/* Prompt 编辑 */}
         <Tabs defaultValue='system' className='w-full'>
           <TabsList className='grid w-full grid-cols-2'>
             <TabsTrigger value='system'>分析策略 (System Prompt)</TabsTrigger>
-            <TabsTrigger value='user'>交易执行 (Agent Prompt)</TabsTrigger>
+            <TabsTrigger value='agent'>交易执行 (Agent Prompt)</TabsTrigger>
           </TabsList>
 
           <TabsContent value='system' className='space-y-2 mt-3'>
-            <p className='text-[10px] text-muted-foreground'>
-              定义 AI 的角色、分析原则和输出 JSON 格式。AI 根据此 prompt 分析技术指标并生成结构化策略信号。
-            </p>
+            <div className='flex items-center justify-between'>
+              <p className='text-[10px] text-muted-foreground'>
+                定义 AI 的角色、分析原则和输出 JSON 格式。
+              </p>
+              <Button variant='ghost' size='sm' className='h-6 text-[10px]' onClick={handleLoadBuiltinDefaults} disabled={loadingDefaults}>
+                {loadingDefaults ? '加载中...' : '获取内置默认'}
+              </Button>
+            </div>
             <Textarea
               value={systemPrompt}
               onChange={(e) => setSystemPrompt(e.target.value)}
               placeholder='System Prompt...'
-              rows={18}
+              rows={16}
               className='font-mono text-xs'
             />
           </TabsContent>
 
-          <TabsContent value='user' className='space-y-2 mt-3'>
-            <p className='text-[10px] text-muted-foreground'>
-              定义交易 Agent 的行为规则。Agent 根据 AI 策略信号 + 实时价格 + 账户状态，通过 Tool Call 执行具体交易动作（开多/开空/平仓/观望）。
-            </p>
+          <TabsContent value='agent' className='space-y-2 mt-3'>
+            <div className='flex items-center justify-between'>
+              <p className='text-[10px] text-muted-foreground'>
+                定义交易 Agent 的行为规则。通过 Tool Call 执行交易动作。
+              </p>
+              <Button variant='ghost' size='sm' className='h-6 text-[10px]' onClick={handleLoadBuiltinDefaults} disabled={loadingDefaults}>
+                {loadingDefaults ? '加载中...' : '获取内置默认'}
+              </Button>
+            </div>
             <Textarea
-              value={userPrompt}
-              onChange={(e) => setUserPrompt(e.target.value)}
-              placeholder={`示例：\n你是交易执行 Agent，根据 AI 策略信号决定交易动作。\n\n规则:\n1. 信号为"回踩做多"且实时价在入场区间内 → 调用 open_long\n2. 信号为"反弹做空"且实时价在入场区间内 → 调用 open_short\n3. 实时价触及止损位 → 调用 close_position\n4. 信号为"观望"或实时价不在入场区间 → 调用 wait\n5. 入场价与实时价偏差 > 3% → 强制 wait`}
-              rows={18}
+              value={agentPrompt}
+              onChange={(e) => setAgentPrompt(e.target.value)}
+              placeholder={`示例：\n你是交易执行 Agent，根据 AI 策略信号决定交易动作。\n\n规则:\n1. 信号为"回踩做多"且实时价在入场区间内 → 调用 open_long\n2. 信号为"反弹做空"且实时价在入场区间内 → 调用 open_short\n3. 实时价触及止损位 → 调用 close_position\n4. 信号为"观望" → 调用 wait`}
+              rows={16}
               className='font-mono text-xs'
             />
           </TabsContent>
@@ -1707,7 +1839,7 @@ function DefaultPromptManager({
 
         <DialogFooter>
           <Button variant='outline' onClick={() => onOpenChange(false)}>取消</Button>
-          <Button onClick={handleSave} disabled={saving || !systemPrompt.trim()}>
+          <Button onClick={handleSave} disabled={saving || !selectedId || !systemPrompt.trim()}>
             {saving ? '保存中...' : '保存'}
           </Button>
         </DialogFooter>
