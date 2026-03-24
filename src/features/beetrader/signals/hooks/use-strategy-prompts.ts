@@ -7,6 +7,7 @@ export interface StrategyPrompt {
   description: string
   system_prompt: string
   user_prompt_template: string
+  agent_prompt: string
   is_default: boolean
   created_at: string
   updated_at: string
@@ -84,7 +85,7 @@ export function useStrategyPrompts(enabled: boolean = true) {
     fetchPrompts()
   }, [enabled, fetchPrompts])
 
-  const createPrompt = useCallback(async (data: { name: string; description?: string; system_prompt: string; user_prompt_template?: string; is_default?: boolean }) => {
+  const createPrompt = useCallback(async (data: { name: string; description?: string; system_prompt: string; user_prompt_template?: string; agent_prompt?: string; is_default?: boolean }) => {
     const res = await apiPost<{ success: boolean; data: StrategyPrompt }>('/api/strategy_prompts', data)
     if (res.success) {
       await fetchPrompts()
@@ -93,7 +94,7 @@ export function useStrategyPrompts(enabled: boolean = true) {
     return null
   }, [fetchPrompts])
 
-  const updatePrompt = useCallback(async (id: number, data: { name?: string; description?: string; system_prompt?: string; user_prompt_template?: string }) => {
+  const updatePrompt = useCallback(async (id: number, data: { name?: string; description?: string; system_prompt?: string; user_prompt_template?: string; agent_prompt?: string }) => {
     const res = await apiPatch<{ success: boolean; data: StrategyPrompt }>(`/api/strategy_prompts/${id}`, data)
     if (res.success) {
       await fetchPrompts()

@@ -73,6 +73,7 @@ export interface CreateBotJobData {
 export interface DefaultPrompts {
   system_prompt: string
   user_prompt_template: string
+  agent_prompt?: string
 }
 
 interface ListJobsResponse {

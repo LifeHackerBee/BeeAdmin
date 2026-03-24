@@ -1634,12 +1634,12 @@ function DefaultPromptManager({
     if (!open) setLoaded(false)
   }, [open])
 
-  const loadPrompt = (p: { id: number; name: string; description: string; system_prompt: string; user_prompt_template: string }) => {
+  const loadPrompt = (p: { id: number; name: string; description: string; system_prompt: string; agent_prompt?: string }) => {
     setSelectedId(p.id)
     setEditName(p.name)
     setEditDesc(p.description)
     setSystemPrompt(p.system_prompt)
-    setAgentPrompt(p.user_prompt_template || '')
+    setAgentPrompt(p.agent_prompt || '')
   }
 
   const handleSelectPrompt = (id: string) => {
@@ -1653,7 +1653,7 @@ function DefaultPromptManager({
     try {
       const defaults = await fetchDefaultPrompts()
       setSystemPrompt(defaults.system_prompt)
-      setAgentPrompt(defaults.user_prompt_template)
+      if (defaults.agent_prompt) setAgentPrompt(defaults.agent_prompt)
     } catch {
       // ignore
     } finally {
@@ -1671,7 +1671,7 @@ function DefaultPromptManager({
           name: editName.trim() || undefined,
           description: editDesc.trim(),
           system_prompt: systemPrompt.trim(),
-          user_prompt_template: agentPrompt.trim(),
+          agent_prompt: agentPrompt.trim(),
         })
       }
     } catch {
@@ -1689,7 +1689,7 @@ function DefaultPromptManager({
         name: editName.trim() || '新策略',
         description: editDesc.trim(),
         system_prompt: systemPrompt.trim() || '(待填写)',
-        user_prompt_template: agentPrompt.trim(),
+        agent_prompt: agentPrompt.trim(),
       })
       if (created) setSelectedId(created.id)
     } catch {
