@@ -1,50 +1,7 @@
 import { useState, useCallback } from 'react'
 import { ChatOpenAI } from '@langchain/openai'
 import { ChatPromptTemplate } from '@langchain/core/prompts'
-import { z } from 'zod'
 import type { BeeTraderStrategyData } from '../types'
-
-// ── AI 策略输出结构 ──
-
-export const aiStrategySchema = z.object({
-  direction: z
-    .enum(['long', 'short', 'wait'])
-    .describe('交易方向: long=做多, short=做空, wait=观望不交易'),
-  entry_low: z
-    .number()
-    .describe('建仓区间下限价格'),
-  entry_high: z
-    .number()
-    .describe('建仓区间上限价格'),
-  stop_loss: z
-    .number()
-    .describe('止损价格'),
-  take_profit: z
-    .number()
-    .describe('止盈价格'),
-  confidence: z
-    .number()
-    .min(1)
-    .max(10)
-    .describe('信心度 1-10, 7以上才建议交易'),
-  risk_reward_ratio: z
-    .number()
-    .describe('盈亏比, 如 2.5 表示 2.5:1'),
-  core_key_level: z
-    .number()
-    .describe('今日核心关键位价格, 即多空分水岭, 站稳则偏多, 跌破则偏空'),
-  resistance_levels: z
-    .array(z.number())
-    .describe('上方压力位数组, 从近到远排列, 2-3个价格'),
-  support_levels: z
-    .array(z.number())
-    .describe('下方支撑位数组, 从近到远排列, 2-3个价格'),
-  notes: z
-    .string()
-    .describe('简短交易备注, 包含入场提示和风险提醒, 不超过50字'),
-})
-
-export type AiStrategyOutput = z.infer<typeof aiStrategySchema>
 
 // ── 默认 System Prompt ──
 
@@ -66,19 +23,22 @@ export const DEFAULT_AI_SYSTEM_PROMPT = `你是一位专业的加密货币交易
 4. **顺大势逆小势**: 偏多时不追涨, 等弱势回踩到支撑位再接多; 偏空时不追跌, 等反弹到压力位再做空。
 5. **盈亏比硬约束**: 必须 >= 1.5:1, 不满足则观望。
 6. **进场灵活**: 给出合理的建仓区间, 不必严格踩点。
-7. **均线排列**: MA5>MA7>MA20为多头排列, 短期均线企稳代表短线攻击性。MA60视为上方强压力位。
-8. **阶梯形态**: 低点不断抬高(higher_lows)代表上升趋势健康; 阶梯式上涨(staircase_up)高低点同时抬高是最强形态。
-9. **KDJ J线极值**: J>100极端超买, 随时回调; J<0极端超卖, 随时反弹。
-10. **斐波那契扩展**: 突破1.0后, 1.382和1.618为上方目标价。
 
 ## 输出要求
 
-根据数据分析后, 输出一个结构化的交易策略:
-1. 交易方向、建仓区间、止损、止盈
-2. **核心关键位**: 今日多空分水岭价格, 结合多空分界线、布林中轨、斐波那契关键位综合判断
-3. **上方压力位**: 2-3个上方阻力价格, 从近到远排列 (如布林上轨、前高、斐波那契位)
-4. **下方支撑位**: 2-3个下方支撑价格, 从近到远排列 (如布林下轨、前低、斐波那契位)
-5. 如果没有明确机会, direction 设为 "wait", 但仍需输出关键位信息`
+请用中文输出完整的交易策略分析，包含:
+1. **方向判断**: 做多/做空/观望，以及信心度(1-10)
+2. **入场策略**: 具体建仓区间和入场逻辑
+3. **止盈止损**: 具体价位和理由
+4. **关键位**: 核心多空分水岭、上方压力位、下方支撑位
+5. **风险提示**: 需要关注的风险因素
+6. **分析理由**: 引用具体指标数据支撑你的判断`
+
+// ── AI 输出类型（纯文本） ──
+
+export interface AiStrategyOutput {
+  content: string
+}
 
 // ── Hook ──
 
@@ -103,13 +63,9 @@ export function useAiStrategy() {
       const model = new ChatOpenAI({
         apiKey,
         model: modelName,
-        configuration: {
-          baseURL,
-        },
+        configuration: { baseURL },
         temperature: 0.3,
       })
-
-      const structured = model.withStructuredOutput(aiStrategySchema)
 
       const systemPrompt = customSystemPrompt || DEFAULT_AI_SYSTEM_PROMPT
 
@@ -176,10 +132,9 @@ export function useAiStrategy() {
       const sc = data.staircase_pattern ?? {}
       const ts = data.timeframe_status
 
-      const chain = prompt.pipe(structured)
-      const output = await chain.invoke({
+      const chain = prompt.pipe(model)
+      const response = await chain.invoke({
         coin: data.coin,
-        // 多周期状态
         short_tf: ts.short_term.timeframes.join('/'),
         short_status: ts.short_term.label,
         short_detail: ts.short_term.detail,
@@ -189,11 +144,9 @@ export function useAiStrategy() {
         long_tf: ts.long_term.timeframes.join('/'),
         long_status: ts.long_term.label,
         long_detail: ts.long_term.detail,
-        // 多空分界线
         bull_bear_price: data.bull_bear_line.price,
         bull_bear_status: data.bull_bear_line.status === 'above' ? '在上方' : '在下方',
         bull_bear_hours: data.bull_bear_line.duration_hours,
-        // MACD
         macd_1h_val: macd['1h']?.macd ?? 0,
         macd_1h_cross: macd['1h']?.cross === 'golden' ? '金叉' : macd['1h']?.cross === 'death' ? '死叉' : '无交叉',
         macd_1h_zero: macd['1h']?.above_zero ? '上方' : '下方',
@@ -205,7 +158,6 @@ export function useAiStrategy() {
         macd_1d_zero: macd['1d']?.above_zero ? '上方' : '下方',
         macd_1w_val: macd['1w']?.macd ?? 0,
         macd_1w_zero: macd['1w']?.above_zero ? '上方' : '下方',
-        // RSI
         rsi_1h: rsi['1h']?.value ?? 50,
         rsi_1h_zone: rsi['1h']?.zone ?? 'neutral',
         rsi_4h: rsi['4h']?.value ?? 50,
@@ -214,7 +166,6 @@ export function useAiStrategy() {
         rsi_1d_zone: rsi['1d']?.zone ?? 'neutral',
         rsi_1w: rsi['1w']?.value ?? 50,
         rsi_1w_zone: rsi['1w']?.zone ?? 'neutral',
-        // KDJ
         kdj_1h_k: kdj['1h']?.k ?? 50,
         kdj_1h_d: kdj['1h']?.d ?? 50,
         kdj_1h_j: kdj['1h']?.j ?? 50,
@@ -223,7 +174,6 @@ export function useAiStrategy() {
         kdj_4h_d: kdj['4h']?.d ?? 50,
         kdj_4h_j: kdj['4h']?.j ?? 50,
         kdj_4h_cross: kdj['4h']?.cross === 'golden' ? '金叉' : kdj['4h']?.cross === 'death' ? '死叉' : '',
-        // 布林带
         bb_1h_upper: bb['1h']?.upper ?? 0,
         bb_1h_middle: bb['1h']?.middle ?? 0,
         bb_1h_lower: bb['1h']?.lower ?? 0,
@@ -232,7 +182,6 @@ export function useAiStrategy() {
         bb_4h_upper: bb['4h']?.upper ?? 0,
         bb_4h_middle: bb['4h']?.middle ?? 0,
         bb_4h_lower: bb['4h']?.lower ?? 0,
-        // 斐波那契
         fib_low: fib.swing_low,
         fib_high: fib.swing_high,
         fib_382: fib.levels['0.382'] ?? 0,
@@ -241,7 +190,6 @@ export function useAiStrategy() {
         fib_1382: fib.levels['1.382'] ?? 0,
         fib_1618: fib.levels['1.618'] ?? 0,
         fib_strength: fib.retracement_strength,
-        // 均线
         ma_1h_5: ma['1h']?.ma5 ?? '-',
         ma_1h_7: ma['1h']?.ma7 ?? '-',
         ma_1h_20: ma['1h']?.ma20 ?? '-',
@@ -257,20 +205,19 @@ export function useAiStrategy() {
         ma_1d_20: ma['1d']?.ma20 ?? '-',
         ma_1d_60: ma['1d']?.ma60 ?? '-',
         ma_1d_align: ma['1d']?.alignment ?? 'unknown',
-        // 阶梯形态
         staircase_4h: sc?.['4h']?.pattern ?? 'unknown',
         staircase_1d: sc?.['1d']?.pattern ?? 'unknown',
-        // 成交量
         vol_trend: data.volume_analysis.recent_trend,
         vol_ratio: data.volume_analysis.vol_ratio ?? 1,
         vol_hollow: data.volume_analysis.is_hollow_rally ? '是' : '否',
-        // 策略
         strategy_bias: data.strategy.bias,
         resonance_score: data.strategy.resonance_score,
         entry_strategy: data.strategy.entry_strategy,
         warnings: data.strategy.warnings.join('; ') || '无',
       })
 
+      const content = typeof response.content === 'string' ? response.content : JSON.stringify(response.content)
+      const output: AiStrategyOutput = { content }
       setResult(output)
       return output
     } catch (err) {

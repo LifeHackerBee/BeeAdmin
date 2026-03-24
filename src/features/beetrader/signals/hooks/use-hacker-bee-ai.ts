@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react'
 import { ChatOpenAI } from '@langchain/openai'
 import { ChatPromptTemplate } from '@langchain/core/prompts'
-import { aiStrategySchema, type AiStrategyOutput } from '../../strategies/hooks/use-ai-strategy'
+import type { AiStrategyOutput } from '../../strategies/hooks/use-ai-strategy'
 import type { OrderRadarData } from './use-order-radar'
 
 // ── System Prompt ──
