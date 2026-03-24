@@ -495,6 +495,7 @@ export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [settingsJob, setSettingsJob] = useState<StrategyBotJob | null>(null)
   const [refreshing, setRefreshing] = useState(false)
+  const [promptMgrOpen, setPromptMgrOpen] = useState(false)
 
   const handleRefresh = async () => {
     setRefreshing(true)
@@ -534,6 +535,10 @@ export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
 
       {/* 顶部操作栏 */}
       <div className='flex items-center justify-end gap-2'>
+        <Button variant='outline' size='sm' onClick={() => setPromptMgrOpen(true)}>
+          <Brain className='h-4 w-4 mr-1' />
+          Prompt 管理
+        </Button>
         <Button variant='outline' size='sm' onClick={handleRefresh} disabled={refreshing}>
           <RefreshCw className={`h-4 w-4 mr-1 ${refreshing ? 'animate-spin' : ''}`} />
           刷新
@@ -695,6 +700,11 @@ export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
           fetchDefaultPrompts={fetchDefaultPrompts}
         />
       )}
+      <DefaultPromptManager
+        open={promptMgrOpen}
+        onOpenChange={setPromptMgrOpen}
+        prompts={strategyPrompts}
+      />
     </div>
   )
 }
@@ -1573,6 +1583,123 @@ function BotSettingsDialog({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </Dialog>
+  )
+}
+
+// ── 默认 Prompt 管理 ──
+
+function DefaultPromptManager({
+  open,
+  onOpenChange,
+  prompts,
+}: {
+  open: boolean
+  onOpenChange: (v: boolean) => void
+  prompts: ReturnType<typeof useStrategyPrompts>
+}) {
+  const [systemPrompt, setSystemPrompt] = useState('')
+  const [userPrompt, setUserPrompt] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [loaded, setLoaded] = useState(false)
+
+  // 打开时加载当前默认 prompt
+  useEffect(() => {
+    if (!open || loaded) return
+    const def = prompts.prompts.find((p) => p.is_default)
+    if (def) {
+      setSystemPrompt(def.system_prompt)
+      setUserPrompt(def.user_prompt_template || '')
+    }
+    setLoaded(true)
+  }, [open, loaded, prompts.prompts])
+
+  // 关闭时重置
+  useEffect(() => {
+    if (!open) setLoaded(false)
+  }, [open])
+
+  const handleSave = async () => {
+    if (!systemPrompt.trim()) return
+    setSaving(true)
+    try {
+      const def = prompts.prompts.find((p) => p.is_default)
+      if (def) {
+        await prompts.updatePrompt(def.id, {
+          system_prompt: systemPrompt.trim(),
+          user_prompt_template: userPrompt.trim(),
+        })
+      } else {
+        await prompts.createPrompt({
+          name: '默认交易策略',
+          description: '交易机器人使用的默认 Prompt',
+          system_prompt: systemPrompt.trim(),
+          user_prompt_template: userPrompt.trim(),
+          is_default: true,
+        })
+      }
+      onOpenChange(false)
+    } catch {
+      // ignore
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className='sm:max-w-3xl max-h-[90vh] overflow-y-auto'>
+        <DialogHeader>
+          <DialogTitle className='flex items-center gap-2'>
+            <Brain className='h-4 w-4' />
+            交易机器人 Prompt 管理
+          </DialogTitle>
+        </DialogHeader>
+
+        <p className='text-xs text-muted-foreground'>
+          修改所有交易机器人的默认 AI Prompt。未单独配置 Prompt 的机器人将使用此默认配置。保存后约 5 分钟内对所有运行中的机器人生效。
+        </p>
+
+        <Tabs defaultValue='system' className='w-full'>
+          <TabsList className='grid w-full grid-cols-2'>
+            <TabsTrigger value='system'>分析策略 (System Prompt)</TabsTrigger>
+            <TabsTrigger value='user'>数据模板 (User Prompt)</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value='system' className='space-y-2 mt-3'>
+            <p className='text-[10px] text-muted-foreground'>
+              定义 AI 的角色、分析原则和输出 JSON 格式。AI 根据此 prompt 决定交易方向和价位。
+            </p>
+            <Textarea
+              value={systemPrompt}
+              onChange={(e) => setSystemPrompt(e.target.value)}
+              placeholder='System Prompt...'
+              rows={18}
+              className='font-mono text-xs'
+            />
+          </TabsContent>
+
+          <TabsContent value='user' className='space-y-2 mt-3'>
+            <p className='text-[10px] text-muted-foreground'>
+              定义发送给 AI 的技术指标数据模板。可用变量: {'{coin}'}, {'{current_price}'}, {'{account_ctx}'}, {'{macd_info}'}, {'{bollinger_info}'} 等。
+            </p>
+            <Textarea
+              value={userPrompt}
+              onChange={(e) => setUserPrompt(e.target.value)}
+              placeholder='User Prompt Template...'
+              rows={18}
+              className='font-mono text-xs'
+            />
+          </TabsContent>
+        </Tabs>
+
+        <DialogFooter>
+          <Button variant='outline' onClick={() => onOpenChange(false)}>取消</Button>
+          <Button onClick={handleSave} disabled={saving || !systemPrompt.trim()}>
+            {saving ? '保存中...' : '保存'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
     </Dialog>
   )
 }
