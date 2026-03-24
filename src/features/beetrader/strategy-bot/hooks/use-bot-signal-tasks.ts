@@ -28,7 +28,7 @@ export function calcPnl(t: BacktestTrackerTask, feeRate: number = DEFAULT_TAKER_
   return grossPnl - fee
 }
 
-export function useBotSignalTasks() {
+export function useBotSignalTasks(enabled: boolean = true) {
   const [allTasks, setAllTasks] = useState<BacktestTrackerTask[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<Error | null>(null)
@@ -37,7 +37,7 @@ export function useBotSignalTasks() {
   const fetchTasks = useCallback(async () => {
     try {
       const res = await hyperliquidApiGet<{ tasks: BacktestTrackerTask[] }>(
-        '/api/backtest/tracker/tasks',
+        '/api/backtest/tracker/tasks?source=strategy_bot&status=running',
       )
       setAllTasks(res.tasks || [])
       setError(null)
@@ -47,15 +47,12 @@ export function useBotSignalTasks() {
   }, [])
 
   useEffect(() => {
+    if (!enabled) return
     setLoading(true)
     fetchTasks().finally(() => setLoading(false))
-  }, [fetchTasks])
+  }, [fetchTasks, enabled])
 
-  // 过滤 strategy_bot 任务
-  const tasks = useMemo(
-    () => allTasks.filter((t) => t.source === 'strategy_bot'),
-    [allTasks],
-  )
+  const tasks = allTasks
 
   const stats = useMemo<BotSignalStats>(() => {
     const completed = tasks.filter((t) => t.status === 'completed')
@@ -75,11 +72,10 @@ export function useBotSignalTasks() {
   }, [tasks])
 
   useEffect(() => {
+    if (!enabled) return
     const hasRunning = tasks.some((t) => t.status === 'running')
     if (hasRunning) {
-      pollRef.current = setInterval(() => {
-        fetchTasks()
-      }, 10_000)
+      pollRef.current = setInterval(fetchTasks, 15_000)
     }
     return () => {
       if (pollRef.current) {
@@ -87,7 +83,7 @@ export function useBotSignalTasks() {
         pollRef.current = null
       }
     }
-  }, [tasks, fetchTasks])
+  }, [tasks, fetchTasks, enabled])
 
   return { tasks, stats, loading, error, refetch: fetchTasks }
 }

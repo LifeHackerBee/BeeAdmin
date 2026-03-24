@@ -109,13 +109,13 @@ export function useStrategyBotJobs(mode?: BotMode) {
     fetchJobs().finally(() => setLoading(false))
   }, [fetchJobs])
 
-  // 自动轮询: 有 running 状态的 job 时每 10s 刷新
+  // 自动轮询: 有 running 状态的 job 时每 30s 刷新
   useEffect(() => {
     const hasRunning = jobs.some((j) => j.status === 'running')
     if (hasRunning) {
       pollRef.current = setInterval(() => {
         fetchJobs()
-      }, 10_000)
+      }, 30_000)
     }
     return () => {
       if (pollRef.current) {

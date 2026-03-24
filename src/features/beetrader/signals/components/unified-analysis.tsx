@@ -101,9 +101,10 @@ export function UnifiedAnalysis() {
         unified.setStrategy(res.record.strategy_data)
         setLastUpdated(new Date(res.record.created_at))
         setUsingCache(true)
-        // 恢复缓存的 AI 策略
+        // 缓存模式下不自动触发 AI 生成
+        aiAutoTriggered.current = true
+        // 恢复缓存的 AI 策略（如果有）
         if (res.record.ai_strategy_sections) {
-          aiAutoTriggered.current = true
           const cached = res.record.ai_strategy_sections as unknown
           aiStrategy.setResult({
             content: JSON.stringify(cached, null, 2),

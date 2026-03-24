@@ -488,18 +488,30 @@ export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
   const {
     jobs, loading, error, createJob, startJob, pauseJob, deleteJob, resetAccount, updateJob, fetchDefaultPrompts, fetchJobs,
   } = useStrategyBotJobs(mode)
-  const signalTasks = useBotSignalTasks()
-  const botLogs = useBotLogs()
   const liveStatus = useLiveStatus(isLive)
-  const strategyPrompts = useStrategyPrompts()
   const [dialogOpen, setDialogOpen] = useState(false)
   const [settingsJob, setSettingsJob] = useState<StrategyBotJob | null>(null)
   const [refreshing, setRefreshing] = useState(false)
   const [promptMgrOpen, setPromptMgrOpen] = useState(false)
 
+  // 延迟加载: 只在有持仓的 job 时才加载 signal tasks
+  const hasOpenPositions = jobs.some((j) => j.has_open_position)
+  const signalTasks = useBotSignalTasks(hasOpenPositions)
+
+  // 延迟加载: 策略模板只在需要时加载 (打开对话框时)
+  const [promptsNeeded, setPromptsNeeded] = useState(false)
+  const strategyPrompts = useStrategyPrompts(promptsNeeded)
+
+  // 延迟加载: 日志只在用户请求时加载
+  const botLogs = useBotLogs()
+
   const handleRefresh = async () => {
     setRefreshing(true)
-    await Promise.all([fetchJobs(), signalTasks.refetch(), botLogs.refetch(), ...(isLive ? [liveStatus.checkHealth()] : [])])
+    await Promise.all([
+      fetchJobs(),
+      ...(hasOpenPositions ? [signalTasks.refetch()] : []),
+      ...(isLive ? [liveStatus.checkHealth()] : []),
+    ])
     setRefreshing(false)
   }
 
@@ -535,7 +547,7 @@ export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
 
       {/* 顶部操作栏 */}
       <div className='flex items-center justify-end gap-2'>
-        <Button variant='outline' size='sm' onClick={() => setPromptMgrOpen(true)}>
+        <Button variant='outline' size='sm' onClick={() => { setPromptsNeeded(true); setPromptMgrOpen(true) }}>
           <Brain className='h-4 w-4 mr-1' />
           Prompt 管理
         </Button>
@@ -543,7 +555,7 @@ export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
           <RefreshCw className={`h-4 w-4 mr-1 ${refreshing ? 'animate-spin' : ''}`} />
           刷新
         </Button>
-        <Button size='sm' onClick={() => setDialogOpen(true)} variant={isLive ? 'destructive' : 'default'}>
+        <Button size='sm' onClick={() => { setPromptsNeeded(true); setDialogOpen(true) }} variant={isLive ? 'destructive' : 'default'}>
           <Plus className='h-4 w-4 mr-1' />
           {isLive ? '添加现网机器人' : '添加机器人'}
         </Button>
@@ -678,7 +690,7 @@ export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
                     onPause={() => pauseJob(job.id)}
                     onDelete={() => deleteJob(job.id)}
                     onReset={() => resetAccount(job.id)}
-                    onSettings={() => setSettingsJob(job)}
+                    onSettings={() => { setPromptsNeeded(true); setSettingsJob(job) }}
                   />
                 ))}
               </TableBody>

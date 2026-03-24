@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { hyperliquidApiGet } from '@/lib/hyperliquid-api-client'
 
 export interface StrategyPrompt {
@@ -52,10 +52,11 @@ async function apiDelete<T>(path: string): Promise<T> {
   return res.json()
 }
 
-export function useStrategyPrompts() {
+export function useStrategyPrompts(enabled: boolean = true) {
   const [prompts, setPrompts] = useState<StrategyPrompt[]>([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
   const [selectedId, setSelectedId] = useState<number | null>(null)
+  const fetchedRef = useRef(false)
 
   const fetchPrompts = useCallback(async () => {
     try {
@@ -65,7 +66,6 @@ export function useStrategyPrompts() {
       )
       if (res.success) {
         setPrompts(res.data)
-        // 自动选中默认的
         const def = res.data.find((p) => p.is_default)
         if (def && selectedId === null) {
           setSelectedId(def.id)
@@ -79,8 +79,10 @@ export function useStrategyPrompts() {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
+    if (!enabled || fetchedRef.current) return
+    fetchedRef.current = true
     fetchPrompts()
-  }, [fetchPrompts])
+  }, [enabled, fetchPrompts])
 
   const createPrompt = useCallback(async (data: { name: string; description?: string; system_prompt: string; user_prompt_template?: string; is_default?: boolean }) => {
     const res = await apiPost<{ success: boolean; data: StrategyPrompt }>('/api/strategy_prompts', data)

@@ -20,12 +20,14 @@ interface LogsResponse {
 export function useBotLogs(jobId?: number, coin?: string) {
   const [logs, setLogs] = useState<BotLog[]>([])
   const [loading, setLoading] = useState(false)
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const fetchedRef = useRef(false)
 
-  const fetchLogs = useCallback(async () => {
+  const fetchLogs = useCallback(async (forJobId?: number) => {
     try {
-      const params = new URLSearchParams({ limit: '1000' })
-      if (jobId != null) params.set('job_id', String(jobId))
+      setLoading(true)
+      const params = new URLSearchParams({ limit: '100' })
+      const jid = forJobId ?? jobId
+      if (jid != null) params.set('job_id', String(jid))
       if (coin) params.set('coin', coin)
       const res = await hyperliquidApiGet<LogsResponse>(
         `/api/strategy_bot/jobs/logs?${params.toString()}`,
@@ -33,24 +35,16 @@ export function useBotLogs(jobId?: number, coin?: string) {
       setLogs(res.logs)
     } catch {
       // silent — logs are non-critical
+    } finally {
+      setLoading(false)
     }
   }, [jobId, coin])
 
-  useEffect(() => {
-    setLoading(true)
-    fetchLogs().finally(() => setLoading(false))
+  // 不自动加载，不轮询。由用户点击日志按钮时触发 refetch
+  const refetch = useCallback(async (forJobId?: number) => {
+    fetchedRef.current = true
+    await fetchLogs(forJobId)
   }, [fetchLogs])
 
-  // auto-poll every 10s
-  useEffect(() => {
-    pollRef.current = setInterval(fetchLogs, 10_000)
-    return () => {
-      if (pollRef.current) {
-        clearInterval(pollRef.current)
-        pollRef.current = null
-      }
-    }
-  }, [fetchLogs])
-
-  return { logs, loading, refetch: fetchLogs }
+  return { logs, loading, refetch }
 }
