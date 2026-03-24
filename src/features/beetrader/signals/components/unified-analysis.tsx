@@ -254,76 +254,80 @@ export function UnifiedAnalysis() {
            主内容区
          ════════════════════════════════════ */}
       <div className='flex-1 min-w-0 space-y-3'>
-        {/* 控制区 */}
-        <div className='flex flex-wrap items-center gap-2'>
-          <Input
-            value={coin}
-            onChange={(e) => setCoin(e.target.value.toUpperCase())}
-            onKeyDown={(e) => e.key === 'Enter' && handleAnalyze()}
-            placeholder='输入币种，如 BTC'
-            className='w-32'
-          />
-          <Button onClick={handleAnalyze} disabled={loading || !coin.trim()}>
-            {loading ? (
-              <>
-                <RefreshCw className='h-4 w-4 mr-1 animate-spin' />
-                分析中...
-              </>
-            ) : (
-              '刷新分析'
-            )}
-          </Button>
+        {/* ── 币种选择与操作 ── */}
+        <Card>
+          <CardContent className='py-3 px-4 space-y-3'>
+            {/* 币种快捷按钮 */}
+            <div className='flex items-center gap-1.5 flex-wrap'>
+              {POPULAR_COINS.map((c) => (
+                <Button
+                  key={c}
+                  variant={coin === c ? 'default' : 'ghost'}
+                  size='sm'
+                  className={`text-sm h-8 px-3 ${coin === c ? '' : 'text-muted-foreground'}`}
+                  onClick={() => {
+                    setCoin(c)
+                    unified.reset()
+                    aiStrategy.reset()
+                    aiAutoTriggered.current = false
+                    doAnalyze(c)
+                    setCountdown(AUTO_REFRESH_INTERVAL)
+                  }}
+                  disabled={loading}
+                >
+                  {c}
+                </Button>
+              ))}
+            </div>
 
-          <Button
-            variant={autoRefresh ? 'default' : 'outline'}
-            size='sm'
-            onClick={toggleAutoRefresh}
-            className='gap-1'
-          >
-            {autoRefresh ? (
-              <><TimerOff className='h-4 w-4' />停止刷新</>
-            ) : (
-              <><Timer className='h-4 w-4' />自动刷新</>
-            )}
-          </Button>
-          {autoRefresh && hasAnyData && (
-            <Badge variant='secondary' className='text-xs tabular-nums'>
-              {countdown}s 后刷新
-            </Badge>
-          )}
-          {lastUpdated && (
-            <span className='text-xs text-muted-foreground ml-auto'>
-              {usingCache ? (
-                <Badge variant='outline' className='text-[10px] mr-1.5 px-1.5 py-0 h-4 font-normal'>缓存</Badge>
-              ) : null}
-              更新于 {lastUpdated.toLocaleTimeString()}
-              {usingCache && <span className='ml-1'>· 点击「分析」获取最新数据</span>}
-            </span>
-          )}
-        </div>
-
-        {/* 币种快捷按钮 */}
-        <div className='flex items-center gap-1 flex-wrap'>
-          {POPULAR_COINS.map((c) => (
-            <Button
-              key={c}
-              variant={coin === c ? 'default' : 'outline'}
-              size='sm'
-              className='text-xs h-7 px-2'
-              onClick={() => {
-                setCoin(c)
-                unified.reset()
-                aiStrategy.reset()
-                aiAutoTriggered.current = false
-                doAnalyze(c)
-                setCountdown(AUTO_REFRESH_INTERVAL)
-              }}
-              disabled={loading}
-            >
-              {c}
-            </Button>
-          ))}
-        </div>
+            {/* 操作栏 */}
+            <div className='flex items-center gap-2 flex-wrap'>
+              <Input
+                value={coin}
+                onChange={(e) => setCoin(e.target.value.toUpperCase())}
+                onKeyDown={(e) => e.key === 'Enter' && handleAnalyze()}
+                placeholder='自定义币种'
+                className='w-32 h-8 text-sm'
+              />
+              <Button size='sm' onClick={handleAnalyze} disabled={loading || !coin.trim()}>
+                {loading ? (
+                  <>
+                    <RefreshCw className='h-3.5 w-3.5 mr-1 animate-spin' />
+                    分析中...
+                  </>
+                ) : (
+                  '刷新分析'
+                )}
+              </Button>
+              <Button
+                variant={autoRefresh ? 'default' : 'outline'}
+                size='sm'
+                onClick={toggleAutoRefresh}
+                className='gap-1'
+              >
+                {autoRefresh ? (
+                  <><TimerOff className='h-3.5 w-3.5' />停止</>
+                ) : (
+                  <><Timer className='h-3.5 w-3.5' />自动刷新</>
+                )}
+              </Button>
+              {autoRefresh && hasAnyData && (
+                <Badge variant='secondary' className='text-xs tabular-nums'>
+                  {countdown}s
+                </Badge>
+              )}
+              {lastUpdated && (
+                <span className='text-xs text-muted-foreground ml-auto'>
+                  {usingCache && (
+                    <Badge variant='outline' className='text-[10px] mr-1.5 px-1.5 py-0 h-4 font-normal'>缓存</Badge>
+                  )}
+                  {lastUpdated.toLocaleTimeString()}
+                  {usingCache && <span className='ml-1'>· 点击刷新获取最新</span>}
+                </span>
+              )}
+            </div>
+          </CardContent>
+        </Card>
 
         {/* 错误提示 */}
         {hasError && (
