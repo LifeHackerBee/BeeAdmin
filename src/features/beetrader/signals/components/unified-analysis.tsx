@@ -418,17 +418,24 @@ export function UnifiedAnalysis() {
         </div>
 
         {/* ══════════════════════════════════════
-             Section 3: 策略总览（策略概览 + AI 策略）
+             Section 3: 策略总览（结构化数据 → 交易机器人）
            ══════════════════════════════════════ */}
         <div id='section-strategy' className='scroll-mt-4 space-y-3'>
           {(radar.data || strategy.data || (loading && !hasAnyData)) && (
             <Card>
               <CardHeader className='pb-3'>
-                <CardTitle className='text-base flex items-center gap-2'>
-                  <Brain className='h-5 w-5' />
-                  策略总览
-                  {loading && <RefreshCw className='h-3.5 w-3.5 animate-spin text-muted-foreground' />}
-                </CardTitle>
+                <div className='flex items-center justify-between'>
+                  <div>
+                    <CardTitle className='text-base flex items-center gap-2'>
+                      <Brain className='h-5 w-5' />
+                      策略总览
+                      {loading && <RefreshCw className='h-3.5 w-3.5 animate-spin text-muted-foreground' />}
+                    </CardTitle>
+                    <p className='text-xs text-muted-foreground mt-1'>
+                      以下结构化数据将作为交易机器人的决策依据，可通过策略模板自定义分析规则
+                    </p>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent className='space-y-4'>
                 {/* 趋势过滤 */}
@@ -456,40 +463,54 @@ export function UnifiedAnalysis() {
                     <Skeleton className='h-16 w-full' />
                   </div>
                 ) : null}
+
+                {/* ── AI 策略 (策略模板 + 生成) ── */}
+                {strategy.data && (
+                  <>
+                    <div className='border-t pt-4'>
+                      <div className='flex items-center justify-between flex-wrap gap-2'>
+                        <div className='flex items-center gap-2'>
+                          <Sparkles className='h-4 w-4 text-purple-500' />
+                          <span className='text-sm font-medium'>AI 策略生成</span>
+                        </div>
+                        <div className='flex items-center gap-2'>
+                          <PromptManager
+                            prompts={promptLib.prompts}
+                            selectedId={promptLib.selectedId}
+                            onSelect={promptLib.setSelectedId}
+                            onCreate={promptLib.createPrompt}
+                            onUpdate={promptLib.updatePrompt}
+                            onDelete={promptLib.deletePrompt}
+                            onSetDefault={promptLib.setDefault}
+                          />
+                          <Button
+                            variant='outline'
+                            size='sm'
+                            onClick={handleGenerateAI}
+                            disabled={aiStrategy.loading}
+                            className='gap-1.5'
+                          >
+                            <Sparkles className='h-4 w-4' />
+                            {aiStrategy.loading ? '生成中...' : '生成 AI 策略'}
+                          </Button>
+                        </div>
+                      </div>
+                      <p className='text-[10px] text-muted-foreground mt-1'>
+                        基于上方结构化数据，使用选中的策略模板调用 AI 生成交易信号。交易机器人使用相同的流程自动执行。
+                      </p>
+                    </div>
+
+                    {(aiStrategy.loading || aiStrategy.result) && (
+                      <AiStrategyPanel
+                        coin={coin}
+                        result={aiStrategy.result}
+                        loading={aiStrategy.loading}
+                      />
+                    )}
+                  </>
+                )}
               </CardContent>
             </Card>
-          )}
-
-          {/* AI 策略（手动触发 + Prompt 选择） */}
-          {strategy.data && (
-            <div className='flex items-center justify-between flex-wrap gap-2 px-1'>
-              <PromptManager
-                prompts={promptLib.prompts}
-                selectedId={promptLib.selectedId}
-                onSelect={promptLib.setSelectedId}
-                onCreate={promptLib.createPrompt}
-                onUpdate={promptLib.updatePrompt}
-                onDelete={promptLib.deletePrompt}
-                onSetDefault={promptLib.setDefault}
-              />
-              <Button
-                variant='outline'
-                size='sm'
-                onClick={handleGenerateAI}
-                disabled={aiStrategy.loading}
-                className='gap-1.5'
-              >
-                <Sparkles className='h-4 w-4' />
-                {aiStrategy.loading ? '生成中...' : '生成 AI 策略'}
-              </Button>
-            </div>
-          )}
-          {(aiStrategy.loading || aiStrategy.result) && (
-            <AiStrategyPanel
-              coin={coin}
-              result={aiStrategy.result}
-              loading={aiStrategy.loading}
-            />
           )}
         </div>
 

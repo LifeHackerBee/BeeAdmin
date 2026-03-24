@@ -1,15 +1,67 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { AlertTriangle, Shield } from 'lucide-react'
-import type { Strategy } from '../types'
+import { AlertTriangle, Shield, TrendingUp, TrendingDown, Minus } from 'lucide-react'
+import type { Strategy, ResonanceDetail } from '../types'
 
-const BIAS_CONFIG: Record<string, { variant: 'default' | 'destructive' | 'outline' | 'secondary'; label: string }> = {
-  '强势看多': { variant: 'default', label: '强势看多' },
-  '震荡偏多': { variant: 'default', label: '震荡偏多' },
-  '观望': { variant: 'secondary', label: '观望' },
-  '震荡偏空': { variant: 'destructive', label: '震荡偏空' },
-  '强势看空': { variant: 'destructive', label: '强势看空' },
+const BIAS_CONFIG: Record<string, { variant: 'default' | 'destructive' | 'outline' | 'secondary'; label: string; color: string }> = {
+  '强势看多': { variant: 'default', label: '强势看多', color: 'text-green-600 dark:text-green-400' },
+  '震荡偏多': { variant: 'default', label: '震荡偏多', color: 'text-green-600 dark:text-green-400' },
+  '观望': { variant: 'secondary', label: '观望', color: 'text-muted-foreground' },
+  '震荡偏空': { variant: 'destructive', label: '震荡偏空', color: 'text-red-600 dark:text-red-400' },
+  '强势看空': { variant: 'destructive', label: '强势看空', color: 'text-red-600 dark:text-red-400' },
+}
+
+const SIGNAL_ICON = {
+  bullish: TrendingUp,
+  confirmed: TrendingUp,
+  bearish: TrendingDown,
+  warning: AlertTriangle,
+  neutral: Minus,
+}
+
+const SIGNAL_LABEL: Record<string, string> = {
+  bullish: '看多',
+  bearish: '看空',
+  confirmed: '确认',
+  warning: '警告',
+  neutral: '中性',
+}
+
+const SIGNAL_COLOR: Record<string, string> = {
+  bullish: 'text-green-600 dark:text-green-400',
+  confirmed: 'text-green-600 dark:text-green-400',
+  bearish: 'text-red-600 dark:text-red-400',
+  warning: 'text-yellow-600 dark:text-yellow-400',
+  neutral: 'text-muted-foreground',
+}
+
+const SIGNAL_BG: Record<string, string> = {
+  bullish: 'bg-green-50 dark:bg-green-950/20',
+  confirmed: 'bg-green-50 dark:bg-green-950/20',
+  bearish: 'bg-red-50 dark:bg-red-950/20',
+  warning: 'bg-yellow-50 dark:bg-yellow-950/20',
+  neutral: '',
+}
+
+function buildResonanceSummary(details: ResonanceDetail[], score: number, bias: string): string {
+  const bullish = details.filter((d) => d.signal === 'bullish' || d.signal === 'confirmed')
+  const bearish = details.filter((d) => d.signal === 'bearish' || d.signal === 'warning')
+  const neutral = details.filter((d) => d.signal === 'neutral')
+  const parts: string[] = []
+
+  if (bullish.length > 0) {
+    parts.push(`${bullish.length} 项指标看多 (${bullish.map((d) => d.indicator.replace(/ \d[hHdDwW]$/, '')).filter((v, i, a) => a.indexOf(v) === i).join('、')})`)
+  }
+  if (bearish.length > 0) {
+    parts.push(`${bearish.length} 项看空 (${bearish.map((d) => d.indicator.replace(/ \d[hHdDwW]$/, '')).filter((v, i, a) => a.indexOf(v) === i).join('、')})`)
+  }
+  if (neutral.length > 0) {
+    parts.push(`${neutral.length} 项中性`)
+  }
+
+  const strength = score >= 8 ? '共振强烈' : score >= 6 ? '共振较好' : score >= 4 ? '信号分歧' : '共振较弱'
+  return `${strength}，${parts.join('，')}。综合偏向「${bias}」`
 }
 
 interface Props {
@@ -18,12 +70,14 @@ interface Props {
 }
 
 export function StrategyRecommendation({ data }: Props) {
-  const biasConfig = BIAS_CONFIG[data.bias] || { variant: 'outline' as const, label: data.bias }
+  const biasConfig = BIAS_CONFIG[data.bias] || { variant: 'outline' as const, label: data.bias, color: 'text-muted-foreground' }
 
   // entry_strategy 可能是多行文本（包含战术点位）
   const entryLines = data.entry_strategy.split('\n')
   const entryTitle = entryLines[0]
   const tacticLines = entryLines.slice(1).filter(Boolean)
+
+  const summary = buildResonanceSummary(data.resonance_details, data.resonance_score, data.bias)
 
   return (
     <Card>
@@ -37,6 +91,8 @@ export function StrategyRecommendation({ data }: Props) {
             </Badge>
           </div>
         </div>
+        {/* 共振总结描述 */}
+        <p className='text-xs text-muted-foreground mt-1'>{summary}</p>
       </CardHeader>
       <CardContent className='space-y-3'>
         {/* 入场策略 + 战术点位 */}
@@ -56,26 +112,35 @@ export function StrategyRecommendation({ data }: Props) {
           )}
         </div>
 
-        {/* 共振指标明细 */}
-        <div className='flex flex-wrap gap-1'>
-          {data.resonance_details.map((d, i) => (
-            <Badge
-              key={i}
-              variant='outline'
-              className={`text-xs ${
-                d.signal === 'bullish' || d.signal === 'confirmed'
-                  ? 'text-green-600 border-green-300 dark:text-green-400 dark:border-green-700'
-                  : d.signal === 'bearish' || d.signal === 'warning'
-                    ? 'text-red-600 border-red-300 dark:text-red-400 dark:border-red-700'
-                    : 'text-slate-500 border-slate-300 dark:text-slate-400 dark:border-slate-600'
-              }`}
-              title={d.state || undefined}
-            >
-              {d.indicator}: {d.signal === 'bullish' ? '多' : d.signal === 'bearish' ? '空' : d.signal === 'confirmed' ? '确认' : d.signal === 'warning' ? '警告' : '中性'}
-              {d.state ? ` · ${d.state}` : ''}
-              {d.weight > 0 ? ` (×${d.weight})` : ''}
-            </Badge>
-          ))}
+        {/* 共振指标明细 — 清晰列表 */}
+        <div className='space-y-1.5'>
+          <p className='text-xs font-medium text-muted-foreground'>共振指标明细</p>
+          <div className='grid gap-1'>
+            {data.resonance_details.map((d, i) => {
+              const Icon = SIGNAL_ICON[d.signal] ?? Minus
+              const color = SIGNAL_COLOR[d.signal] ?? ''
+              const bg = SIGNAL_BG[d.signal] ?? ''
+              const label = SIGNAL_LABEL[d.signal] ?? d.signal
+              return (
+                <div
+                  key={i}
+                  className={`flex items-center gap-2 rounded px-2 py-1 text-xs ${bg}`}
+                >
+                  <Icon className={`h-3 w-3 shrink-0 ${color}`} />
+                  <span className='font-medium min-w-[80px]'>{d.indicator}</span>
+                  <span className={`font-medium ${color}`}>{label}</span>
+                  {d.weight > 0 && (
+                    <span className='text-muted-foreground'>权重 ×{d.weight}</span>
+                  )}
+                  {d.state && (
+                    <span className='text-muted-foreground ml-auto truncate max-w-[200px]' title={d.state}>
+                      {d.state}
+                    </span>
+                  )}
+                </div>
+              )
+            })}
+          </div>
         </div>
 
         {/* 风险提醒 */}
