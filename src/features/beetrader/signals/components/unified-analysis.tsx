@@ -108,7 +108,7 @@ export function UnifiedAnalysis() {
     if (!coin.trim()) return
     unified.reset()
     aiStrategy.reset()
-
+    aiAutoTriggered.current = false
     setUsingCache(false)
     doAnalyze(coin)
     setCountdown(AUTO_REFRESH_INTERVAL)
@@ -139,6 +139,15 @@ export function UnifiedAnalysis() {
     aiStrategy.reset()
     aiStrategy.generate(strategy.data, promptLib.selectedPrompt?.system_prompt)
   }
+
+  // 策略数据就绪后自动触发 AI 分析
+  const aiAutoTriggered = useRef(false)
+  useEffect(() => {
+    if (strategy.data && !aiStrategy.result && !aiStrategy.loading && !aiAutoTriggered.current) {
+      aiAutoTriggered.current = true
+      aiStrategy.generate(strategy.data, promptLib.selectedPrompt?.system_prompt)
+    }
+  }, [strategy.data]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggleAutoRefresh = () => {
     if (!radar.data && !strategy.data) {
@@ -282,6 +291,7 @@ export function UnifiedAnalysis() {
                 setCoin(c)
                 unified.reset()
                 aiStrategy.reset()
+                aiAutoTriggered.current = false
                 doAnalyze(c)
                 setCountdown(AUTO_REFRESH_INTERVAL)
               }}
