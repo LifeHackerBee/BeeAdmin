@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
@@ -15,6 +16,7 @@ interface ScheduledConfig {
   enabled: boolean
   interval_minutes: number
   trigger_minutes: number[] | null
+  coins: string[] | null
   last_run_at: string | null
   updated_at: string
 }
@@ -105,6 +107,17 @@ export function ScheduledAnalysisTab() {
     }
   }
 
+  const handleCoinsChange = async (coinsStr: string) => {
+    const coins = coinsStr.split(',').map(c => c.trim().toUpperCase()).filter(Boolean)
+    setSaving(true)
+    try {
+      const res = await apiPatch<{ success: boolean; config: ScheduledConfig }>('/api/beetrader_strategy/scheduled/config', { coins })
+      if (res.success && res.config) setConfig(res.config)
+    } catch { /* ignore */ } finally {
+      setSaving(false)
+    }
+  }
+
   const handleRunNow = async () => {
     setTriggering(true)
     try {
@@ -156,7 +169,7 @@ export function ScheduledAnalysisTab() {
           </div>
 
           {/* 控制区 */}
-          <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4'>
+          <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4'>
             {/* 启停 */}
             <div className='space-y-2'>
               <Label className='text-xs'>启用</Label>
@@ -209,6 +222,19 @@ export function ScheduledAnalysisTab() {
               </Select>
             </div>
 
+            {/* 分析币种 */}
+            <div className='space-y-2'>
+              <Label className='text-xs'>分析币种</Label>
+              <Input
+                defaultValue={(config.coins?.length ? config.coins : ['BTC', 'ETH']).join(', ')}
+                onBlur={(e: React.FocusEvent<HTMLInputElement>) => handleCoinsChange(e.target.value)}
+                onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === 'Enter' && handleCoinsChange((e.target as HTMLInputElement).value)}
+                className='h-8 text-xs'
+                placeholder='BTC, ETH, SOL'
+                disabled={saving}
+              />
+            </div>
+
             {/* 手动触发 */}
             <div className='space-y-2'>
               <Label className='text-xs'>手动触发</Label>
@@ -241,6 +267,10 @@ export function ScheduledAnalysisTab() {
                 : `间隔: 每 ${config.interval_minutes} 分钟`}
             </span>
             <span className='text-muted-foreground'>·</span>
+            <span className='text-muted-foreground'>
+              币种: {(config.coins?.length ? config.coins : ['BTC', 'ETH']).join(', ')}
+            </span>
+            <span className='text-muted-foreground'>·</span>
             {lastRunTime ? (
               <span className='flex items-center gap-1 text-muted-foreground'>
                 <Clock className='h-3 w-3' />
@@ -260,7 +290,7 @@ export function ScheduledAnalysisTab() {
           <p><b>工作原理:</b> Celery Beat 每分钟检查配置，满足间隔条件时自动分析所有运行中的机器人币种。</p>
           <p><b>分析内容:</b> beetrader 技术分析引擎（多周期指标、阶梯形态、共振评分）+ AI 策略信号生成（调用 OpenAI）。</p>
           <p><b>数据存储:</b> 结果写入 analysis_history 表（source=scheduled），保留 7 天。</p>
-          <p><b>分析币种:</b> 自动跟随 strategy_bot_jobs 中 status=running 的币种。</p>
+          <p><b>分析币种:</b> 在上方配置，默认 BTC, ETH。与策略机器人独立运行。</p>
         </CardContent>
       </Card>
     </div>
