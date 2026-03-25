@@ -15,6 +15,148 @@ function fmtPrice(v: number): string {
   return `$${v.toFixed(4)}`
 }
 
+// ── AI Signal JSON 渲染视图 (非大镖客格式的 ai_signal) ──
+
+function SignalJsonView({ content }: { content: string }) {
+  let signal: Record<string, unknown>
+  try {
+    signal = JSON.parse(content)
+  } catch {
+    return (
+      <pre className='text-xs whitespace-pre-wrap text-muted-foreground bg-muted/50 rounded p-3 max-h-96 overflow-y-auto'>
+        {content}
+      </pre>
+    )
+  }
+
+  // 检测 _raw 中的大镖客结构化格式 → 用 StructuredView 渲染
+  const raw = signal._raw as Record<string, unknown> | undefined
+  if (raw?.macro_context && raw?.tactical_execution) {
+    return <StructuredView data={raw as unknown as AiStrategyResult} />
+  }
+
+  // 检测顶层就是大镖客格式
+  if (signal.macro_context && signal.tactical_execution) {
+    return <StructuredView data={signal as unknown as AiStrategyResult} />
+  }
+
+  // 旧格式 JSON 信号渲染
+  const direction: string = String(signal.direction ?? '')
+  const confidence: number | null = typeof signal.confidence === 'number' ? signal.confidence : null
+  const entryPrice: number | null = typeof signal.entry_price === 'number' ? signal.entry_price : null
+  const takeProfit: number | null = typeof signal.take_profit === 'number' ? signal.take_profit : null
+  const stopLoss: number | null = typeof signal.stop_loss === 'number' ? signal.stop_loss : null
+  const reason: string = String(signal.reason ?? '')
+
+  const dirColor = direction === 'long' ? 'bg-green-600 text-white'
+    : direction === 'short' ? 'bg-red-600 text-white'
+    : direction === 'close' ? 'bg-orange-500 text-white'
+    : 'bg-slate-500 text-white'
+
+  const DirIcon = direction === 'long' ? TrendingUp
+    : direction === 'short' ? TrendingDown : Minus
+
+  // 从 _raw 补充战术信息
+  const rawTactical = raw?.tactical_execution as Record<string, unknown> | undefined
+  const rawAction: string = rawTactical?.action ? String(rawTactical.action) : ''
+  const rawEntry = rawTactical?.entry_zone as Record<string, string> | undefined
+  const rawSL = rawTactical?.stop_loss as Record<string, string> | undefined
+  const rawTP = rawTactical?.take_profit as Record<string, number> | undefined
+
+  return (
+    <div className='space-y-3'>
+      {/* 信号方向 + 置信度 */}
+      <div className='flex items-center gap-3'>
+        <Badge className={`text-sm px-3 py-1 gap-1.5 ${dirColor}`}>
+          <DirIcon className='h-4 w-4' />
+          {rawAction || direction || 'wait'}
+        </Badge>
+        {confidence !== null && (
+          <div className='text-center'>
+            <span className='text-2xl font-bold'>{confidence}</span>
+            <span className='text-xs text-muted-foreground'>/10</span>
+          </div>
+        )}
+        {direction && rawAction && direction !== rawAction && direction !== '' ? (
+          <Badge variant='outline' className='text-[10px]'>
+            归一化: {direction}
+          </Badge>
+        ) : null}
+      </div>
+
+      {/* 价格信息 */}
+      <div className='rounded-lg border p-3'>
+        <div className='flex items-center gap-1.5 mb-2'>
+          <Target className='h-4 w-4 text-blue-500' />
+          <span className='text-xs font-medium text-muted-foreground'>价位信息</span>
+        </div>
+        <div className='grid grid-cols-2 sm:grid-cols-4 gap-3'>
+          {entryPrice !== null ? (
+            <div>
+              <span className='text-[10px] text-muted-foreground'>入场价</span>
+              <p className='font-mono font-bold text-sm'>{fmtPrice(entryPrice)}</p>
+            </div>
+          ) : null}
+          {takeProfit !== null ? (
+            <div>
+              <span className='text-[10px] text-green-500'>止盈 T1</span>
+              <p className='font-mono font-bold text-sm text-green-600'>{fmtPrice(takeProfit)}</p>
+            </div>
+          ) : null}
+          {rawTP?.target_2_price ? (
+            <div>
+              <span className='text-[10px] text-green-500'>止盈 T2</span>
+              <p className='font-mono font-bold text-sm text-green-600'>{fmtPrice(rawTP.target_2_price)}</p>
+            </div>
+          ) : null}
+          {stopLoss !== null ? (
+            <div>
+              <span className='text-[10px] text-red-500'>止损</span>
+              <p className='font-mono font-bold text-sm text-red-600'>{fmtPrice(stopLoss)}</p>
+            </div>
+          ) : null}
+        </div>
+        {rawEntry?.price_range && (
+          <p className='text-[10px] text-muted-foreground mt-2 font-mono'>入场区间: {rawEntry.price_range}</p>
+        )}
+      </div>
+
+      {/* 入场策略 */}
+      {rawEntry?.strategy && (
+        <div className='rounded-lg border p-3'>
+          <div className='flex items-center gap-1.5 mb-1'>
+            <Swords className='h-4 w-4 text-orange-500' />
+            <span className='text-xs font-medium text-muted-foreground'>入场策略</span>
+          </div>
+          <p className='text-xs leading-relaxed'>{rawEntry.strategy}</p>
+        </div>
+      )}
+
+      {/* 止损条件 */}
+      {rawSL?.trigger_condition && (
+        <div className='rounded-lg border border-red-500/20 bg-red-500/5 p-3'>
+          <div className='flex items-center gap-1.5 mb-1'>
+            <AlertTriangle className='h-4 w-4 text-red-500' />
+            <span className='text-xs font-medium text-red-500'>止损条件</span>
+          </div>
+          <p className='text-xs leading-relaxed'>{rawSL.trigger_condition}</p>
+        </div>
+      )}
+
+      {/* 分析理由 */}
+      {reason && (
+        <div className='rounded-lg border p-3'>
+          <div className='flex items-center gap-1.5 mb-1'>
+            <Flame className='h-4 w-4 text-yellow-500' />
+            <span className='text-xs font-medium text-muted-foreground'>分析理由</span>
+          </div>
+          <p className='text-xs leading-relaxed'>{reason}</p>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── 结构化视图 ──
 
 function StructuredView({ data }: { data: AiStrategyResult }) {
@@ -206,12 +348,9 @@ export function AiStrategyPanel({
             {/* 结构化视图 */}
             {result.structured ? (
               <StructuredView data={result.structured} />
-            ) : (
-              // JSON 解析失败时 fallback 显示原文
-              <pre className='text-xs whitespace-pre-wrap text-muted-foreground bg-muted/50 rounded p-3 max-h-96 overflow-y-auto'>
-                {result.content}
-              </pre>
-            )}
+            ) : result.content ? (
+              <SignalJsonView content={result.content} />
+            ) : null}
 
             {/* Raw Text 展开 */}
             {showRaw && (

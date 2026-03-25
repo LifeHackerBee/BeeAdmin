@@ -66,16 +66,20 @@ export function AgentConfigDialog({
   const [editDesc, setEditDesc] = useState('')
   const [saving, setSaving] = useState(false)
   const [loaded, setLoaded] = useState(false)
+  const [isNew, setIsNew] = useState(false)  // 是否处于新建模式
+  const [dirty, setDirty] = useState(false)   // 是否有未保存修改
 
   useEffect(() => {
     if (!open || loaded) return
     setLoaded(true)
+    setIsNew(false)
+    setDirty(false)
     const def = prompts.find((p) => p.is_default)
     if (def) loadPrompt(def)
   }, [open, loaded, prompts]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (!open) setLoaded(false)
+    if (!open) { setLoaded(false); setIsNew(false); setDirty(false) }
   }, [open])
 
   const loadPrompt = (p: AgentPrompt) => {
@@ -83,6 +87,8 @@ export function AgentConfigDialog({
     setEditName(p.name)
     setEditDesc(p.description)
     setSystemPrompt(p.system_prompt)
+    setIsNew(false)
+    setDirty(false)
   }
 
   const handleSelectPrompt = (id: string) => {
@@ -90,32 +96,44 @@ export function AgentConfigDialog({
     if (p) loadPrompt(p)
   }
 
+  const markDirty = () => { if (!dirty) setDirty(true) }
+
   const handleSave = async () => {
-    if (!systemPrompt.trim() || !selectedId) return
+    if (!systemPrompt.trim()) return
     setSaving(true)
     try {
-      await onUpdatePrompt(selectedId, {
-        name: editName.trim() || undefined,
-        description: editDesc.trim(),
-        system_prompt: systemPrompt.trim(),
-      })
+      if (isNew) {
+        // 新建模式
+        const created = await onCreatePrompt({
+          name: editName.trim() || '新 Agent',
+          description: editDesc.trim(),
+          system_prompt: systemPrompt.trim(),
+        })
+        if (created) {
+          setSelectedId(created.id)
+          setIsNew(false)
+        }
+      } else if (selectedId) {
+        // 更新模式
+        await onUpdatePrompt(selectedId, {
+          name: editName.trim() || undefined,
+          description: editDesc.trim(),
+          system_prompt: systemPrompt.trim(),
+        })
+      }
+      setDirty(false)
     } catch { /* ignore */ } finally {
       setSaving(false)
     }
   }
 
-  const handleCreate = async () => {
-    setSaving(true)
-    try {
-      const created = await onCreatePrompt({
-        name: editName.trim() || '新 Agent',
-        description: editDesc.trim(),
-        system_prompt: systemPrompt.trim() || '(待填写)',
-      })
-      if (created) setSelectedId(created.id)
-    } catch { /* ignore */ } finally {
-      setSaving(false)
-    }
+  const handleNew = () => {
+    setSelectedId(null)
+    setEditName('')
+    setEditDesc('')
+    setSystemPrompt('')
+    setIsNew(true)
+    setDirty(false)
   }
 
   const handleDelete = async () => {
@@ -125,6 +143,8 @@ export function AgentConfigDialog({
     setSystemPrompt('')
     setEditName('')
     setEditDesc('')
+    setIsNew(false)
+    setDirty(false)
     const remaining = prompts.filter((p) => p.id !== selectedId)
     if (remaining.length > 0) loadPrompt(remaining[0])
   }
@@ -147,28 +167,33 @@ export function AgentConfigDialog({
 
         {/* 模板选择器 */}
         <div className='flex items-center gap-2 flex-wrap'>
-          <Select value={selectedId?.toString() ?? ''} onValueChange={handleSelectPrompt}>
-            <SelectTrigger className='h-8 text-xs flex-1 min-w-[200px]'>
-              <SelectValue placeholder='选择 Agent 模板...' />
-            </SelectTrigger>
-            <SelectContent>
-              {prompts.map((p) => (
-                <SelectItem key={p.id} value={p.id.toString()}>
-                  <span className='text-xs flex items-center gap-1'>
-                    {p.is_default && <Star className='h-3 w-3 text-yellow-500 fill-yellow-500' />}
-                    {p.name}
-                    {p.description && <span className='text-muted-foreground ml-1'>— {p.description}</span>}
-                  </span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {!isNew && (
+            <Select value={selectedId?.toString() ?? ''} onValueChange={handleSelectPrompt}>
+              <SelectTrigger className='h-8 text-xs flex-1 min-w-[200px]'>
+                <SelectValue placeholder='选择 Agent 模板...' />
+              </SelectTrigger>
+              <SelectContent>
+                {prompts.map((p) => (
+                  <SelectItem key={p.id} value={p.id.toString()}>
+                    <span className='text-xs flex items-center gap-1'>
+                      {p.is_default && <Star className='h-3 w-3 text-yellow-500 fill-yellow-500' />}
+                      {p.name}
+                      {p.description && <span className='text-muted-foreground ml-1'>— {p.description}</span>}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          {isNew && (
+            <Badge variant='secondary' className='text-xs px-2 py-1'>新建模板</Badge>
+          )}
 
-          <Button variant='outline' size='sm' className='h-8 text-xs gap-1' onClick={handleCreate} disabled={saving}>
+          <Button variant='outline' size='sm' className='h-8 text-xs gap-1' onClick={handleNew} disabled={saving || isNew}>
             <Plus className='h-3.5 w-3.5' /> 新建
           </Button>
 
-          {current && (
+          {current && !isNew && (
             <>
               <Button variant='outline' size='sm' className='h-8 text-xs gap-1' onClick={() => onSetDefault(current.id)} disabled={current.is_default}>
                 <Star className='h-3.5 w-3.5' />
@@ -179,21 +204,24 @@ export function AgentConfigDialog({
               </Button>
             </>
           )}
+          {isNew && (
+            <Button variant='ghost' size='sm' className='h-8 text-xs' onClick={() => { setIsNew(false); const def = prompts.find((p) => p.is_default); if (def) loadPrompt(def) }}>
+              取消新建
+            </Button>
+          )}
         </div>
 
-        {/* 名称描述 */}
-        {selectedId && (
-          <div className='grid grid-cols-2 gap-2'>
-            <div className='space-y-1'>
-              <Label className='text-xs'>名称</Label>
-              <Input value={editName} onChange={(e) => setEditName(e.target.value)} className='h-8 text-xs' placeholder='Agent 名称' />
-            </div>
-            <div className='space-y-1'>
-              <Label className='text-xs'>描述</Label>
-              <Input value={editDesc} onChange={(e) => setEditDesc(e.target.value)} className='h-8 text-xs' placeholder='可选描述' />
-            </div>
+        {/* 名称描述 — 始终显示 */}
+        <div className='grid grid-cols-2 gap-2'>
+          <div className='space-y-1'>
+            <Label className='text-xs'>名称</Label>
+            <Input value={editName} onChange={(e) => { setEditName(e.target.value); markDirty() }} className='h-8 text-xs' placeholder='Agent 名称' />
           </div>
-        )}
+          <div className='space-y-1'>
+            <Label className='text-xs'>描述</Label>
+            <Input value={editDesc} onChange={(e) => { setEditDesc(e.target.value); markDirty() }} className='h-8 text-xs' placeholder='可选描述' />
+          </div>
+        </div>
 
         {/* Tabs: Agent Prompt / 可用 Tools */}
         <Tabs defaultValue='prompt' className='w-full'>
@@ -220,7 +248,7 @@ export function AgentConfigDialog({
             </div>
             <Textarea
               value={systemPrompt}
-              onChange={(e) => setSystemPrompt(e.target.value)}
+              onChange={(e) => { setSystemPrompt(e.target.value); markDirty() }}
               placeholder={`定义交易执行 Agent 的行为规则。\n\n示例：\n你是交易执行 Agent，根据 AI 策略信号决定交易动作。\n\n规则:\n1. 先调用 get_ai_strategy 获取最新策略信号\n2. 调用 get_current_price 获取实时价格\n3. 调用 get_position 检查当前持仓\n4. 信号为"做多"且实时价在入场区间内且无持仓 → 调用 open_long\n5. 信号为"做空"且实时价在入场区间内且无持仓 → 调用 open_short\n6. 有持仓且实时价触及止损位 → 调用 close_position\n7. 有持仓且信号建议加仓 → 调用 add_position\n8. 信号为"观望"或实时价不在入场区间 → 调用 wait\n9. 入场价与实时价偏差 > 3% → 强制 wait`}
               rows={18}
               className='font-mono text-xs'
@@ -267,10 +295,11 @@ export function AgentConfigDialog({
           </TabsContent>
         </Tabs>
 
-        <DialogFooter>
+        <DialogFooter className='flex items-center'>
+          {dirty && <span className='text-[10px] text-yellow-500 mr-auto'>有未保存的修改</span>}
           <Button variant='outline' onClick={() => onOpenChange(false)}>取消</Button>
-          <Button onClick={handleSave} disabled={saving || !selectedId || !systemPrompt.trim()}>
-            {saving ? '保存中...' : '保存'}
+          <Button onClick={handleSave} disabled={saving || !systemPrompt.trim() || (!isNew && !selectedId)}>
+            {saving ? '保存中...' : isNew ? '创建' : '保存'}
           </Button>
         </DialogFooter>
       </DialogContent>
