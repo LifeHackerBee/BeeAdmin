@@ -3,6 +3,10 @@ import { useStrategyBotJobs, type StrategyBotJob, type UpdateBotJobData, type De
 import { useBotSignalTasks, calcPnl, type BacktestTrackerTask } from '../hooks/use-bot-signal-tasks'
 import { useBotLogs, type BotLog } from '../hooks/use-bot-logs'
 import { useLiveStatus } from '../hooks/use-live-status'
+import { StrategyConfigDialog } from './strategy-config-dialog'
+import { AgentConfigDialog } from './agent-config-dialog'
+import { AgentTestDialog } from './agent-test-dialog'
+import { BotConfigOverview } from './bot-config-overview'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -492,14 +496,16 @@ export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [settingsJob, setSettingsJob] = useState<StrategyBotJob | null>(null)
   const [refreshing, setRefreshing] = useState(false)
-  const [promptMgrOpen, setPromptMgrOpen] = useState(false)
+  const [strategyConfigOpen, setStrategyConfigOpen] = useState(false)
+  const [agentConfigOpen, setAgentConfigOpen] = useState(false)
+  const [agentTestOpen, setAgentTestOpen] = useState(false)
 
   // 延迟加载: 只在有持仓的 job 时才加载 signal tasks
   const hasOpenPositions = jobs.some((j) => j.has_open_position)
   const signalTasks = useBotSignalTasks(hasOpenPositions)
 
-  // 延迟加载: 策略模板只在需要时加载 (打开对话框时)
-  const [promptsNeeded, setPromptsNeeded] = useState(false)
+  // 策略模板: 概览卡片需要显示配置状态，所以默认加载
+  const [promptsNeeded, setPromptsNeeded] = useState(true)
   const strategyPrompts = useStrategyPrompts(promptsNeeded)
 
   // 延迟加载: 日志只在用户请求时加载
@@ -547,10 +553,6 @@ export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
 
       {/* 顶部操作栏 */}
       <div className='flex items-center justify-end gap-2'>
-        <Button variant='outline' size='sm' onClick={() => { setPromptsNeeded(true); setPromptMgrOpen(true) }}>
-          <Settings className='h-4 w-4 mr-1' />
-          机器人配置
-        </Button>
         <Button variant='outline' size='sm' onClick={handleRefresh} disabled={refreshing}>
           <RefreshCw className={`h-4 w-4 mr-1 ${refreshing ? 'animate-spin' : ''}`} />
           刷新
@@ -560,6 +562,16 @@ export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
           {isLive ? '添加现网机器人' : '添加机器人'}
         </Button>
       </div>
+
+      {/* 机器人配置概览 */}
+      <BotConfigOverview
+        prompts={strategyPrompts.prompts}
+        runningJobs={runningCount}
+        totalJobs={jobs.length}
+        onOpenStrategyConfig={() => { setPromptsNeeded(true); setStrategyConfigOpen(true) }}
+        onOpenAgentConfig={() => { setPromptsNeeded(true); setAgentConfigOpen(true) }}
+        onOpenAgentTest={() => { setPromptsNeeded(true); setAgentTestOpen(true) }}
+      />
 
       {/* 概览统计 */}
       {jobs.length > 0 && (
@@ -713,11 +725,27 @@ export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
           fetchDefaultPrompts={fetchDefaultPrompts}
         />
       )}
-      <DefaultPromptManager
-        open={promptMgrOpen}
-        onOpenChange={setPromptMgrOpen}
-        prompts={strategyPrompts}
+      <StrategyConfigDialog
+        open={strategyConfigOpen}
+        onOpenChange={setStrategyConfigOpen}
+        prompts={strategyPrompts.prompts}
+        onCreatePrompt={strategyPrompts.createPrompt}
+        onUpdatePrompt={strategyPrompts.updatePrompt}
+        onDeletePrompt={strategyPrompts.deletePrompt}
+        onSetDefault={strategyPrompts.setDefault}
         fetchDefaultPrompts={fetchDefaultPrompts}
+      />
+      <AgentConfigDialog
+        open={agentConfigOpen}
+        onOpenChange={setAgentConfigOpen}
+        prompts={strategyPrompts.prompts}
+        onUpdatePrompt={strategyPrompts.updatePrompt}
+      />
+      <AgentTestDialog
+        open={agentTestOpen}
+        onOpenChange={setAgentTestOpen}
+        prompts={strategyPrompts.prompts}
+        defaultCoin={jobs[0]?.coin ?? 'BTC'}
       />
     </div>
   )
@@ -1602,318 +1630,6 @@ function BotSettingsDialog({
   )
 }
 
-// ── 交易机器人配置 ──
-
-const AGENT_TOOLS = [
-  { name: 'get_ai_strategy', desc: '获取 AI 策略分析信号', params: '无', category: 'info' },
-  { name: 'get_current_price', desc: '查询币种实时价格', params: 'coin', category: 'info' },
-  { name: 'get_position', desc: '查看当前持仓详情', params: '无', category: 'info' },
-  { name: 'get_account_balance', desc: '查看账户余额和净值', params: '无', category: 'info' },
-  { name: 'get_liquidation_price', desc: '查看当前仓位强平价', params: '无', category: 'info' },
-  { name: 'open_long', desc: '开多仓', params: 'entry_price, take_profit, stop_loss', category: 'trade' },
-  { name: 'open_short', desc: '开空仓', params: 'entry_price, take_profit, stop_loss', category: 'trade' },
-  { name: 'close_position', desc: '平仓（全部）', params: '无', category: 'trade' },
-  { name: 'add_position', desc: '加仓（按比例）', params: 'scale_ratio (0.1-1.0)', category: 'trade' },
-  { name: 'reduce_position', desc: '减仓（按比例）', params: 'scale_ratio (0.1-0.9)', category: 'trade' },
-  { name: 'place_limit_order', desc: '挂限价单', params: 'side, price, size', category: 'trade' },
-  { name: 'cancel_order', desc: '撤销挂单', params: 'order_id', category: 'trade' },
-  { name: 'wait', desc: '观望，不执行任何交易', params: 'reason', category: 'control' },
-] as const
-
-function DefaultPromptManager({
-  open,
-  onOpenChange,
-  prompts,
-  fetchDefaultPrompts,
-}: {
-  open: boolean
-  onOpenChange: (v: boolean) => void
-  prompts: ReturnType<typeof useStrategyPrompts>
-  fetchDefaultPrompts: () => Promise<DefaultPrompts>
-}) {
-  const [selectedId, setSelectedId] = useState<number | null>(null)
-  const [systemPrompt, setSystemPrompt] = useState('')
-  const [agentPrompt, setAgentPrompt] = useState('')
-  const [editName, setEditName] = useState('')
-  const [editDesc, setEditDesc] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [loaded, setLoaded] = useState(false)
-  const [loadingDefaults, setLoadingDefaults] = useState(false)
-
-  // 打开时选中默认 prompt
-  useEffect(() => {
-    if (!open || loaded) return
-    setLoaded(true)
-    const def = prompts.prompts.find((p) => p.is_default)
-    if (def) loadPrompt(def)
-  }, [open, loaded, prompts.prompts]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (!open) setLoaded(false)
-  }, [open])
-
-  const loadPrompt = (p: { id: number; name: string; description: string; system_prompt: string; agent_prompt?: string }) => {
-    setSelectedId(p.id)
-    setEditName(p.name)
-    setEditDesc(p.description)
-    setSystemPrompt(p.system_prompt)
-    setAgentPrompt(p.agent_prompt || '')
-  }
-
-  const handleSelectPrompt = (id: string) => {
-    const p = prompts.prompts.find((x) => x.id === Number(id))
-    if (p) loadPrompt(p)
-  }
-
-  const handleLoadBuiltinDefaults = async () => {
-    setLoadingDefaults(true)
-    try {
-      const defaults = await fetchDefaultPrompts()
-      setSystemPrompt(defaults.system_prompt)
-      if (defaults.agent_prompt) setAgentPrompt(defaults.agent_prompt)
-    } catch {
-      // ignore
-    } finally {
-      setLoadingDefaults(false)
-    }
-  }
-
-  const handleSave = async () => {
-    if (!systemPrompt.trim()) return
-    setSaving(true)
-    try {
-      if (selectedId) {
-        await prompts.updatePrompt(selectedId, {
-          name: editName.trim() || undefined,
-          description: editDesc.trim(),
-          system_prompt: systemPrompt.trim(),
-          agent_prompt: agentPrompt.trim(),
-        })
-      }
-    } catch {
-      // ignore
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const handleCreate = async () => {
-    setSaving(true)
-    try {
-      const created = await prompts.createPrompt({
-        name: editName.trim() || '新策略',
-        description: editDesc.trim(),
-        system_prompt: systemPrompt.trim() || '(待填写)',
-        agent_prompt: agentPrompt.trim(),
-      })
-      if (created) setSelectedId(created.id)
-    } catch {
-      // ignore
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const handleDelete = async () => {
-    if (!selectedId) return
-    await prompts.deletePrompt(selectedId)
-    setSelectedId(null)
-    setSystemPrompt('')
-    setAgentPrompt('')
-    setEditName('')
-    setEditDesc('')
-    const remaining = prompts.prompts.filter((p) => p.id !== selectedId)
-    if (remaining.length > 0) loadPrompt(remaining[0])
-  }
-
-  const handleSetDefault = async () => {
-    if (!selectedId) return
-    await prompts.setDefault(selectedId)
-  }
-
-  const current = prompts.prompts.find((p) => p.id === selectedId)
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className='sm:max-w-4xl max-h-[90vh] overflow-y-auto'>
-        <DialogHeader>
-          <DialogTitle className='flex items-center gap-2'>
-            <Settings className='h-4 w-4' />
-            交易机器人配置
-          </DialogTitle>
-        </DialogHeader>
-
-        <p className='text-xs text-muted-foreground'>
-          配置交易机器人的 AI 策略分析和交易执行 Agent。标记为默认的配置将被所有未单独配置的机器人使用。保存后约 5 分钟内对所有运行中的机器人生效。
-        </p>
-
-        {/* 配置模板选择器 */}
-        <div className='flex items-center gap-2 flex-wrap'>
-          <Select
-            value={selectedId?.toString() ?? ''}
-            onValueChange={handleSelectPrompt}
-          >
-            <SelectTrigger className='h-8 text-xs flex-1 min-w-[200px]'>
-              <SelectValue placeholder='选择配置模板...' />
-            </SelectTrigger>
-            <SelectContent>
-              {prompts.prompts.map((p) => (
-                <SelectItem key={p.id} value={p.id.toString()}>
-                  <span className='text-xs flex items-center gap-1'>
-                    {p.is_default && <Star className='h-3 w-3 text-yellow-500 fill-yellow-500' />}
-                    {p.name}
-                    {p.description && <span className='text-muted-foreground ml-1'>— {p.description}</span>}
-                  </span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Button variant='outline' size='sm' className='h-8 text-xs gap-1' onClick={handleCreate} disabled={saving}>
-            <Plus className='h-3.5 w-3.5' />
-            新建
-          </Button>
-
-          {current && (
-            <>
-              <Button
-                variant='outline' size='sm' className='h-8 text-xs gap-1'
-                onClick={handleSetDefault} disabled={current.is_default}
-              >
-                <Star className='h-3.5 w-3.5' />
-                {current.is_default ? '已是默认' : '设为默认'}
-              </Button>
-              <Button variant='ghost' size='sm' className='h-8 text-xs gap-1 text-red-500 hover:text-red-600' onClick={handleDelete}>
-                <Trash2 className='h-3.5 w-3.5' />
-                删除
-              </Button>
-            </>
-          )}
-        </div>
-
-        {/* 名称描述 */}
-        {selectedId && (
-          <div className='grid grid-cols-2 gap-2'>
-            <div className='space-y-1'>
-              <Label className='text-xs'>名称</Label>
-              <Input value={editName} onChange={(e) => setEditName(e.target.value)} className='h-8 text-xs' placeholder='配置名称' />
-            </div>
-            <div className='space-y-1'>
-              <Label className='text-xs'>描述</Label>
-              <Input value={editDesc} onChange={(e) => setEditDesc(e.target.value)} className='h-8 text-xs' placeholder='可选描述' />
-            </div>
-          </div>
-        )}
-
-        {/* 配置 Tabs */}
-        <Tabs defaultValue='strategy' className='w-full'>
-          <TabsList className='grid w-full grid-cols-2'>
-            <TabsTrigger value='strategy'>
-              <Brain className='h-3.5 w-3.5 mr-1.5' />
-              AI 交易策略
-            </TabsTrigger>
-            <TabsTrigger value='agent'>
-              <Bot className='h-3.5 w-3.5 mr-1.5' />
-              交易执行 Agent
-            </TabsTrigger>
-          </TabsList>
-
-          {/* ── AI 交易策略 Tab ── */}
-          <TabsContent value='strategy' className='space-y-2 mt-3'>
-            <div className='flex items-center justify-between'>
-              <p className='text-[10px] text-muted-foreground'>
-                定义 AI 的角色、分析方法论和输出 JSON 格式。AI 根据多周期技术指标数据生成交易信号。
-              </p>
-              <Button variant='ghost' size='sm' className='h-6 text-[10px] shrink-0' onClick={handleLoadBuiltinDefaults} disabled={loadingDefaults}>
-                {loadingDefaults ? '加载中...' : '加载内置默认'}
-              </Button>
-            </div>
-            <Textarea
-              value={systemPrompt}
-              onChange={(e) => setSystemPrompt(e.target.value)}
-              placeholder='System Prompt — 定义 AI 策略分析师角色...'
-              rows={16}
-              className='font-mono text-xs'
-            />
-          </TabsContent>
-
-          {/* ── 交易执行 Agent Tab ── */}
-          <TabsContent value='agent' className='space-y-3 mt-3'>
-            <p className='text-[10px] text-muted-foreground'>
-              交易执行 Agent 接收 AI 策略信号 + 实时价格 + 账户状态，通过 Tool Call 执行具体交易动作。
-            </p>
-
-            {/* 可用 Tools 列表 */}
-            <div className='space-y-1.5'>
-              <Label className='text-xs font-medium'>可用 Tools</Label>
-              <div className='border rounded-md overflow-hidden'>
-                <Table>
-                  <TableHeader>
-                    <TableRow className='bg-muted/50'>
-                      <TableHead className='text-[10px] h-7 w-[140px]'>Tool</TableHead>
-                      <TableHead className='text-[10px] h-7'>说明</TableHead>
-                      <TableHead className='text-[10px] h-7 w-[180px]'>参数</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {AGENT_TOOLS.map((tool) => (
-                      <TableRow key={tool.name} className='group'>
-                        <TableCell className='py-1 px-2'>
-                          <code className={`text-[10px] font-mono px-1 py-0.5 rounded ${
-                            tool.category === 'trade' ? 'bg-blue-500/10 text-blue-600' :
-                            tool.category === 'info' ? 'bg-green-500/10 text-green-600' :
-                            'bg-gray-500/10 text-gray-600'
-                          }`}>
-                            {tool.name}
-                          </code>
-                        </TableCell>
-                        <TableCell className='py-1 px-2 text-[10px] text-muted-foreground'>{tool.desc}</TableCell>
-                        <TableCell className='py-1 px-2 text-[10px] font-mono text-muted-foreground'>{tool.params}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-              <div className='flex gap-3 text-[10px] text-muted-foreground'>
-                <span className='flex items-center gap-1'>
-                  <span className='inline-block w-2 h-2 rounded-full bg-green-500/40' />
-                  信息查询
-                </span>
-                <span className='flex items-center gap-1'>
-                  <span className='inline-block w-2 h-2 rounded-full bg-blue-500/40' />
-                  交易操作
-                </span>
-                <span className='flex items-center gap-1'>
-                  <span className='inline-block w-2 h-2 rounded-full bg-gray-500/40' />
-                  流程控制
-                </span>
-              </div>
-            </div>
-
-            {/* Agent Prompt 编辑 */}
-            <div className='space-y-1.5'>
-              <Label className='text-xs font-medium'>Agent System Prompt</Label>
-              <Textarea
-                value={agentPrompt}
-                onChange={(e) => setAgentPrompt(e.target.value)}
-                placeholder={`定义交易执行 Agent 的行为规则。Agent 根据 AI 策略信号 + 实时价格 + 账户状态，通过 Tool Call 执行具体交易动作（开多/开空/平仓/观望）。\n\n示例：\n你是交易执行 Agent，根据 AI 策略信号决定交易动作。\n\n规则:\n1. 信号为"回踩做多"且实时价在入场区间内 → 调用 open_long\n2. 信号为"反弹做空"且实时价在入场区间内 → 调用 open_short\n3. 实时价触及止损位 → 调用 close_position\n4. 信号为"观望"或实时价不在入场区间 → 调用 wait\n5. 入场价与实时价偏差 > 3% → 强制 wait`}
-                rows={12}
-                className='font-mono text-xs'
-              />
-            </div>
-          </TabsContent>
-        </Tabs>
-
-        <DialogFooter>
-          <Button variant='outline' onClick={() => onOpenChange(false)}>取消</Button>
-          <Button onClick={handleSave} disabled={saving || !selectedId || !systemPrompt.trim()}>
-            {saving ? '保存中...' : '保存'}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
-}
 
 // ── 日志行 ──
 
