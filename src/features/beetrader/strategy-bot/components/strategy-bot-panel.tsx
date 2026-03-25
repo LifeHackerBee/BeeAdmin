@@ -685,6 +685,7 @@ export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
                     job={job}
                     trackerTasks={signalTasks.tasks}
                     logs={botLogs.logs.filter((l) => l.job_id === job.id)}
+                    onFetchLogs={() => botLogs.refetch(job.id)}
                     promptTemplates={strategyPrompts.prompts}
                     onStart={() => startJob(job.id)}
                     onPause={() => pauseJob(job.id)}
@@ -725,11 +726,12 @@ export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
 // ── Job 行 ──
 
 function JobRow({
-  job, trackerTasks, logs, promptTemplates, onStart, onPause, onDelete, onReset, onSettings,
+  job, trackerTasks, logs, onFetchLogs, promptTemplates, onStart, onPause, onDelete, onReset, onSettings,
 }: {
   job: StrategyBotJob
   trackerTasks: BacktestTrackerTask[]
   logs: BotLog[]
+  onFetchLogs: () => void
   promptTemplates: { id: number; name: string; system_prompt: string; is_default: boolean }[]
   onStart: () => void
   onPause: () => void
@@ -929,7 +931,7 @@ function JobRow({
             variant='ghost'
             size='sm'
             className='h-7 text-xs gap-1'
-            onClick={() => setLogsDialogOpen(true)}
+            onClick={() => { onFetchLogs(); setLogsDialogOpen(true) }}
           >
             <ScrollText className='h-3.5 w-3.5' />
             {tradeLogs.length > 0 && <span className='font-mono'>{tradeLogs.length}</span>}

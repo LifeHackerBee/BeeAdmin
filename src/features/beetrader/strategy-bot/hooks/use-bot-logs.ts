@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback } from 'react'
 import { hyperliquidApiGet } from '@/lib/hyperliquid-api-client'
 
 export interface BotLog {
@@ -17,34 +17,34 @@ interface LogsResponse {
   logs: BotLog[]
 }
 
-export function useBotLogs(jobId?: number, coin?: string) {
+export function useBotLogs() {
   const [logs, setLogs] = useState<BotLog[]>([])
   const [loading, setLoading] = useState(false)
-  const fetchedRef = useRef(false)
 
-  const fetchLogs = useCallback(async (forJobId?: number) => {
+  const refetch = useCallback(async (forJobId?: number) => {
     try {
       setLoading(true)
       const params = new URLSearchParams({ limit: '100' })
-      const jid = forJobId ?? jobId
-      if (jid != null) params.set('job_id', String(jid))
-      if (coin) params.set('coin', coin)
+      if (forJobId != null) params.set('job_id', String(forJobId))
       const res = await hyperliquidApiGet<LogsResponse>(
         `/api/strategy_bot/jobs/logs?${params.toString()}`,
       )
-      setLogs(res.logs)
+      const newLogs = res.logs ?? []
+      if (forJobId != null) {
+        // 合并: 替换该 job 的日志，保留其他 job 的
+        setLogs((prev) => [
+          ...prev.filter((l) => l.job_id !== forJobId),
+          ...newLogs,
+        ])
+      } else {
+        setLogs(newLogs)
+      }
     } catch {
       // silent — logs are non-critical
     } finally {
       setLoading(false)
     }
-  }, [jobId, coin])
-
-  // 不自动加载，不轮询。由用户点击日志按钮时触发 refetch
-  const refetch = useCallback(async (forJobId?: number) => {
-    fetchedRef.current = true
-    await fetchLogs(forJobId)
-  }, [fetchLogs])
+  }, [])
 
   return { logs, loading, refetch }
 }
