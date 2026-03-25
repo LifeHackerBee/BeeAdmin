@@ -48,15 +48,32 @@ async function executeToolCall(name: string, args: Record<string, unknown>, coin
         return { error: `无法获取 ${c} 价格` }
       }
     }
-    case 'get_ai_strategy': {
+    case 'get_ai_strategy':
+    case 'get_today_strategy':
+    case 'get_strategy_1h':
+    case 'get_strategy_4h': {
       const c = (args.coin as string) || coin
+      const periodMap: Record<string, string> = {
+        get_ai_strategy: 'latest', get_today_strategy: 'today',
+        get_strategy_1h: '1h', get_strategy_4h: '4h',
+      }
+      const period = periodMap[name] || 'latest'
       try {
-        const res = await fetch(`${baseUrl}/api/beetrader_strategy/strategy-modules/${c}?modules=strategy,timeframe_status`, { headers })
+        const res = await fetch(`${baseUrl}/api/beetrader_strategy/history/query/${period}?coin=${c}`, { headers })
         const data = await res.json()
-        if (data.success) return { coin: c, source: 'cache', cache_age_minutes: data.cache_age_minutes, ...data.modules }
-        return { info: `${c} 暂无缓存策略，请等待定时分析或调用 refresh_strategy` }
+        if (data.success && data.record) {
+          const rec = data.record
+          return {
+            coin: c, period, created_at: rec.created_at,
+            current_price: rec.strategy_data?.current_price,
+            ai_signal: rec.ai_signal,
+            strategy: rec.strategy_data?.strategy,
+            timeframe_status: rec.strategy_data?.timeframe_status,
+          }
+        }
+        return { info: `${c} 在 ${period} 时段暂无分析记录` }
       } catch {
-        return { error: '获取策略缓存失败' }
+        return { error: `获取 ${period} 策略失败` }
       }
     }
     case 'refresh_strategy': {
@@ -495,8 +512,14 @@ function simulateToolCalls(text: string, coin: string): { name: string; args: Re
   if (lower.includes('价格') || lower.includes('price') || lower.includes('现价')) {
     calls.push({ name: 'get_current_price', args: { coin } })
   }
-  if (lower.includes('刷新') || lower.includes('强制') || lower.includes('refresh') || lower.includes('最新分析')) {
+  if (lower.includes('刷新') || lower.includes('强制') || lower.includes('refresh')) {
     calls.push({ name: 'refresh_strategy', args: { coin } })
+  } else if (lower.includes('今日') || lower.includes('today') || lower.includes('当日')) {
+    calls.push({ name: 'get_today_strategy', args: { coin } })
+  } else if (lower.includes('前1小时') || lower.includes('1h') || lower.includes('一小时')) {
+    calls.push({ name: 'get_strategy_1h', args: { coin } })
+  } else if (lower.includes('前4小时') || lower.includes('4h') || lower.includes('四小时')) {
+    calls.push({ name: 'get_strategy_4h', args: { coin } })
   } else if (lower.includes('策略') || lower.includes('信号') || lower.includes('建议')) {
     calls.push({ name: 'get_ai_strategy', args: { coin } })
   }

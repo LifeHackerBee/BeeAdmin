@@ -91,6 +91,7 @@ export function UnifiedAnalysis() {
     hyperliquidApiGet<{ success: boolean; record: {
       coin: string
       strategy_data: BeeTraderStrategyData
+      ai_signal?: Record<string, unknown>
       ai_strategy_sections?: { key: string; title: string; content: string }[]
       created_at: string
     } | null }>(
@@ -101,14 +102,18 @@ export function UnifiedAnalysis() {
         unified.setStrategy(res.record.strategy_data)
         setLastUpdated(new Date(res.record.created_at))
         setUsingCache(true)
-        // 缓存模式下不自动触发 AI 生成
         aiAutoTriggered.current = true
-        // 恢复缓存的 AI 策略（如果有）
+        // 恢复缓存的 AI 策略: 优先 ai_strategy_sections(四段式), 其次 ai_signal(JSON信号)
         if (res.record.ai_strategy_sections) {
           const cached = res.record.ai_strategy_sections as unknown
           aiStrategy.setResult({
             content: JSON.stringify(cached, null, 2),
             structured: cached as import('../../strategies/hooks/use-ai-strategy').AiStrategyResult,
+          })
+        } else if (res.record.ai_signal) {
+          aiStrategy.setResult({
+            content: JSON.stringify(res.record.ai_signal, null, 2),
+            structured: null as unknown as import('../../strategies/hooks/use-ai-strategy').AiStrategyResult,
           })
         }
       }

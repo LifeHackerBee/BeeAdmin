@@ -14,9 +14,18 @@ interface ScheduledConfig {
   id: number
   enabled: boolean
   interval_minutes: number
+  trigger_minutes: number[] | null
   last_run_at: string | null
   updated_at: string
 }
+
+type TriggerMode = 'interval' | 'timepoint'
+
+const TRIGGER_PRESETS = [
+  { label: '整点', value: [0], desc: '每小时 :00 触发' },
+  { label: '半点', value: [0, 30], desc: '每小时 :00 和 :30 触发' },
+  { label: '每15分钟', value: [0, 15, 30, 45], desc: ':00 :15 :30 :45' },
+]
 
 const INTERVAL_OPTIONS = [
   { value: '5', label: '5 分钟' },
@@ -81,7 +90,17 @@ export function ScheduledAnalysisTab() {
   const handleIntervalChange = async (value: string) => {
     setSaving(true)
     try {
-      const res = await apiPatch<{ success: boolean; config: ScheduledConfig }>('/api/beetrader_strategy/scheduled/config', { interval_minutes: Number(value) })
+      const res = await apiPatch<{ success: boolean; config: ScheduledConfig }>('/api/beetrader_strategy/scheduled/config', { interval_minutes: Number(value), trigger_minutes: [] })
+      if (res.success && res.config) setConfig(res.config)
+    } catch { /* ignore */ } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleTriggerPreset = async (minutes: number[]) => {
+    setSaving(true)
+    try {
+      const res = await apiPatch<{ success: boolean; config: ScheduledConfig }>('/api/beetrader_strategy/scheduled/config', { trigger_minutes: minutes })
       if (res.success && res.config) setConfig(res.config)
     } catch { /* ignore */ } finally {
       setSaving(false)
@@ -138,25 +157,44 @@ export function ScheduledAnalysisTab() {
             </Badge>
           </div>
 
-          {/* 启停控制 */}
-          <div className='grid grid-cols-1 sm:grid-cols-3 gap-4'>
+          {/* 控制区 */}
+          <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4'>
+            {/* 启停 */}
             <div className='space-y-2'>
-              <Label className='text-xs'>启用定时分析</Label>
+              <Label className='text-xs'>启用</Label>
               <div className='flex items-center gap-2'>
-                <Switch
-                  checked={config.enabled}
-                  onCheckedChange={handleToggle}
-                  disabled={saving}
-                />
-                <span className='text-xs text-muted-foreground'>
-                  {config.enabled ? '自动执行中' : '已暂停'}
-                </span>
+                <Switch checked={config.enabled} onCheckedChange={handleToggle} disabled={saving} />
+                <span className='text-xs text-muted-foreground'>{config.enabled ? '运行中' : '已暂停'}</span>
               </div>
             </div>
 
-            {/* 频率控制 */}
+            {/* 触发模式 */}
             <div className='space-y-2'>
-              <Label className='text-xs'>执行频率</Label>
+              <Label className='text-xs'>触发时间点</Label>
+              <div className='flex gap-1 flex-wrap'>
+                {TRIGGER_PRESETS.map((preset) => {
+                  const isActive = config.trigger_minutes &&
+                    JSON.stringify(config.trigger_minutes) === JSON.stringify(preset.value)
+                  return (
+                    <Button
+                      key={preset.label}
+                      variant={isActive ? 'default' : 'outline'}
+                      size='sm'
+                      className='h-7 text-[10px] px-2'
+                      onClick={() => handleTriggerPreset(preset.value)}
+                      disabled={saving}
+                      title={preset.desc}
+                    >
+                      {preset.label}
+                    </Button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* 间隔模式 (当没有 trigger_minutes 时生效) */}
+            <div className='space-y-2'>
+              <Label className='text-xs'>间隔频率 {config.trigger_minutes?.length ? <span className='text-muted-foreground'>(已用时间点模式)</span> : ''}</Label>
               <Select
                 value={String(config.interval_minutes)}
                 onValueChange={handleIntervalChange}
@@ -167,9 +205,7 @@ export function ScheduledAnalysisTab() {
                 </SelectTrigger>
                 <SelectContent>
                   {INTERVAL_OPTIONS.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      每 {opt.label}
-                    </SelectItem>
+                    <SelectItem key={opt.value} value={opt.value}>每 {opt.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -178,18 +214,8 @@ export function ScheduledAnalysisTab() {
             {/* 手动触发 */}
             <div className='space-y-2'>
               <Label className='text-xs'>手动触发</Label>
-              <Button
-                size='sm'
-                variant='outline'
-                className='h-8 text-xs gap-1 w-full'
-                onClick={handleRunNow}
-                disabled={triggering}
-              >
-                {triggering ? (
-                  <><Loader2 className='h-3.5 w-3.5 animate-spin' /> 触发中...</>
-                ) : (
-                  <><Play className='h-3.5 w-3.5' /> 立即执行一次</>
-                )}
+              <Button size='sm' variant='outline' className='h-8 text-xs gap-1 w-full' onClick={handleRunNow} disabled={triggering}>
+                {triggering ? <><Loader2 className='h-3.5 w-3.5 animate-spin' /> 触发中...</> : <><Play className='h-3.5 w-3.5' /> 立即执行一次</>}
               </Button>
             </div>
           </div>
@@ -211,7 +237,11 @@ export function ScheduledAnalysisTab() {
               </span>
             )}
             <span className='text-muted-foreground'>·</span>
-            <span className='text-muted-foreground'>频率: 每 {config.interval_minutes} 分钟</span>
+            <span className='text-muted-foreground'>
+              {config.trigger_minutes?.length
+                ? `时间点: 每小时 :${config.trigger_minutes.map(m => String(m).padStart(2, '0')).join(' :')}`
+                : `间隔: 每 ${config.interval_minutes} 分钟`}
+            </span>
             <span className='text-muted-foreground'>·</span>
             {lastRunTime ? (
               <span className='flex items-center gap-1 text-muted-foreground'>

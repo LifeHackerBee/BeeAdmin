@@ -18,7 +18,10 @@ import { Bot, Plus, Star, Trash2, Wrench, FileText } from 'lucide-react'
 import type { AgentPrompt } from '../hooks/use-agent-prompts'
 
 export const AGENT_TOOLS = [
-  { name: 'get_ai_strategy', desc: '获取 AI 策略缓存（定时分析结果）', params: 'coin', category: 'info' as const },
+  { name: 'get_ai_strategy', desc: '获取最新 AI 策略缓存', params: 'coin', category: 'info' as const },
+  { name: 'get_today_strategy', desc: '获取今日策略（北京8点起）', params: 'coin', category: 'info' as const },
+  { name: 'get_strategy_1h', desc: '获取前1小时策略', params: 'coin', category: 'info' as const },
+  { name: 'get_strategy_4h', desc: '获取前4小时策略', params: 'coin', category: 'info' as const },
   { name: 'refresh_strategy', desc: '强制重新分析（实时计算，不写库）', params: 'coin', category: 'info' as const },
   { name: 'get_current_price', desc: '查询币种实时价格', params: 'coin', category: 'info' as const },
   { name: 'get_position', desc: '查看当前持仓详情', params: '无', category: 'info' as const },
