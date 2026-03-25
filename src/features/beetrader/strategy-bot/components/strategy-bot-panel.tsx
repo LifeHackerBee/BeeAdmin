@@ -3,6 +3,7 @@ import { useStrategyBotJobs, type StrategyBotJob, type UpdateBotJobData, type De
 import { useBotSignalTasks, calcPnl, type BacktestTrackerTask } from '../hooks/use-bot-signal-tasks'
 import { useBotLogs, type BotLog } from '../hooks/use-bot-logs'
 import { useLiveStatus } from '../hooks/use-live-status'
+import { useAgentPrompts } from '../hooks/use-agent-prompts'
 import { StrategyConfigDialog } from './strategy-config-dialog'
 import { AgentConfigDialog } from './agent-config-dialog'
 import { AgentTestDialog } from './agent-test-dialog'
@@ -507,6 +508,7 @@ export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
   // 策略模板: 概览卡片需要显示配置状态，所以默认加载
   const [promptsNeeded, setPromptsNeeded] = useState(true)
   const strategyPrompts = useStrategyPrompts(promptsNeeded)
+  const agentPrompts = useAgentPrompts(promptsNeeded)
 
   // 延迟加载: 日志只在用户请求时加载
   const botLogs = useBotLogs()
@@ -565,12 +567,13 @@ export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
 
       {/* 机器人配置概览 */}
       <BotConfigOverview
-        prompts={strategyPrompts.prompts}
+        strategyPrompts={strategyPrompts.prompts}
+        agentPrompts={agentPrompts.prompts}
         runningJobs={runningCount}
         totalJobs={jobs.length}
-        onOpenStrategyConfig={() => { setPromptsNeeded(true); setStrategyConfigOpen(true) }}
-        onOpenAgentConfig={() => { setPromptsNeeded(true); setAgentConfigOpen(true) }}
-        onOpenAgentTest={() => { setPromptsNeeded(true); setAgentTestOpen(true) }}
+        onOpenStrategyConfig={() => setStrategyConfigOpen(true)}
+        onOpenAgentConfig={() => setAgentConfigOpen(true)}
+        onOpenAgentTest={() => setAgentTestOpen(true)}
       />
 
       {/* 概览统计 */}
@@ -738,13 +741,16 @@ export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
       <AgentConfigDialog
         open={agentConfigOpen}
         onOpenChange={setAgentConfigOpen}
-        prompts={strategyPrompts.prompts}
-        onUpdatePrompt={strategyPrompts.updatePrompt}
+        prompts={agentPrompts.prompts}
+        onCreatePrompt={agentPrompts.createPrompt}
+        onUpdatePrompt={agentPrompts.updatePrompt}
+        onDeletePrompt={agentPrompts.deletePrompt}
+        onSetDefault={agentPrompts.setDefault}
       />
       <AgentTestDialog
         open={agentTestOpen}
         onOpenChange={setAgentTestOpen}
-        prompts={strategyPrompts.prompts}
+        prompts={agentPrompts.prompts}
         defaultCoin={jobs[0]?.coin ?? 'BTC'}
       />
     </div>

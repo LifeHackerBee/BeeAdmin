@@ -2,10 +2,12 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Brain, Bot, FlaskConical, Settings, CheckCircle, XCircle, Clock } from 'lucide-react'
 import type { StrategyPrompt } from '../../signals/hooks/use-strategy-prompts'
+import type { AgentPrompt } from '../hooks/use-agent-prompts'
 import { AGENT_TOOLS } from './agent-config-dialog'
 
 interface Props {
-  prompts: StrategyPrompt[]
+  strategyPrompts: StrategyPrompt[]
+  agentPrompts: AgentPrompt[]
   runningJobs: number
   totalJobs: number
   onOpenStrategyConfig: () => void
@@ -14,12 +16,13 @@ interface Props {
 }
 
 export function BotConfigOverview({
-  prompts, runningJobs, totalJobs,
+  strategyPrompts, agentPrompts, runningJobs, totalJobs,
   onOpenStrategyConfig, onOpenAgentConfig, onOpenAgentTest,
 }: Props) {
-  const defaultPrompt = prompts.find((p) => p.is_default)
-  const hasStrategy = !!defaultPrompt?.system_prompt
-  const hasAgent = !!defaultPrompt?.agent_prompt
+  const defaultStrategy = strategyPrompts.find((p) => p.is_default)
+  const defaultAgent = agentPrompts.find((p) => p.is_default)
+  const hasStrategy = !!defaultStrategy?.system_prompt
+  const hasAgent = !!defaultAgent?.system_prompt
   const tradeTools = AGENT_TOOLS.filter((t) => t.category === 'trade').length
   const infoTools = AGENT_TOOLS.filter((t) => t.category === 'info').length
 
@@ -28,11 +31,6 @@ export function BotConfigOverview({
       <div className='flex items-center gap-2 px-4 pt-3 pb-2 border-b'>
         <Settings className='h-4 w-4 text-blue-500' />
         <span className='text-sm font-medium'>机器人配置</span>
-        {defaultPrompt && (
-          <Badge variant='outline' className='text-[10px] px-1.5'>
-            当前: {defaultPrompt.name}
-          </Badge>
-        )}
       </div>
       <CardContent className='p-3'>
         <div className='grid grid-cols-1 sm:grid-cols-3 gap-3'>
@@ -60,14 +58,14 @@ export function BotConfigOverview({
             {hasStrategy ? (
               <div className='space-y-1'>
                 <p className='text-[10px] text-muted-foreground line-clamp-2'>
-                  {defaultPrompt!.system_prompt.slice(0, 80)}...
+                  {defaultStrategy!.name} — {defaultStrategy!.system_prompt.slice(0, 60)}...
                 </p>
                 <div className='flex items-center gap-2 text-[10px]'>
                   <Badge variant='secondary' className='text-[10px] px-1 py-0 h-4'>
-                    {defaultPrompt!.system_prompt.length} 字符
+                    {defaultStrategy!.system_prompt.length} 字符
                   </Badge>
                   <span className='text-muted-foreground'>
-                    {prompts.length} 个模板
+                    {strategyPrompts.length} 个模板
                   </span>
                 </div>
               </div>
@@ -101,7 +99,7 @@ export function BotConfigOverview({
             <div className='space-y-1'>
               {hasAgent ? (
                 <p className='text-[10px] text-muted-foreground line-clamp-2'>
-                  {defaultPrompt!.agent_prompt!.slice(0, 80)}...
+                  {defaultAgent!.name} — {defaultAgent!.system_prompt.slice(0, 60)}...
                 </p>
               ) : (
                 <p className='text-[10px] text-muted-foreground'>
@@ -114,6 +112,7 @@ export function BotConfigOverview({
                 </Badge>
                 <span className='text-muted-foreground'>
                   {tradeTools} 交易 · {infoTools} 查询
+                  {agentPrompts.length > 0 && ` · ${agentPrompts.length} 个模板`}
                 </span>
               </div>
             </div>

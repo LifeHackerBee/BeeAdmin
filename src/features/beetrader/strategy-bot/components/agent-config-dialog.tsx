@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
@@ -12,8 +13,8 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
-import { Bot, Star } from 'lucide-react'
-import type { StrategyPrompt } from '../../signals/hooks/use-strategy-prompts'
+import { Bot, Plus, Star, Trash2 } from 'lucide-react'
+import type { AgentPrompt } from '../hooks/use-agent-prompts'
 
 export const AGENT_TOOLS = [
   { name: 'get_ai_strategy', desc: '获取 AI 策略分析信号', params: '无', category: 'info' as const },
@@ -40,13 +41,20 @@ const CATEGORY_STYLE = {
 interface Props {
   open: boolean
   onOpenChange: (v: boolean) => void
-  prompts: StrategyPrompt[]
-  onUpdatePrompt: (id: number, data: { agent_prompt?: string }) => Promise<StrategyPrompt | null>
+  prompts: AgentPrompt[]
+  onCreatePrompt: (data: { name: string; description?: string; system_prompt: string }) => Promise<AgentPrompt | null>
+  onUpdatePrompt: (id: number, data: { name?: string; description?: string; system_prompt?: string }) => Promise<AgentPrompt | null>
+  onDeletePrompt: (id: number) => Promise<void>
+  onSetDefault: (id: number) => Promise<void>
 }
 
-export function AgentConfigDialog({ open, onOpenChange, prompts, onUpdatePrompt }: Props) {
+export function AgentConfigDialog({
+  open, onOpenChange, prompts, onCreatePrompt, onUpdatePrompt, onDeletePrompt, onSetDefault,
+}: Props) {
   const [selectedId, setSelectedId] = useState<number | null>(null)
-  const [agentPrompt, setAgentPrompt] = useState('')
+  const [systemPrompt, setSystemPrompt] = useState('')
+  const [editName, setEditName] = useState('')
+  const [editDesc, setEditDesc] = useState('')
   const [saving, setSaving] = useState(false)
   const [loaded, setLoaded] = useState(false)
 
@@ -54,32 +62,62 @@ export function AgentConfigDialog({ open, onOpenChange, prompts, onUpdatePrompt 
     if (!open || loaded) return
     setLoaded(true)
     const def = prompts.find((p) => p.is_default)
-    if (def) {
-      setSelectedId(def.id)
-      setAgentPrompt(def.agent_prompt || '')
-    }
+    if (def) loadPrompt(def)
   }, [open, loaded, prompts]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!open) setLoaded(false)
   }, [open])
 
+  const loadPrompt = (p: AgentPrompt) => {
+    setSelectedId(p.id)
+    setEditName(p.name)
+    setEditDesc(p.description)
+    setSystemPrompt(p.system_prompt)
+  }
+
   const handleSelectPrompt = (id: string) => {
     const p = prompts.find((x) => x.id === Number(id))
-    if (p) {
-      setSelectedId(p.id)
-      setAgentPrompt(p.agent_prompt || '')
-    }
+    if (p) loadPrompt(p)
   }
 
   const handleSave = async () => {
-    if (!selectedId) return
+    if (!systemPrompt.trim() || !selectedId) return
     setSaving(true)
     try {
-      await onUpdatePrompt(selectedId, { agent_prompt: agentPrompt.trim() })
+      await onUpdatePrompt(selectedId, {
+        name: editName.trim() || undefined,
+        description: editDesc.trim(),
+        system_prompt: systemPrompt.trim(),
+      })
     } catch { /* ignore */ } finally {
       setSaving(false)
     }
+  }
+
+  const handleCreate = async () => {
+    setSaving(true)
+    try {
+      const created = await onCreatePrompt({
+        name: editName.trim() || '新 Agent',
+        description: editDesc.trim(),
+        system_prompt: systemPrompt.trim() || '(待填写)',
+      })
+      if (created) setSelectedId(created.id)
+    } catch { /* ignore */ } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!selectedId) return
+    await onDeletePrompt(selectedId)
+    setSelectedId(null)
+    setSystemPrompt('')
+    setEditName('')
+    setEditDesc('')
+    const remaining = prompts.filter((p) => p.id !== selectedId)
+    if (remaining.length > 0) loadPrompt(remaining[0])
   }
 
   const current = prompts.find((p) => p.id === selectedId)
@@ -98,12 +136,11 @@ export function AgentConfigDialog({ open, onOpenChange, prompts, onUpdatePrompt 
           配置交易执行 Agent 的行为规则。Agent 接收 AI 策略信号 + 实时价格 + 账户状态，通过 Tool Call 执行具体交易动作。
         </p>
 
-        {/* 选择关联的策略配置 */}
-        <div className='flex items-center gap-2'>
-          <Label className='text-xs shrink-0'>关联策略:</Label>
+        {/* 模板选择器 */}
+        <div className='flex items-center gap-2 flex-wrap'>
           <Select value={selectedId?.toString() ?? ''} onValueChange={handleSelectPrompt}>
-            <SelectTrigger className='h-8 text-xs flex-1'>
-              <SelectValue placeholder='选择策略配置...' />
+            <SelectTrigger className='h-8 text-xs flex-1 min-w-[200px]'>
+              <SelectValue placeholder='选择 Agent 模板...' />
             </SelectTrigger>
             <SelectContent>
               {prompts.map((p) => (
@@ -111,17 +148,43 @@ export function AgentConfigDialog({ open, onOpenChange, prompts, onUpdatePrompt 
                   <span className='text-xs flex items-center gap-1'>
                     {p.is_default && <Star className='h-3 w-3 text-yellow-500 fill-yellow-500' />}
                     {p.name}
+                    {p.description && <span className='text-muted-foreground ml-1'>— {p.description}</span>}
                   </span>
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
+
+          <Button variant='outline' size='sm' className='h-8 text-xs gap-1' onClick={handleCreate} disabled={saving}>
+            <Plus className='h-3.5 w-3.5' /> 新建
+          </Button>
+
           {current && (
-            <Badge variant={current.agent_prompt ? 'default' : 'secondary'} className='text-[10px] shrink-0'>
-              {current.agent_prompt ? '已配置' : '未配置'}
-            </Badge>
+            <>
+              <Button variant='outline' size='sm' className='h-8 text-xs gap-1' onClick={() => onSetDefault(current.id)} disabled={current.is_default}>
+                <Star className='h-3.5 w-3.5' />
+                {current.is_default ? '已是默认' : '设为默认'}
+              </Button>
+              <Button variant='ghost' size='sm' className='h-8 text-xs gap-1 text-red-500 hover:text-red-600' onClick={handleDelete}>
+                <Trash2 className='h-3.5 w-3.5' /> 删除
+              </Button>
+            </>
           )}
         </div>
+
+        {/* 名称描述 */}
+        {selectedId && (
+          <div className='grid grid-cols-2 gap-2'>
+            <div className='space-y-1'>
+              <Label className='text-xs'>名称</Label>
+              <Input value={editName} onChange={(e) => setEditName(e.target.value)} className='h-8 text-xs' placeholder='Agent 名称' />
+            </div>
+            <div className='space-y-1'>
+              <Label className='text-xs'>描述</Label>
+              <Input value={editDesc} onChange={(e) => setEditDesc(e.target.value)} className='h-8 text-xs' placeholder='可选描述' />
+            </div>
+          </div>
+        )}
 
         {/* 可用 Tools 列表 */}
         <div className='space-y-1.5'>
@@ -160,17 +223,17 @@ export function AgentConfigDialog({ open, onOpenChange, prompts, onUpdatePrompt 
           </div>
         </div>
 
-        {/* Agent Prompt 编辑 */}
+        {/* Agent System Prompt 编辑 */}
         <div className='space-y-1.5'>
           <div className='flex items-center justify-between'>
             <Label className='text-xs font-medium'>Agent System Prompt</Label>
             <Badge variant='outline' className='text-[10px] px-1.5 py-0 h-4'>
-              {agentPrompt.length} 字符
+              {systemPrompt.length} 字符
             </Badge>
           </div>
           <Textarea
-            value={agentPrompt}
-            onChange={(e) => setAgentPrompt(e.target.value)}
+            value={systemPrompt}
+            onChange={(e) => setSystemPrompt(e.target.value)}
             placeholder={`定义交易执行 Agent 的行为规则。\n\n示例：\n你是交易执行 Agent，根据 AI 策略信号决定交易动作。\n\n规则:\n1. 先调用 get_ai_strategy 获取最新策略信号\n2. 调用 get_current_price 获取实时价格\n3. 调用 get_position 检查当前持仓\n4. 信号为"做多"且实时价在入场区间内且无持仓 → 调用 open_long\n5. 信号为"做空"且实时价在入场区间内且无持仓 → 调用 open_short\n6. 有持仓且实时价触及止损位 → 调用 close_position\n7. 有持仓且信号建议加仓 → 调用 add_position\n8. 信号为"观望"或实时价不在入场区间 → 调用 wait\n9. 入场价与实时价偏差 > 3% → 强制 wait`}
             rows={14}
             className='font-mono text-xs'
@@ -179,7 +242,7 @@ export function AgentConfigDialog({ open, onOpenChange, prompts, onUpdatePrompt 
 
         <DialogFooter>
           <Button variant='outline' onClick={() => onOpenChange(false)}>取消</Button>
-          <Button onClick={handleSave} disabled={saving || !selectedId}>
+          <Button onClick={handleSave} disabled={saving || !selectedId || !systemPrompt.trim()}>
             {saving ? '保存中...' : '保存'}
           </Button>
         </DialogFooter>

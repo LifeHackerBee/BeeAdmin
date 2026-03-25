@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/select'
 import { Bot, Send, RotateCcw, Star, Loader2, Wrench, User, AlertCircle } from 'lucide-react'
 import { hyperliquidApiGet } from '@/lib/hyperliquid-api-client'
-import type { StrategyPrompt } from '../../signals/hooks/use-strategy-prompts'
+import type { AgentPrompt } from '../hooks/use-agent-prompts'
 import { AGENT_TOOLS } from './agent-config-dialog'
 
 interface ToolCall {
@@ -41,9 +41,9 @@ async function executeToolCall(name: string, args: Record<string, unknown>, coin
     case 'get_current_price': {
       const c = (args.coin as string) || coin
       try {
-        const res = await fetch(`${baseUrl}/api/backtest/tracker/price/${c}`, { headers })
+        const res = await fetch(`${baseUrl}/api/hyperliquid/market/price/${c}`, { headers })
         const data = await res.json()
-        return { coin: c, price: data.price ?? data.mid_price ?? 'N/A' }
+        return { coin: c, price: data.price ?? 'N/A' }
       } catch {
         return { error: `无法获取 ${c} 价格` }
       }
@@ -110,7 +110,7 @@ async function executeToolCall(name: string, args: Record<string, unknown>, coin
 interface Props {
   open: boolean
   onOpenChange: (v: boolean) => void
-  prompts: StrategyPrompt[]
+  prompts: AgentPrompt[]
   defaultCoin?: string
 }
 
@@ -158,7 +158,7 @@ export function AgentTestDialog({ open, onOpenChange, prompts, defaultCoin = 'BT
 
     try {
       // 调用后端 Agent 测试接口 (如果存在)，否则用前端模拟
-      const agentPromptText = currentPrompt?.agent_prompt || ''
+      const agentPromptText = currentPrompt?.system_prompt || ''
       const systemText = agentPromptText || `你是交易执行 Agent。根据用户指令和市场数据决定交易操作。可用 tools: ${AGENT_TOOLS.map((t) => t.name).join(', ')}`
 
       const baseUrl = import.meta.env.VITE_HYPERLIQUID_TRADER_API_URL || 'http://localhost:8000'
@@ -314,8 +314,8 @@ export function AgentTestDialog({ open, onOpenChange, prompts, defaultCoin = 'BT
               className='h-7 text-[10px] w-[80px] font-mono'
               placeholder='BTC'
             />
-            <Badge variant={currentPrompt?.agent_prompt ? 'default' : 'secondary'} className='text-[10px] px-1.5 py-0'>
-              {currentPrompt?.agent_prompt ? 'Agent 已配置' : '模拟模式'}
+            <Badge variant={currentPrompt?.system_prompt ? 'default' : 'secondary'} className='text-[10px] px-1.5 py-0'>
+              {currentPrompt?.system_prompt ? 'Agent 已配置' : '模拟模式'}
             </Badge>
             <Button variant='ghost' size='sm' className='h-7 text-[10px] ml-auto gap-1' onClick={handleReset}>
               <RotateCcw className='h-3 w-3' /> 清空
