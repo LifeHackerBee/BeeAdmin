@@ -548,8 +548,8 @@ export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
       {/* 顶部操作栏 */}
       <div className='flex items-center justify-end gap-2'>
         <Button variant='outline' size='sm' onClick={() => { setPromptsNeeded(true); setPromptMgrOpen(true) }}>
-          <Brain className='h-4 w-4 mr-1' />
-          Prompt 管理
+          <Settings className='h-4 w-4 mr-1' />
+          机器人配置
         </Button>
         <Button variant='outline' size='sm' onClick={handleRefresh} disabled={refreshing}>
           <RefreshCw className={`h-4 w-4 mr-1 ${refreshing ? 'animate-spin' : ''}`} />
@@ -1600,7 +1600,23 @@ function BotSettingsDialog({
   )
 }
 
-// ── Prompt 管理 ──
+// ── 交易机器人配置 ──
+
+const AGENT_TOOLS = [
+  { name: 'get_ai_strategy', desc: '获取 AI 策略分析信号', params: '无', category: 'info' },
+  { name: 'get_current_price', desc: '查询币种实时价格', params: 'coin', category: 'info' },
+  { name: 'get_position', desc: '查看当前持仓详情', params: '无', category: 'info' },
+  { name: 'get_account_balance', desc: '查看账户余额和净值', params: '无', category: 'info' },
+  { name: 'get_liquidation_price', desc: '查看当前仓位强平价', params: '无', category: 'info' },
+  { name: 'open_long', desc: '开多仓', params: 'entry_price, take_profit, stop_loss', category: 'trade' },
+  { name: 'open_short', desc: '开空仓', params: 'entry_price, take_profit, stop_loss', category: 'trade' },
+  { name: 'close_position', desc: '平仓（全部）', params: '无', category: 'trade' },
+  { name: 'add_position', desc: '加仓（按比例）', params: 'scale_ratio (0.1-1.0)', category: 'trade' },
+  { name: 'reduce_position', desc: '减仓（按比例）', params: 'scale_ratio (0.1-0.9)', category: 'trade' },
+  { name: 'place_limit_order', desc: '挂限价单', params: 'side, price, size', category: 'trade' },
+  { name: 'cancel_order', desc: '撤销挂单', params: 'order_id', category: 'trade' },
+  { name: 'wait', desc: '观望，不执行任何交易', params: 'reason', category: 'control' },
+] as const
 
 function DefaultPromptManager({
   open,
@@ -1647,7 +1663,6 @@ function DefaultPromptManager({
     if (p) loadPrompt(p)
   }
 
-  // 获取内置默认 prompt
   const handleLoadBuiltinDefaults = async () => {
     setLoadingDefaults(true)
     try {
@@ -1661,7 +1676,6 @@ function DefaultPromptManager({
     }
   }
 
-  // 保存当前编辑内容到选中的 prompt
   const handleSave = async () => {
     if (!systemPrompt.trim()) return
     setSaving(true)
@@ -1681,7 +1695,6 @@ function DefaultPromptManager({
     }
   }
 
-  // 新建 prompt
   const handleCreate = async () => {
     setSaving(true)
     try {
@@ -1699,7 +1712,6 @@ function DefaultPromptManager({
     }
   }
 
-  // 删除
   const handleDelete = async () => {
     if (!selectedId) return
     await prompts.deletePrompt(selectedId)
@@ -1708,12 +1720,10 @@ function DefaultPromptManager({
     setAgentPrompt('')
     setEditName('')
     setEditDesc('')
-    // 自动选中下一个
     const remaining = prompts.prompts.filter((p) => p.id !== selectedId)
     if (remaining.length > 0) loadPrompt(remaining[0])
   }
 
-  // 设为默认
   const handleSetDefault = async () => {
     if (!selectedId) return
     await prompts.setDefault(selectedId)
@@ -1723,26 +1733,26 @@ function DefaultPromptManager({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className='sm:max-w-3xl max-h-[90vh] overflow-y-auto'>
+      <DialogContent className='sm:max-w-4xl max-h-[90vh] overflow-y-auto'>
         <DialogHeader>
           <DialogTitle className='flex items-center gap-2'>
-            <Brain className='h-4 w-4' />
-            交易机器人 Prompt 管理
+            <Settings className='h-4 w-4' />
+            交易机器人配置
           </DialogTitle>
         </DialogHeader>
 
         <p className='text-xs text-muted-foreground'>
-          管理交易机器人的 AI Prompt。标记为默认的 Prompt 将被所有未单独配置的机器人使用。保存后约 5 分钟内生效。
+          配置交易机器人的 AI 策略分析和交易执行 Agent。标记为默认的配置将被所有未单独配置的机器人使用。保存后约 5 分钟内对所有运行中的机器人生效。
         </p>
 
-        {/* 模板选择器 */}
+        {/* 配置模板选择器 */}
         <div className='flex items-center gap-2 flex-wrap'>
           <Select
             value={selectedId?.toString() ?? ''}
             onValueChange={handleSelectPrompt}
           >
             <SelectTrigger className='h-8 text-xs flex-1 min-w-[200px]'>
-              <SelectValue placeholder='选择 Prompt 模板...' />
+              <SelectValue placeholder='选择配置模板...' />
             </SelectTrigger>
             <SelectContent>
               {prompts.prompts.map((p) => (
@@ -1784,7 +1794,7 @@ function DefaultPromptManager({
           <div className='grid grid-cols-2 gap-2'>
             <div className='space-y-1'>
               <Label className='text-xs'>名称</Label>
-              <Input value={editName} onChange={(e) => setEditName(e.target.value)} className='h-8 text-xs' placeholder='策略名称' />
+              <Input value={editName} onChange={(e) => setEditName(e.target.value)} className='h-8 text-xs' placeholder='配置名称' />
             </div>
             <div className='space-y-1'>
               <Label className='text-xs'>描述</Label>
@@ -1793,47 +1803,102 @@ function DefaultPromptManager({
           </div>
         )}
 
-        {/* Prompt 编辑 */}
-        <Tabs defaultValue='system' className='w-full'>
+        {/* 配置 Tabs */}
+        <Tabs defaultValue='strategy' className='w-full'>
           <TabsList className='grid w-full grid-cols-2'>
-            <TabsTrigger value='system'>分析策略 (System Prompt)</TabsTrigger>
-            <TabsTrigger value='agent'>交易执行 (Agent Prompt)</TabsTrigger>
+            <TabsTrigger value='strategy'>
+              <Brain className='h-3.5 w-3.5 mr-1.5' />
+              AI 交易策略
+            </TabsTrigger>
+            <TabsTrigger value='agent'>
+              <Bot className='h-3.5 w-3.5 mr-1.5' />
+              交易执行 Agent
+            </TabsTrigger>
           </TabsList>
 
-          <TabsContent value='system' className='space-y-2 mt-3'>
+          {/* ── AI 交易策略 Tab ── */}
+          <TabsContent value='strategy' className='space-y-2 mt-3'>
             <div className='flex items-center justify-between'>
               <p className='text-[10px] text-muted-foreground'>
-                定义 AI 的角色、分析原则和输出 JSON 格式。
+                定义 AI 的角色、分析方法论和输出 JSON 格式。AI 根据多周期技术指标数据生成交易信号。
               </p>
-              <Button variant='ghost' size='sm' className='h-6 text-[10px]' onClick={handleLoadBuiltinDefaults} disabled={loadingDefaults}>
-                {loadingDefaults ? '加载中...' : '获取内置默认'}
+              <Button variant='ghost' size='sm' className='h-6 text-[10px] shrink-0' onClick={handleLoadBuiltinDefaults} disabled={loadingDefaults}>
+                {loadingDefaults ? '加载中...' : '加载内置默认'}
               </Button>
             </div>
             <Textarea
               value={systemPrompt}
               onChange={(e) => setSystemPrompt(e.target.value)}
-              placeholder='System Prompt...'
+              placeholder='System Prompt — 定义 AI 策略分析师角色...'
               rows={16}
               className='font-mono text-xs'
             />
           </TabsContent>
 
-          <TabsContent value='agent' className='space-y-2 mt-3'>
-            <div className='flex items-center justify-between'>
-              <p className='text-[10px] text-muted-foreground'>
-                定义交易 Agent 的行为规则。通过 Tool Call 执行交易动作。
-              </p>
-              <Button variant='ghost' size='sm' className='h-6 text-[10px]' onClick={handleLoadBuiltinDefaults} disabled={loadingDefaults}>
-                {loadingDefaults ? '加载中...' : '获取内置默认'}
-              </Button>
+          {/* ── 交易执行 Agent Tab ── */}
+          <TabsContent value='agent' className='space-y-3 mt-3'>
+            <p className='text-[10px] text-muted-foreground'>
+              交易执行 Agent 接收 AI 策略信号 + 实时价格 + 账户状态，通过 Tool Call 执行具体交易动作。
+            </p>
+
+            {/* 可用 Tools 列表 */}
+            <div className='space-y-1.5'>
+              <Label className='text-xs font-medium'>可用 Tools</Label>
+              <div className='border rounded-md overflow-hidden'>
+                <Table>
+                  <TableHeader>
+                    <TableRow className='bg-muted/50'>
+                      <TableHead className='text-[10px] h-7 w-[140px]'>Tool</TableHead>
+                      <TableHead className='text-[10px] h-7'>说明</TableHead>
+                      <TableHead className='text-[10px] h-7 w-[180px]'>参数</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {AGENT_TOOLS.map((tool) => (
+                      <TableRow key={tool.name} className='group'>
+                        <TableCell className='py-1 px-2'>
+                          <code className={`text-[10px] font-mono px-1 py-0.5 rounded ${
+                            tool.category === 'trade' ? 'bg-blue-500/10 text-blue-600' :
+                            tool.category === 'info' ? 'bg-green-500/10 text-green-600' :
+                            'bg-gray-500/10 text-gray-600'
+                          }`}>
+                            {tool.name}
+                          </code>
+                        </TableCell>
+                        <TableCell className='py-1 px-2 text-[10px] text-muted-foreground'>{tool.desc}</TableCell>
+                        <TableCell className='py-1 px-2 text-[10px] font-mono text-muted-foreground'>{tool.params}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              <div className='flex gap-3 text-[10px] text-muted-foreground'>
+                <span className='flex items-center gap-1'>
+                  <span className='inline-block w-2 h-2 rounded-full bg-green-500/40' />
+                  信息查询
+                </span>
+                <span className='flex items-center gap-1'>
+                  <span className='inline-block w-2 h-2 rounded-full bg-blue-500/40' />
+                  交易操作
+                </span>
+                <span className='flex items-center gap-1'>
+                  <span className='inline-block w-2 h-2 rounded-full bg-gray-500/40' />
+                  流程控制
+                </span>
+              </div>
             </div>
-            <Textarea
-              value={agentPrompt}
-              onChange={(e) => setAgentPrompt(e.target.value)}
-              placeholder={`示例：\n你是交易执行 Agent，根据 AI 策略信号决定交易动作。\n\n规则:\n1. 信号为"回踩做多"且实时价在入场区间内 → 调用 open_long\n2. 信号为"反弹做空"且实时价在入场区间内 → 调用 open_short\n3. 实时价触及止损位 → 调用 close_position\n4. 信号为"观望" → 调用 wait`}
-              rows={16}
-              className='font-mono text-xs'
-            />
+
+            {/* Agent Prompt 编辑 */}
+            <div className='space-y-1.5'>
+              <Label className='text-xs font-medium'>Agent System Prompt</Label>
+              <Textarea
+                value={agentPrompt}
+                onChange={(e) => setAgentPrompt(e.target.value)}
+                placeholder={`定义交易执行 Agent 的行为规则。Agent 根据 AI 策略信号 + 实时价格 + 账户状态，通过 Tool Call 执行具体交易动作（开多/开空/平仓/观望）。\n\n示例：\n你是交易执行 Agent，根据 AI 策略信号决定交易动作。\n\n规则:\n1. 信号为"回踩做多"且实时价在入场区间内 → 调用 open_long\n2. 信号为"反弹做空"且实时价在入场区间内 → 调用 open_short\n3. 实时价触及止损位 → 调用 close_position\n4. 信号为"观望"或实时价不在入场区间 → 调用 wait\n5. 入场价与实时价偏差 > 3% → 强制 wait`}
+                rows={12}
+                className='font-mono text-xs'
+              />
+            </div>
           </TabsContent>
         </Tabs>
 
