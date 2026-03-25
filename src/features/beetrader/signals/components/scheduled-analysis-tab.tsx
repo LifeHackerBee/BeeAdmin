@@ -19,8 +19,6 @@ interface ScheduledConfig {
   updated_at: string
 }
 
-type TriggerMode = 'interval' | 'timepoint'
-
 const TRIGGER_PRESETS = [
   { label: '整点', value: [0], desc: '每小时 :00 触发' },
   { label: '半点', value: [0, 30], desc: '每小时 :00 和 :30 触发' },
