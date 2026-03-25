@@ -19,32 +19,40 @@ interface LogsResponse {
 
 export function useBotLogs() {
   const [logs, setLogs] = useState<BotLog[]>([])
+  const [tradeLogs, setTradeLogs] = useState<BotLog[]>([])
   const [loading, setLoading] = useState(false)
 
   const refetch = useCallback(async (forJobId?: number) => {
     try {
       setLoading(true)
-      const params = new URLSearchParams({ limit: '100' })
-      if (forJobId != null) params.set('job_id', String(forJobId))
-      const res = await hyperliquidApiGet<LogsResponse>(
-        `/api/strategy_bot/jobs/logs?${params.toString()}`,
-      )
-      const newLogs = res.logs ?? []
+      const base = new URLSearchParams({ limit: '100' })
+      if (forJobId != null) base.set('job_id', String(forJobId))
+
+      const tradeParams = new URLSearchParams(base)
+      tradeParams.set('level', 'trade')
+
+      // 并行拉取: 全部日志 + trade 日志
+      const [allRes, tradeRes] = await Promise.all([
+        hyperliquidApiGet<LogsResponse>(`/api/strategy_bot/jobs/logs?${base.toString()}`),
+        hyperliquidApiGet<LogsResponse>(`/api/strategy_bot/jobs/logs?${tradeParams.toString()}`),
+      ])
+
+      const allLogs = allRes.logs ?? []
+      const newTradeLogs = tradeRes.logs ?? []
+
       if (forJobId != null) {
-        // 合并: 替换该 job 的日志，保留其他 job 的
-        setLogs((prev) => [
-          ...prev.filter((l) => l.job_id !== forJobId),
-          ...newLogs,
-        ])
+        setLogs((prev) => [...prev.filter((l) => l.job_id !== forJobId), ...allLogs])
+        setTradeLogs((prev) => [...prev.filter((l) => l.job_id !== forJobId), ...newTradeLogs])
       } else {
-        setLogs(newLogs)
+        setLogs(allLogs)
+        setTradeLogs(newTradeLogs)
       }
     } catch {
-      // silent — logs are non-critical
+      // silent
     } finally {
       setLoading(false)
     }
   }, [])
 
-  return { logs, loading, refetch }
+  return { logs, tradeLogs, loading, refetch }
 }

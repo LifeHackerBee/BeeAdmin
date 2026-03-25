@@ -55,6 +55,9 @@ export function UnifiedAnalysis() {
   const [autoRefresh, setAutoRefresh] = useState(false)
   const [countdown, setCountdown] = useState(AUTO_REFRESH_INTERVAL)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [historyRecords, setHistoryRecords] = useState<{ id: number; coin: string; source?: string; ai_signal?: unknown; created_at: string }[]>([])
+  const [historyLoading, setHistoryLoading] = useState(false)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -324,9 +327,62 @@ export function UnifiedAnalysis() {
                   {usingCache && <span className='ml-1'>· 点击刷新获取最新</span>}
                 </span>
               )}
+              <Button
+                variant='ghost'
+                size='sm'
+                className='text-xs gap-1'
+                onClick={() => setHistoryOpen(!historyOpen)}
+              >
+                <Timer className='h-3.5 w-3.5' />
+                历史分析
+              </Button>
             </div>
           </CardContent>
         </Card>
+
+        {/* 历史分析记录 */}
+        {historyOpen && (
+          <AnalysisHistoryPanel
+            coin={coin}
+            loading={historyLoading}
+            records={historyRecords}
+            onSearch={async (searchCoin, startTime, endTime) => {
+              setHistoryLoading(true)
+              try {
+                const params = new URLSearchParams({ limit: '50', fields: 'id,coin,source,ai_signal,created_at' })
+                if (searchCoin) params.set('coin', searchCoin)
+                if (startTime) params.set('start_time', startTime)
+                if (endTime) params.set('end_time', endTime)
+                params.set('source', 'scheduled')
+                const res = await hyperliquidApiGet<{ success: boolean; records: typeof historyRecords }>(
+                  `/api/beetrader_strategy/history?${params.toString()}`
+                )
+                setHistoryRecords(res.records || [])
+              } catch { setHistoryRecords([]) } finally { setHistoryLoading(false) }
+            }}
+            onLoadRecord={async (_recordId) => {
+              try {
+                const res = await hyperliquidApiGet<{ success: boolean; records: { strategy_data: BeeTraderStrategyData; ai_strategy_sections?: unknown; created_at: string }[] }>(
+                  `/api/beetrader_strategy/history?limit=1&fields=strategy_data,ai_strategy_sections,created_at&source=scheduled&coin=${coin}`
+                )
+                // Use the full history endpoint with id filter isn't available, so fetch by latest for now
+                // For a proper implementation, we'd need a GET /history/:id endpoint
+                const rec = res.records?.[0]
+                if (rec?.strategy_data) {
+                  unified.setStrategy(rec.strategy_data)
+                  setLastUpdated(new Date(rec.created_at))
+                  setUsingCache(true)
+                  if (rec.ai_strategy_sections) {
+                    aiStrategy.setResult({
+                      content: JSON.stringify(rec.ai_strategy_sections, null, 2),
+                      structured: rec.ai_strategy_sections as import('../../strategies/hooks/use-ai-strategy').AiStrategyResult,
+                    })
+                  }
+                }
+              } catch { /* ignore */ }
+            }}
+          />
+        )}
 
         {/* 错误提示 */}
         {hasError && (
@@ -570,5 +626,107 @@ export function UnifiedAnalysis() {
         )}
       </div>
     </div>
+  )
+}
+
+// ── 历史分析记录面板 ──
+
+function AnalysisHistoryPanel({
+  coin,
+  loading,
+  records,
+  onSearch,
+  onLoadRecord,
+}: {
+  coin: string
+  loading: boolean
+  records: { id: number; coin: string; source?: string; ai_signal?: unknown; created_at: string }[]
+  onSearch: (coin: string, startTime?: string, endTime?: string) => void
+  onLoadRecord: (id: number) => void
+}) {
+  const [searchDate, setSearchDate] = useState(() => {
+    const now = new Date()
+    return now.toISOString().split('T')[0]
+  })
+  const mounted = useRef(false)
+
+  // 首次展开自动搜索
+  useEffect(() => {
+    if (mounted.current) return
+    mounted.current = true
+    onSearch(coin)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleSearch = () => {
+    // 北京时间该日 8:00 到次日 8:00
+    const startBJ = `${searchDate}T08:00:00+08:00`
+    const endDate = new Date(new Date(searchDate).getTime() + 86400000)
+    const endBJ = `${endDate.toISOString().split('T')[0]}T08:00:00+08:00`
+    onSearch(coin, startBJ, endBJ)
+  }
+
+  return (
+    <Card>
+      <CardContent className='py-3 px-4 space-y-2'>
+        <div className='flex items-center gap-2'>
+          <Timer className='h-3.5 w-3.5 text-muted-foreground' />
+          <span className='text-xs font-medium'>定时分析历史</span>
+          <Badge variant='secondary' className='text-[10px] px-1.5 py-0 h-4'>
+            每小时 · 北京 8:00 起
+          </Badge>
+          <div className='ml-auto flex items-center gap-1.5'>
+            <input
+              type='date'
+              value={searchDate}
+              onChange={(e) => setSearchDate(e.target.value)}
+              className='h-7 text-[10px] border rounded px-1.5 bg-background'
+            />
+            <Button variant='outline' size='sm' className='h-7 text-[10px]' onClick={handleSearch} disabled={loading}>
+              {loading ? '搜索中...' : '搜索'}
+            </Button>
+          </div>
+        </div>
+        {records.length === 0 ? (
+          <p className='text-[10px] text-muted-foreground py-2 text-center'>
+            {loading ? '加载中...' : '暂无记录 — 定时分析每整点自动运行'}
+          </p>
+        ) : (
+          <div className='max-h-48 overflow-y-auto'>
+            <div className='grid gap-1'>
+              {records.map((rec) => {
+                const signal = rec.ai_signal as { direction?: string; confidence?: number } | null
+                const time = new Date(rec.created_at)
+                return (
+                  <button
+                    key={rec.id}
+                    className='flex items-center gap-2 text-left px-2 py-1.5 rounded hover:bg-muted/50 transition-colors text-[10px]'
+                    onClick={() => onLoadRecord(rec.id)}
+                  >
+                    <span className='font-mono text-muted-foreground w-14 shrink-0'>
+                      {time.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Shanghai' })}
+                    </span>
+                    <Badge variant='outline' className='text-[10px] px-1 py-0 h-4 shrink-0'>
+                      {rec.coin}
+                    </Badge>
+                    {signal?.direction && (
+                      <Badge className={`text-[10px] px-1.5 py-0 h-4 ${
+                        signal.direction === 'long' ? 'bg-green-500' :
+                        signal.direction === 'short' ? 'bg-red-500' :
+                        'bg-gray-500'
+                      }`}>
+                        {signal.direction} {signal.confidence && `(${signal.confidence})`}
+                      </Badge>
+                    )}
+                    <span className='text-muted-foreground truncate'>
+                      {time.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit', timeZone: 'Asia/Shanghai' })}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   )
 }

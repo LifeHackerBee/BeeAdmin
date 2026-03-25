@@ -49,14 +49,37 @@ async function executeToolCall(name: string, args: Record<string, unknown>, coin
       }
     }
     case 'get_ai_strategy': {
+      const c = (args.coin as string) || coin
       try {
-        const res = await hyperliquidApiGet<{ success: boolean; data?: unknown }>(`/api/strategy_bot/jobs`)
-        const jobs = (res as { jobs?: { coin: string; last_signal_json?: unknown }[] }).jobs ?? []
-        const job = jobs.find((j: { coin: string }) => j.coin === coin)
-        if (job?.last_signal_json) return job.last_signal_json
-        return { info: `${coin} 暂无最新策略信号` }
+        const res = await fetch(`${baseUrl}/api/beetrader_strategy/strategy-modules/${c}?modules=strategy,timeframe_status`, { headers })
+        const data = await res.json()
+        if (data.success) return { coin: c, source: 'cache', cache_age_minutes: data.cache_age_minutes, ...data.modules }
+        return { info: `${c} 暂无缓存策略，请等待定时分析或调用 refresh_strategy` }
       } catch {
-        return { error: '获取策略信号失败' }
+        return { error: '获取策略缓存失败' }
+      }
+    }
+    case 'refresh_strategy': {
+      const c = (args.coin as string) || coin
+      try {
+        const res = await fetch(`${baseUrl}/api/beetrader_strategy/analyze/fresh?coin=${c}`, { headers })
+        const data = await res.json()
+        if (data.success && data.data) {
+          const d = data.data
+          return {
+            coin: c,
+            source: 'fresh',
+            current_price: d.current_price,
+            timeframe_status: d.timeframe_status,
+            strategy: d.strategy,
+            staircase_pattern: d.staircase_pattern,
+            bull_bear_line: d.bull_bear_line,
+            volume_analysis: d.volume_analysis,
+          }
+        }
+        return { error: data.error || '强制分析失败' }
+      } catch {
+        return { error: `强制分析 ${c} 失败` }
       }
     }
     case 'get_position': {
@@ -102,6 +125,44 @@ async function executeToolCall(name: string, args: Record<string, unknown>, coin
       return { status: 'simulated', action: name, args, note: '测试模式 — 未执行真实交易' }
     case 'get_liquidation_price':
       return { liquidation_price: null, note: '模拟模式无强平价' }
+    case 'get_timeframe_status': {
+      const c = (args.coin as string) || coin
+      try {
+        const res = await fetch(`${baseUrl}/api/beetrader_strategy/strategy-modules/${c}?modules=timeframe_status`, { headers })
+        const data = await res.json()
+        if (data.success) return { coin: c, current_price: data.current_price, cache_age_minutes: data.cache_age_minutes, ...data.modules.timeframe_status }
+        return { error: data.error || '获取多周期状态失败' }
+      } catch { return { error: `无法获取 ${c} 多周期状态` } }
+    }
+    case 'get_staircase_pattern': {
+      const c = (args.coin as string) || coin
+      try {
+        const res = await fetch(`${baseUrl}/api/beetrader_strategy/strategy-modules/${c}?modules=staircase_pattern`, { headers })
+        const data = await res.json()
+        if (data.success) return { coin: c, current_price: data.current_price, cache_age_minutes: data.cache_age_minutes, ...data.modules.staircase_pattern }
+        return { error: data.error || '获取阶梯形态失败' }
+      } catch { return { error: `无法获取 ${c} 阶梯形态` } }
+    }
+    case 'get_resonance_analysis': {
+      const c = (args.coin as string) || coin
+      try {
+        const res = await fetch(`${baseUrl}/api/beetrader_strategy/strategy-modules/${c}?modules=strategy`, { headers })
+        const data = await res.json()
+        if (data.success) return { coin: c, current_price: data.current_price, cache_age_minutes: data.cache_age_minutes, ...data.modules.strategy }
+        return { error: data.error || '获取共振分析失败' }
+      } catch { return { error: `无法获取 ${c} 共振分析` } }
+    }
+    case 'get_market_indicators': {
+      const c = (args.coin as string) || coin
+      const tfs = (args.timeframes as string) || '5m,15m,1h'
+      try {
+        const res = await fetch(`${baseUrl}/api/hyperliquid/market/indicators/${c}?timeframes=${encodeURIComponent(tfs)}`, { headers })
+        const data = await res.json()
+        return data.success ? { coin: c, timeframes: data.timeframes } : { error: data.detail || '获取指标失败' }
+      } catch {
+        return { error: `无法获取 ${c} 指标数据` }
+      }
+    }
     default:
       return { error: `未知 tool: ${name}` }
   }
@@ -434,8 +495,10 @@ function simulateToolCalls(text: string, coin: string): { name: string; args: Re
   if (lower.includes('价格') || lower.includes('price') || lower.includes('现价')) {
     calls.push({ name: 'get_current_price', args: { coin } })
   }
-  if (lower.includes('策略') || lower.includes('信号') || lower.includes('分析') || lower.includes('建议')) {
-    calls.push({ name: 'get_ai_strategy', args: {} })
+  if (lower.includes('刷新') || lower.includes('强制') || lower.includes('refresh') || lower.includes('最新分析')) {
+    calls.push({ name: 'refresh_strategy', args: { coin } })
+  } else if (lower.includes('策略') || lower.includes('信号') || lower.includes('建议')) {
+    calls.push({ name: 'get_ai_strategy', args: { coin } })
   }
   if (lower.includes('持仓') || lower.includes('position') || lower.includes('仓位')) {
     calls.push({ name: 'get_position', args: {} })
@@ -445,6 +508,18 @@ function simulateToolCalls(text: string, coin: string): { name: string; args: Re
   }
   if (lower.includes('强平') || lower.includes('liquidat')) {
     calls.push({ name: 'get_liquidation_price', args: {} })
+  }
+  if (lower.includes('macd') || lower.includes('volume') || lower.includes('成交量')) {
+    calls.push({ name: 'get_market_indicators', args: { coin, timeframes: '5m,15m,1h' } })
+  }
+  if (lower.includes('短线') || lower.includes('中线') || lower.includes('长线') || lower.includes('多周期') || lower.includes('timeframe')) {
+    calls.push({ name: 'get_timeframe_status', args: { coin } })
+  }
+  if (lower.includes('阶梯') || lower.includes('形态') || lower.includes('staircase') || lower.includes('pattern')) {
+    calls.push({ name: 'get_staircase_pattern', args: { coin } })
+  }
+  if (lower.includes('共振') || lower.includes('resonan') || lower.includes('偏向') || lower.includes('bias') || lower.includes('指标') || lower.includes('indicator')) {
+    calls.push({ name: 'get_resonance_analysis', args: { coin } })
   }
   if (lower.includes('开多') || lower.includes('做多') || lower.includes('buy') || lower.includes('long')) {
     calls.push({ name: 'open_long', args: { entry_price: 'market', take_profit: 0, stop_loss: 0 } })

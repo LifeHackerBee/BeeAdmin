@@ -700,6 +700,7 @@ export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
                     job={job}
                     trackerTasks={signalTasks.tasks}
                     logs={botLogs.logs.filter((l) => l.job_id === job.id)}
+                    tradeLogs={botLogs.tradeLogs.filter((l) => l.job_id === job.id)}
                     onFetchLogs={() => botLogs.refetch(job.id)}
                     promptTemplates={strategyPrompts.prompts}
                     onStart={() => startJob(job.id)}
@@ -760,11 +761,12 @@ export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
 // ── Job 行 ──
 
 function JobRow({
-  job, trackerTasks, logs, onFetchLogs, promptTemplates, onStart, onPause, onDelete, onReset, onSettings,
+  job, trackerTasks, logs, tradeLogs, onFetchLogs, promptTemplates, onStart, onPause, onDelete, onReset, onSettings,
 }: {
   job: StrategyBotJob
   trackerTasks: BacktestTrackerTask[]
   logs: BotLog[]
+  tradeLogs: BotLog[]
   onFetchLogs: () => void
   promptTemplates: { id: number; name: string; system_prompt: string; is_default: boolean }[]
   onStart: () => void
@@ -792,8 +794,6 @@ function JobRow({
   const floatingRoi = floatingPnl != null && openTask && openTask.test_amount > 0
     ? (floatingPnl / openTask.test_amount) * 100
     : null
-
-  const tradeLogs = logs.filter((l) => l.level === 'trade')
 
   // 匹配当前使用的策略模板名称
   const matchedTemplate = job.custom_system_prompt
@@ -1030,6 +1030,7 @@ function JobRow({
         onOpenChange={setLogsDialogOpen}
         coin={job.coin}
         logs={logs}
+        tradeLogs={tradeLogs}
       />
     </>
   )
@@ -1042,14 +1043,15 @@ function TradeLogsDialog({
   onOpenChange,
   coin,
   logs,
+  tradeLogs,
 }: {
   open: boolean
   onOpenChange: (v: boolean) => void
   coin: string
   logs: BotLog[]
+  tradeLogs: BotLog[]
 }) {
   const [tab, setTab] = useState<'trade' | 'all'>('trade')
-  const tradeLogs = logs.filter((l) => l.level === 'trade')
   const displayLogs = tab === 'trade' ? tradeLogs : logs
 
   return (

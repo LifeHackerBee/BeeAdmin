@@ -13,15 +13,21 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
-import { Bot, Plus, Star, Trash2 } from 'lucide-react'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Bot, Plus, Star, Trash2, Wrench, FileText } from 'lucide-react'
 import type { AgentPrompt } from '../hooks/use-agent-prompts'
 
 export const AGENT_TOOLS = [
-  { name: 'get_ai_strategy', desc: '获取 AI 策略分析信号', params: '无', category: 'info' as const },
+  { name: 'get_ai_strategy', desc: '获取 AI 策略缓存（定时分析结果）', params: 'coin', category: 'info' as const },
+  { name: 'refresh_strategy', desc: '强制重新分析（实时计算，不写库）', params: 'coin', category: 'info' as const },
   { name: 'get_current_price', desc: '查询币种实时价格', params: 'coin', category: 'info' as const },
   { name: 'get_position', desc: '查看当前持仓详情', params: '无', category: 'info' as const },
   { name: 'get_account_balance', desc: '查看账户余额和净值', params: '无', category: 'info' as const },
   { name: 'get_liquidation_price', desc: '查看当前仓位强平价', params: '无', category: 'info' as const },
+  { name: 'get_market_indicators', desc: '获取多周期 Volume 和 MACD', params: 'coin, timeframes (5m/15m/1h)', category: 'info' as const },
+  { name: 'get_timeframe_status', desc: '获取短线/中线/长线多周期状态', params: 'coin', category: 'info' as const },
+  { name: 'get_staircase_pattern', desc: '获取阶梯形态 (4h/1d)', params: 'coin', category: 'info' as const },
+  { name: 'get_resonance_analysis', desc: '获取共振分析 (评分/偏向/各指标信号)', params: 'coin', category: 'info' as const },
   { name: 'open_long', desc: '开多仓', params: 'entry_price, take_profit, stop_loss', category: 'trade' as const },
   { name: 'open_short', desc: '开空仓', params: 'entry_price, take_profit, stop_loss', category: 'trade' as const },
   { name: 'close_position', desc: '平仓（全部）', params: '无', category: 'trade' as const },
@@ -186,59 +192,77 @@ export function AgentConfigDialog({
           </div>
         )}
 
-        {/* 可用 Tools 列表 */}
-        <div className='space-y-1.5'>
-          <Label className='text-xs font-medium'>可用 Tools ({AGENT_TOOLS.length})</Label>
-          <div className='border rounded-md overflow-hidden'>
-            <Table>
-              <TableHeader>
-                <TableRow className='bg-muted/50'>
-                  <TableHead className='text-[10px] h-7 w-[150px]'>Tool</TableHead>
-                  <TableHead className='text-[10px] h-7'>说明</TableHead>
-                  <TableHead className='text-[10px] h-7 w-[200px]'>参数</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {AGENT_TOOLS.map((tool) => (
-                  <TableRow key={tool.name}>
-                    <TableCell className='py-1 px-2'>
-                      <code className={`text-[10px] font-mono px-1 py-0.5 rounded ${CATEGORY_STYLE[tool.category].bg}`}>
-                        {tool.name}
-                      </code>
-                    </TableCell>
-                    <TableCell className='py-1 px-2 text-[10px] text-muted-foreground'>{tool.desc}</TableCell>
-                    <TableCell className='py-1 px-2 text-[10px] font-mono text-muted-foreground'>{tool.params}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-          <div className='flex gap-3 text-[10px] text-muted-foreground'>
-            {Object.values(CATEGORY_STYLE).map((s) => (
-              <span key={s.label} className='flex items-center gap-1'>
-                <span className={`inline-block w-2 h-2 rounded-full ${s.dot}`} />
-                {s.label}
-              </span>
-            ))}
-          </div>
-        </div>
+        {/* Tabs: Agent Prompt / 可用 Tools */}
+        <Tabs defaultValue='prompt' className='w-full'>
+          <TabsList className='grid w-full grid-cols-2'>
+            <TabsTrigger value='prompt'>
+              <FileText className='h-3.5 w-3.5 mr-1.5' />
+              Agent Prompt
+            </TabsTrigger>
+            <TabsTrigger value='tools'>
+              <Wrench className='h-3.5 w-3.5 mr-1.5' />
+              可用 Tools ({AGENT_TOOLS.length})
+            </TabsTrigger>
+          </TabsList>
 
-        {/* Agent System Prompt 编辑 */}
-        <div className='space-y-1.5'>
-          <div className='flex items-center justify-between'>
-            <Label className='text-xs font-medium'>Agent System Prompt</Label>
-            <Badge variant='outline' className='text-[10px] px-1.5 py-0 h-4'>
-              {systemPrompt.length} 字符
-            </Badge>
-          </div>
-          <Textarea
-            value={systemPrompt}
-            onChange={(e) => setSystemPrompt(e.target.value)}
-            placeholder={`定义交易执行 Agent 的行为规则。\n\n示例：\n你是交易执行 Agent，根据 AI 策略信号决定交易动作。\n\n规则:\n1. 先调用 get_ai_strategy 获取最新策略信号\n2. 调用 get_current_price 获取实时价格\n3. 调用 get_position 检查当前持仓\n4. 信号为"做多"且实时价在入场区间内且无持仓 → 调用 open_long\n5. 信号为"做空"且实时价在入场区间内且无持仓 → 调用 open_short\n6. 有持仓且实时价触及止损位 → 调用 close_position\n7. 有持仓且信号建议加仓 → 调用 add_position\n8. 信号为"观望"或实时价不在入场区间 → 调用 wait\n9. 入场价与实时价偏差 > 3% → 强制 wait`}
-            rows={14}
-            className='font-mono text-xs'
-          />
-        </div>
+          {/* ── Agent Prompt Tab ── */}
+          <TabsContent value='prompt' className='space-y-2 mt-3'>
+            <div className='flex items-center justify-between'>
+              <p className='text-[10px] text-muted-foreground'>
+                定义 Agent 的决策流程、交易规则和安全约束。Agent 根据此 Prompt 决定调用哪些 Tools。
+              </p>
+              <Badge variant='outline' className='text-[10px] px-1.5 py-0 h-4 shrink-0'>
+                {systemPrompt.length} 字符
+              </Badge>
+            </div>
+            <Textarea
+              value={systemPrompt}
+              onChange={(e) => setSystemPrompt(e.target.value)}
+              placeholder={`定义交易执行 Agent 的行为规则。\n\n示例：\n你是交易执行 Agent，根据 AI 策略信号决定交易动作。\n\n规则:\n1. 先调用 get_ai_strategy 获取最新策略信号\n2. 调用 get_current_price 获取实时价格\n3. 调用 get_position 检查当前持仓\n4. 信号为"做多"且实时价在入场区间内且无持仓 → 调用 open_long\n5. 信号为"做空"且实时价在入场区间内且无持仓 → 调用 open_short\n6. 有持仓且实时价触及止损位 → 调用 close_position\n7. 有持仓且信号建议加仓 → 调用 add_position\n8. 信号为"观望"或实时价不在入场区间 → 调用 wait\n9. 入场价与实时价偏差 > 3% → 强制 wait`}
+              rows={18}
+              className='font-mono text-xs'
+            />
+          </TabsContent>
+
+          {/* ── 可用 Tools Tab ── */}
+          <TabsContent value='tools' className='space-y-2 mt-3'>
+            <p className='text-[10px] text-muted-foreground'>
+              Agent 可调用以下 Tools 执行交易操作和信息查询。在 Prompt 中引用这些 Tool 名称来定义决策规则。
+            </p>
+            <div className='border rounded-md overflow-hidden'>
+              <Table>
+                <TableHeader>
+                  <TableRow className='bg-muted/50'>
+                    <TableHead className='text-[10px] h-7 w-[150px]'>Tool</TableHead>
+                    <TableHead className='text-[10px] h-7'>说明</TableHead>
+                    <TableHead className='text-[10px] h-7 w-[200px]'>参数</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {AGENT_TOOLS.map((tool) => (
+                    <TableRow key={tool.name}>
+                      <TableCell className='py-1 px-2'>
+                        <code className={`text-[10px] font-mono px-1 py-0.5 rounded ${CATEGORY_STYLE[tool.category].bg}`}>
+                          {tool.name}
+                        </code>
+                      </TableCell>
+                      <TableCell className='py-1 px-2 text-[10px] text-muted-foreground'>{tool.desc}</TableCell>
+                      <TableCell className='py-1 px-2 text-[10px] font-mono text-muted-foreground'>{tool.params}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            <div className='flex gap-3 text-[10px] text-muted-foreground'>
+              {Object.values(CATEGORY_STYLE).map((s) => (
+                <span key={s.label} className='flex items-center gap-1'>
+                  <span className={`inline-block w-2 h-2 rounded-full ${s.dot}`} />
+                  {s.label}
+                </span>
+              ))}
+            </div>
+          </TabsContent>
+        </Tabs>
 
         <DialogFooter>
           <Button variant='outline' onClick={() => onOpenChange(false)}>取消</Button>
