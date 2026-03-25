@@ -1,5 +1,8 @@
-import { Radar } from 'lucide-react'
+import { Radar, BarChart3, Clock, Timer } from 'lucide-react'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { UnifiedAnalysis } from './components/unified-analysis'
+import { AnalysisHistoryTab } from './components/analysis-history-tab'
+import { ScheduledAnalysisTab } from './components/scheduled-analysis-tab'
 
 const APP_VERSION = __APP_VERSION__
 
@@ -16,7 +19,34 @@ export function TradingSignals() {
         </div>
       </div>
 
-      <UnifiedAnalysis />
+      <Tabs defaultValue='realtime' className='w-full'>
+        <TabsList>
+          <TabsTrigger value='realtime' className='gap-1.5'>
+            <BarChart3 className='h-3.5 w-3.5' />
+            实时分析
+          </TabsTrigger>
+          <TabsTrigger value='history' className='gap-1.5'>
+            <Clock className='h-3.5 w-3.5' />
+            历史分析
+          </TabsTrigger>
+          <TabsTrigger value='scheduled' className='gap-1.5'>
+            <Timer className='h-3.5 w-3.5' />
+            定时分析
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value='realtime' className='mt-3'>
+          <UnifiedAnalysis />
+        </TabsContent>
+
+        <TabsContent value='history' className='mt-3'>
+          <AnalysisHistoryTab />
+        </TabsContent>
+
+        <TabsContent value='scheduled' className='mt-3'>
+          <ScheduledAnalysisTab />
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }
