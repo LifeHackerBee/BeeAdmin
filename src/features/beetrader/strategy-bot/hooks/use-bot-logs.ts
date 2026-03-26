@@ -15,37 +15,44 @@ export interface BotLog {
 interface LogsResponse {
   success: boolean
   logs: BotLog[]
+  total: number
 }
+
+const PAGE_SIZE = 20
 
 export function useBotLogs() {
   const [logs, setLogs] = useState<BotLog[]>([])
   const [tradeLogs, setTradeLogs] = useState<BotLog[]>([])
   const [loading, setLoading] = useState(false)
+  // 全部日志分页
+  const [allTotal, setAllTotal] = useState(0)
+  const [allPage, setAllPage] = useState(1)
+  // 交易记录分页
+  const [tradeTotal, setTradeTotal] = useState(0)
+  const [tradePage, setTradePage] = useState(1)
+  // 当前 job
+  const [currentJobId, setCurrentJobId] = useState<number | undefined>()
 
-  const refetch = useCallback(async (forJobId?: number) => {
+  const fetchPage = useCallback(async (jobId: number | undefined, tab: 'all' | 'trade', page: number) => {
     try {
       setLoading(true)
-      const base = new URLSearchParams({ limit: '100' })
-      if (forJobId != null) base.set('job_id', String(forJobId))
+      const offset = (page - 1) * PAGE_SIZE
+      const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(offset) })
+      if (jobId != null) params.set('job_id', String(jobId))
+      if (tab === 'trade') params.set('level', 'trade')
 
-      const tradeParams = new URLSearchParams(base)
-      tradeParams.set('level', 'trade')
+      const res = await hyperliquidApiGet<LogsResponse>(`/api/strategy_bot/jobs/logs?${params.toString()}`)
+      const items = res.logs ?? []
+      const total = res.total ?? 0
 
-      // 并行拉取: 全部日志 + trade 日志
-      const [allRes, tradeRes] = await Promise.all([
-        hyperliquidApiGet<LogsResponse>(`/api/strategy_bot/jobs/logs?${base.toString()}`),
-        hyperliquidApiGet<LogsResponse>(`/api/strategy_bot/jobs/logs?${tradeParams.toString()}`),
-      ])
-
-      const allLogs = allRes.logs ?? []
-      const newTradeLogs = tradeRes.logs ?? []
-
-      if (forJobId != null) {
-        setLogs((prev) => [...prev.filter((l) => l.job_id !== forJobId), ...allLogs])
-        setTradeLogs((prev) => [...prev.filter((l) => l.job_id !== forJobId), ...newTradeLogs])
+      if (tab === 'trade') {
+        setTradeLogs(items)
+        setTradeTotal(total)
+        setTradePage(page)
       } else {
-        setLogs(allLogs)
-        setTradeLogs(newTradeLogs)
+        setLogs(items)
+        setAllTotal(total)
+        setAllPage(page)
       }
     } catch {
       // silent
@@ -54,5 +61,25 @@ export function useBotLogs() {
     }
   }, [])
 
-  return { logs, tradeLogs, loading, refetch }
+  const refetch = useCallback(async (forJobId?: number) => {
+    setCurrentJobId(forJobId)
+    setAllPage(1)
+    setTradePage(1)
+    // 并行拉取两个 tab 的第 1 页
+    await Promise.all([
+      fetchPage(forJobId, 'all', 1),
+      fetchPage(forJobId, 'trade', 1),
+    ])
+  }, [fetchPage])
+
+  const goPage = useCallback((tab: 'all' | 'trade', page: number) => {
+    fetchPage(currentJobId, tab, page)
+  }, [fetchPage, currentJobId])
+
+  return {
+    logs, tradeLogs, loading,
+    allTotal, allPage, tradeTotal, tradePage,
+    pageSize: PAGE_SIZE,
+    refetch, goPage,
+  }
 }

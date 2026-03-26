@@ -140,7 +140,7 @@ function SignalDetail({ action, confidence, signal }: { action: string | null; c
             </span>
             {hasPrices && (
               <div className='flex flex-col mt-0.5 text-[10px] font-mono leading-tight'>
-                <span className='text-muted-foreground'>入场 <span className='text-foreground'>{fmtPrice(entryPrice)}</span></span>
+                <span className='text-muted-foreground'>AI建议 <span className='text-foreground'>{fmtPrice(entryPrice)}</span></span>
                 <span className='text-green-500/80'>TP {fmtPrice(takeProfit)}</span>
                 <span className='text-red-500/80'>SL {fmtPrice(stopLoss)}</span>
               </div>
@@ -151,15 +151,16 @@ function SignalDetail({ action, confidence, signal }: { action: string | null; c
           {reason && <p className='text-xs mb-1'>{reason}</p>}
           {hasPrices && entryPrice && (
             <div className='text-xs space-y-0.5'>
-              <p>入场: {fmtPrice(entryPrice)}</p>
+              <p>AI 建议入场: {fmtPrice(entryPrice)}</p>
+              <p className='text-muted-foreground text-[10px]'>（实际成交以买入价列为准）</p>
               {takeProfit != null && (
                 <p className='text-green-500'>
-                  止盈: {fmtPrice(takeProfit)} ({action === 'long' ? '+' : '-'}{(Math.abs((takeProfit - entryPrice) / entryPrice) * 100).toFixed(2)}%)
+                  AI 止盈: {fmtPrice(takeProfit)} ({action === 'long' ? '+' : '-'}{(Math.abs((takeProfit - entryPrice) / entryPrice) * 100).toFixed(2)}%)
                 </p>
               )}
               {stopLoss != null && (
                 <p className='text-red-500'>
-                  止损: {fmtPrice(stopLoss)} ({action === 'long' ? '-' : '+'}{(Math.abs((stopLoss - entryPrice) / entryPrice) * 100).toFixed(2)}%)
+                  AI 止损: {fmtPrice(stopLoss)} ({action === 'long' ? '-' : '+'}{(Math.abs((stopLoss - entryPrice) / entryPrice) * 100).toFixed(2)}%)
                 </p>
               )}
               {takeProfit != null && stopLoss != null && (
@@ -727,8 +728,7 @@ export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
                     job={job}
                     trackerTasks={signalTasks.tasks}
                     livePrice={livePrices[job.coin]}
-                    logs={botLogs.logs.filter((l) => l.job_id === job.id)}
-                    tradeLogs={botLogs.tradeLogs.filter((l) => l.job_id === job.id)}
+                    botLogs={botLogs}
                     onFetchLogs={() => botLogs.refetch(job.id)}
                     promptTemplates={strategyPrompts.prompts}
                     onStart={() => startJob(job.id)}
@@ -850,13 +850,12 @@ function useLiveFlash(value: unknown): boolean {
 // ── Job 行 ──
 
 function JobRow({
-  job, trackerTasks, livePrice, logs, tradeLogs, onFetchLogs, promptTemplates, onStart, onPause, onDelete, onReset, onSettings,
+  job, trackerTasks, livePrice, botLogs, onFetchLogs, promptTemplates, onStart, onPause, onDelete, onReset, onSettings,
 }: {
   job: StrategyBotJob
   trackerTasks: BacktestTrackerTask[]
   livePrice?: number
-  logs: BotLog[]
-  tradeLogs: BotLog[]
+  botLogs: ReturnType<typeof useBotLogs>
   onFetchLogs: () => void
   promptTemplates: { id: number; name: string; system_prompt: string; is_default: boolean }[]
   onStart: () => void
@@ -1084,7 +1083,7 @@ function JobRow({
             onClick={() => { onFetchLogs(); setLogsDialogOpen(true) }}
           >
             <ScrollText className='h-3.5 w-3.5' />
-            {tradeLogs.length > 0 && <span className='font-mono'>{tradeLogs.length}</span>}
+            {botLogs.tradeLogs.length > 0 && <span className='font-mono'>{botLogs.tradeTotal || botLogs.tradeLogs.length}</span>}
           </Button>
         </TableCell>
 
@@ -1145,8 +1144,15 @@ function JobRow({
         open={logsDialogOpen}
         onOpenChange={setLogsDialogOpen}
         coin={job.coin}
-        logs={logs}
-        tradeLogs={tradeLogs}
+        logs={botLogs.logs}
+        tradeLogs={botLogs.tradeLogs}
+        allTotal={botLogs.allTotal}
+        allPage={botLogs.allPage}
+        tradeTotal={botLogs.tradeTotal}
+        tradePage={botLogs.tradePage}
+        pageSize={botLogs.pageSize}
+        onPageChange={botLogs.goPage}
+        loading={botLogs.loading}
       />
     </>
   )
@@ -1160,15 +1166,32 @@ function TradeLogsDialog({
   coin,
   logs,
   tradeLogs,
+  allTotal,
+  allPage,
+  tradeTotal,
+  tradePage,
+  pageSize,
+  onPageChange,
+  loading,
 }: {
   open: boolean
   onOpenChange: (v: boolean) => void
   coin: string
   logs: BotLog[]
   tradeLogs: BotLog[]
+  allTotal: number
+  allPage: number
+  tradeTotal: number
+  tradePage: number
+  pageSize: number
+  onPageChange: (tab: 'all' | 'trade', page: number) => void
+  loading: boolean
 }) {
   const [tab, setTab] = useState<'trade' | 'all'>('trade')
   const displayLogs = tab === 'trade' ? tradeLogs : logs
+  const total = tab === 'trade' ? tradeTotal : allTotal
+  const page = tab === 'trade' ? tradePage : allPage
+  const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -1183,15 +1206,17 @@ function TradeLogsDialog({
           <TabsList className='grid w-full grid-cols-2'>
             <TabsTrigger value='trade'>
               交易记录
-              {tradeLogs.length > 0 && <Badge variant='secondary' className='ml-1.5 text-[10px] px-1.5 py-0'>{tradeLogs.length}</Badge>}
+              {tradeTotal > 0 && <Badge variant='secondary' className='ml-1.5 text-[10px] px-1.5 py-0'>{tradeTotal}</Badge>}
             </TabsTrigger>
             <TabsTrigger value='all'>
               全部日志
-              <Badge variant='secondary' className='ml-1.5 text-[10px] px-1.5 py-0'>{logs.length}</Badge>
+              <Badge variant='secondary' className='ml-1.5 text-[10px] px-1.5 py-0'>{allTotal}</Badge>
             </TabsTrigger>
           </TabsList>
-          <TabsContent value={tab} className='flex-1 overflow-y-auto max-h-[60vh] mt-2'>
-            {displayLogs.length === 0 ? (
+          <TabsContent value={tab} className='flex-1 overflow-y-auto max-h-[55vh] mt-2'>
+            {loading ? (
+              <div className='py-8 text-center text-muted-foreground text-sm'>加载中...</div>
+            ) : displayLogs.length === 0 ? (
               <div className='py-8 text-center text-muted-foreground text-sm'>暂无日志</div>
             ) : (
               <div className='divide-y rounded-md border'>
@@ -1206,6 +1231,56 @@ function TradeLogsDialog({
             )}
           </TabsContent>
         </Tabs>
+
+        {/* 分页 */}
+        {total > pageSize && (
+          <div className='flex items-center justify-between pt-2 border-t'>
+            <span className='text-[10px] text-muted-foreground'>
+              共 {total} 条 · 第 {page}/{totalPages} 页
+            </span>
+            <div className='flex items-center gap-1'>
+              <Button
+                variant='outline' size='sm' className='h-7 text-xs px-2'
+                disabled={page <= 1 || loading}
+                onClick={() => onPageChange(tab, page - 1)}
+              >
+                上一页
+              </Button>
+              {/* 页码按钮 */}
+              {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                let p: number
+                if (totalPages <= 5) {
+                  p = i + 1
+                } else if (page <= 3) {
+                  p = i + 1
+                } else if (page >= totalPages - 2) {
+                  p = totalPages - 4 + i
+                } else {
+                  p = page - 2 + i
+                }
+                return (
+                  <Button
+                    key={p}
+                    variant={p === page ? 'default' : 'outline'}
+                    size='sm'
+                    className='h-7 w-7 text-xs p-0'
+                    disabled={loading}
+                    onClick={() => onPageChange(tab, p)}
+                  >
+                    {p}
+                  </Button>
+                )
+              })}
+              <Button
+                variant='outline' size='sm' className='h-7 text-xs px-2'
+                disabled={page >= totalPages || loading}
+                onClick={() => onPageChange(tab, page + 1)}
+              >
+                下一页
+              </Button>
+            </div>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   )
