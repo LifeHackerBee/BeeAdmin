@@ -16,7 +16,9 @@ const COMPONENT_LABELS: Record<string, string> = {
 
 const BASE_SOURCE_LABELS: Record<string, string> = {
   yesterday_poc: '昨日POC',
+  yesterday_close: '昨日收盘',
   yesterday_typical: '昨日典型价',
+  prev_1h_close: '前1H收盘',
   fallback_current: '当前价',
 }
 
@@ -24,6 +26,7 @@ const GRADE_LABELS: Record<string, { text: string; color: string }> = {
   strong_bull: { text: '强多头', color: 'text-green-600 dark:text-green-400' },
   ranging: { text: '震荡', color: 'text-yellow-600 dark:text-yellow-400' },
   bearish: { text: '偏空', color: 'text-red-600 dark:text-red-400' },
+  strong_bear: { text: '强空头', color: 'text-red-600 dark:text-red-400' },
 }
 
 export function BullBearLineCard({ data, currentPrice }: Props) {

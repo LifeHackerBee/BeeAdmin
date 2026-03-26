@@ -242,21 +242,27 @@ function StructuredView({ data }: { data: AiStrategyResult }) {
           <span className='text-xs font-medium text-muted-foreground'>攻防阵地</span>
         </div>
         <div className='grid grid-cols-2 gap-3 text-xs'>
-          <div className='space-y-1.5'>
+          <div className='space-y-2'>
             <span className='text-red-500 font-medium'>上方压力</span>
             {Object.entries(lr.resistances).map(([key, lv]) => (
-              <div key={key} className='flex items-center justify-between rounded bg-red-50 dark:bg-red-950/20 px-2 py-1'>
-                <span className='font-mono font-semibold text-red-600 dark:text-red-400'>{fmtPrice(lv.price)}</span>
-                <span className='text-muted-foreground text-[10px] ml-2 truncate max-w-[140px]' title={lv.reason}>{lv.reason}</span>
+              <div key={key} className='rounded bg-red-50 dark:bg-red-950/20 px-2.5 py-1.5'>
+                <div className='flex items-center gap-2'>
+                  <span className='font-mono font-bold text-sm text-red-600 dark:text-red-400'>{fmtPrice(lv.price)}</span>
+                  <span className='text-[10px] text-muted-foreground/60'>{key.replace('_', ' ')}</span>
+                </div>
+                <p className='text-[11px] text-muted-foreground mt-0.5 leading-relaxed'>{lv.reason}</p>
               </div>
             ))}
           </div>
-          <div className='space-y-1.5'>
+          <div className='space-y-2'>
             <span className='text-green-500 font-medium'>下方支撑</span>
             {Object.entries(lr.supports).map(([key, lv]) => (
-              <div key={key} className='flex items-center justify-between rounded bg-green-50 dark:bg-green-950/20 px-2 py-1'>
-                <span className='font-mono font-semibold text-green-600 dark:text-green-400'>{fmtPrice(lv.price)}</span>
-                <span className='text-muted-foreground text-[10px] ml-2 truncate max-w-[140px]' title={lv.reason}>{lv.reason}</span>
+              <div key={key} className='rounded bg-green-50 dark:bg-green-950/20 px-2.5 py-1.5'>
+                <div className='flex items-center gap-2'>
+                  <span className='font-mono font-bold text-sm text-green-600 dark:text-green-400'>{fmtPrice(lv.price)}</span>
+                  <span className='text-[10px] text-muted-foreground/60'>{key.replace('_', ' ')}</span>
+                </div>
+                <p className='text-[11px] text-muted-foreground mt-0.5 leading-relaxed'>{lv.reason}</p>
               </div>
             ))}
           </div>

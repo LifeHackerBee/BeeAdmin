@@ -95,7 +95,9 @@ export interface CoreKeyLevel {
   price: number
   source: string
   macro_trend: 'bullish' | 'bearish' | 'neutral'
-  fib_618?: number
+  fib_618_support?: number
+  fib_618_resist?: number
+  fib_618?: number  // 兼容旧数据
   ma60?: number | null
   swing_high?: number
   swing_low?: number
@@ -114,7 +116,7 @@ export interface BullBearLine {
   status: 'above' | 'below' | 'neutral' | 'counter_trend_pullback' | 'unknown'
   duration_hours: number
   trend_score?: number
-  trend_grade?: 'strong_bull' | 'ranging' | 'bearish'
+  trend_grade?: 'strong_bull' | 'ranging' | 'bearish' | 'strong_bear'
   base_source?: string
   components: BullBearLineComponent[]
   hint: string
