@@ -19,6 +19,7 @@ export const DEFAULT_AI_SYSTEM_PROMPT = `你是一位顶级的加密货币交易
 2. 宏观与日内解耦：Core Key Level 决定大势，Bull/Bear Line 决定日内情绪。
 3. 指标防骗线：MACD焦灼说明动能枯竭；RSI未突破50中轴=弱势震荡；强趋势中超买可能横盘消化。
 4. 战术双线防御：T1近端交火区试探建仓，T2远端核心堡垒止盈/止损。窄幅止损铁律。
+5. S/R 优先引用：数据中包含算法检测的 S/R 战术双线(R1/R2/S1/S2)，这些是基于量价共振的实时点位。你的 levels_radar 攻防阵地应优先采用这些 S/R 点位作为压力/支撑价格，可补充均线/布林带等辅助位，但核心价格必须与 S/R 数据保持一致。
 
 ## 输出要求
 请严格只输出一份合法的 JSON 数据，不要包含任何额外文本、Markdown标记或问候语。
@@ -122,9 +123,27 @@ export interface AiStrategyOutput {
   summary?: string
 }
 
+// ── S/R 战术双线类型（从 radar 注入） ──
+
+interface SrTacticalInput {
+  resistances: { R1: { price: number; level: number; source: string } | null; R2: { price: number; level: number; source: string } | null }
+  supports: { S1: { price: number; level: number; source: string } | null; S2: { price: number; level: number; source: string } | null }
+}
+
+function formatSrSection(tactical: SrTacticalInput): string {
+  const lines: string[] = []
+  const { R1, R2 } = tactical.resistances
+  const { S1, S2 } = tactical.supports
+  if (R1) lines.push(`R1 (近端压力): $${R1.price} — 强度 Lv.${R1.level}, 来源: ${R1.source}`)
+  if (R2) lines.push(`R2 (远端压力): $${R2.price} — 强度 Lv.${R2.level}, 来源: ${R2.source}`)
+  if (S1) lines.push(`S1 (近端支撑): $${S1.price} — 强度 Lv.${S1.level}, 来源: ${S1.source}`)
+  if (S2) lines.push(`S2 (远端支撑): $${S2.price} — 强度 Lv.${S2.level}, 来源: ${S2.source}`)
+  return lines.length > 0 ? lines.join('\n') : '无数据'
+}
+
 // ── 构建数据 Prompt ──
 
-function buildDataPrompt(data: BeeTraderStrategyData): string {
+function buildDataPrompt(data: BeeTraderStrategyData, srTactical?: SrTacticalInput | null): string {
   const macd = data.indicators.macd
   const rsi = data.indicators.rsi
   const kdj = data.indicators.kdj
@@ -147,6 +166,10 @@ function buildDataPrompt(data: BeeTraderStrategyData): string {
 
 ## 宏观核心关键位
 ${data.core_key_level ? `价格: ${data.core_key_level.price}, 来源: ${data.core_key_level.source}, 趋势: ${data.core_key_level.macro_trend}` : '无数据'}
+
+## S/R 战术双线（算法检测，基于 ATR动态桶 + 加权成交量 + 摆动点 + FVG 共振）
+${srTactical ? formatSrSection(srTactical) : '无数据（radar 未返回）'}
+注意: 以上 S/R 点位由量化算法实时检测，请在分析攻防阵地时优先参考这些已验证的共振点位，可结合你的均线/布林带判断进行补充或调整。
 
 ## MACD
 1H: MACD=${macd['1h']?.macd ?? 0}, ${macd['1h']?.cross === 'golden' ? '金叉' : macd['1h']?.cross === 'death' ? '死叉' : '无交叉'}, 零轴${macd['1h']?.above_zero ? '上方' : '下方'}, 柱体${macd['1h']?.histogram_trend ?? 'unknown'}
@@ -194,7 +217,7 @@ export function useAiStrategy() {
   const [error, setError] = useState<Error | null>(null)
   const [result, setResult] = useState<AiStrategyOutput | null>(null)
 
-  const generate = useCallback(async (data: BeeTraderStrategyData, customSystemPrompt?: string) => {
+  const generate = useCallback(async (data: BeeTraderStrategyData, customSystemPrompt?: string, srTactical?: SrTacticalInput | null) => {
     try {
       setLoading(true)
       setError(null)
@@ -215,7 +238,7 @@ export function useAiStrategy() {
       })
 
       const systemPrompt = customSystemPrompt || DEFAULT_AI_SYSTEM_PROMPT
-      const dataText = buildDataPrompt(data)
+      const dataText = buildDataPrompt(data, srTactical)
 
       // 直接构建 messages，避免 ChatPromptTemplate 解析 JSON 中的 {} 报错
       const response = await model.invoke([

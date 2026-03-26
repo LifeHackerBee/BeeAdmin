@@ -602,77 +602,78 @@ export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
         onOpenAgentTest={() => setAgentTestOpen(true)}
       />
 
-      {/* 概览统计 */}
-      {jobs.length > 0 && (
-        <div className='grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-6'>
+      {/* 概览统计 — 紧凑单行 */}
+      {jobs.length > 0 && (() => {
+        const totalPnlWithFloat = aggPnl + aggFloatingPnl
+        const roiPct = totalInitial > 0 ? ((totalBalance + aggFloatingPnl - totalInitial) / totalInitial * 100) : 0
+        return (
           <Card>
-            <CardContent className='px-3 py-2'>
-              <p className='text-[10px] text-muted-foreground'>运行状态</p>
-              <p className='text-lg font-bold tabular-nums'>
-                <span className={runningCount > 0 ? 'text-green-500' : ''}>{runningCount}</span>
-                <span className='text-sm text-muted-foreground font-normal'>/{jobs.length}</span>
-              </p>
-              {openPositions > 0 && (
-                <p className='text-[10px] text-blue-500'>
-                  {openPositions} 个持仓中
-                  {aggFloatingPnl !== 0 && (
-                    <span className={`ml-1 ${aggFloatingPnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                      ({aggFloatingPnl >= 0 ? '+' : ''}{aggFloatingPnl.toFixed(0)})
+            <CardContent className='px-4 py-2.5'>
+              <div className='flex items-center gap-4 flex-wrap text-xs'>
+                {/* 总资产 */}
+                <div className='flex items-center gap-1.5'>
+                  <span className='text-muted-foreground'>总资产</span>
+                  <span className='font-mono font-bold'>${totalBalance.toFixed(0)}</span>
+                  <span className={`text-[10px] font-mono ${roiPct >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                    {roiPct >= 0 ? '+' : ''}{roiPct.toFixed(1)}%
+                  </span>
+                </div>
+
+                <span className='text-muted-foreground/30'>|</span>
+
+                {/* 总盈亏 = 已实现 + 未实现 */}
+                <div className='flex items-center gap-1.5'>
+                  <span className='text-muted-foreground'>盈亏</span>
+                  <span className={`font-mono font-bold ${totalPnlWithFloat >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                    {totalPnlWithFloat >= 0 ? '+' : ''}${totalPnlWithFloat.toFixed(2)}
+                  </span>
+                  {aggPnl !== 0 && (
+                    <span className='text-[10px] text-muted-foreground font-mono'>
+                      已实现 {aggPnl >= 0 ? '+' : ''}{aggPnl.toFixed(0)}
                     </span>
                   )}
-                </p>
-              )}
+                  {aggFloatingPnl !== 0 && (
+                    <span className={`text-[10px] font-mono ${aggFloatingPnl >= 0 ? 'text-green-500/70' : 'text-red-500/70'}`}>
+                      浮动 {aggFloatingPnl >= 0 ? '+' : ''}{aggFloatingPnl.toFixed(2)}
+                    </span>
+                  )}
+                </div>
+
+                <span className='text-muted-foreground/30'>|</span>
+
+                {/* 持仓 & 胜率 */}
+                <div className='flex items-center gap-3'>
+                  {openPositions > 0 && (
+                    <span className='text-blue-500'>
+                      {openPositions} 持仓
+                    </span>
+                  )}
+                  {aggTrades > 0 ? (
+                    <span className='text-muted-foreground'>
+                      {aggTrades} 笔 · 胜率 {aggWinRate.toFixed(0)}%
+                      <span className='ml-1 text-[10px]'>
+                        (<span className='text-green-500'>{aggWins}W</span>/<span className='text-red-500'>{aggLosses}L</span>)
+                      </span>
+                    </span>
+                  ) : (
+                    <span className='text-muted-foreground'>暂无交易</span>
+                  )}
+                </div>
+
+                {/* 运行状态 */}
+                <span className='ml-auto text-muted-foreground'>
+                  {runningCount > 0 ? (
+                    <span className='text-green-500'>{runningCount} 运行中</span>
+                  ) : (
+                    <span>全部暂停</span>
+                  )}
+                  <span className='text-muted-foreground/50 ml-1'>· {totalAnalyses} 次分析</span>
+                </span>
+              </div>
             </CardContent>
           </Card>
-          <Card>
-            <CardContent className='px-3 py-2'>
-              <p className='text-[10px] text-muted-foreground'>总分析</p>
-              <p className='text-lg font-bold tabular-nums'>{totalAnalyses.toLocaleString()}</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className='px-3 py-2'>
-              <p className='text-[10px] text-muted-foreground'>总资产</p>
-              <p className='text-lg font-bold tabular-nums'>${totalBalance.toFixed(2)}</p>
-              {totalInitial > 0 && (
-                <p className={`text-[10px] font-mono ${totalBalance - totalInitial >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                  {totalBalance - totalInitial >= 0 ? '+' : ''}{((totalBalance - totalInitial) / totalInitial * 100).toFixed(1)}%
-                </p>
-              )}
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className='px-3 py-2'>
-              <p className='text-[10px] text-muted-foreground'>总盈亏</p>
-              <p className={`text-lg font-bold tabular-nums ${aggPnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                {aggPnl >= 0 ? '+' : ''}${aggPnl.toFixed(2)}
-              </p>
-              {openPositions > 0 && aggFloatingPnl !== 0 && (
-                <p className={`text-[10px] font-mono ${aggFloatingPnl >= 0 ? 'text-green-500/70' : 'text-red-500/70'}`}>
-                  浮动 {aggFloatingPnl >= 0 ? '+' : ''}${aggFloatingPnl.toFixed(2)}
-                </p>
-              )}
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className='px-3 py-2'>
-              <p className='text-[10px] text-muted-foreground'>胜率</p>
-              <p className='text-lg font-bold tabular-nums'>{aggTrades > 0 ? `${aggWinRate.toFixed(0)}%` : '-'}</p>
-              {aggTrades > 0 && (
-                <p className='text-[10px] text-muted-foreground'>
-                  <span className='text-green-500'>{aggWins}W</span> / <span className='text-red-500'>{aggLosses}L</span>
-                </p>
-              )}
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className='px-3 py-2'>
-              <p className='text-[10px] text-muted-foreground'>总交易</p>
-              <p className='text-lg font-bold tabular-nums'>{aggTrades}</p>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+        )
+      })()}
 
       {/* 错误提示 */}
       {error && (

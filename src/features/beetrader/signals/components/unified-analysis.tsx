@@ -120,6 +120,13 @@ export function UnifiedAnalysis() {
     }).catch(() => {})
   }, [historyLoaded]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // 缓存加载后 radar 为空，自动补一次实时分析获取 S/R 数据
+  useEffect(() => {
+    if (usingCache && !radar.data && !loading && coin) {
+      unified.analyze(coin).catch(() => {})
+    }
+  }, [usingCache, radar.data, loading, coin]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleAnalyze = () => {
     if (!coin.trim()) return
     unified.reset()
@@ -151,7 +158,9 @@ export function UnifiedAnalysis() {
 
   // 生成 AI 策略并保存到 Supabase
   const doGenerateAI = async (targetCoin: string, strategyData: BeeTraderStrategyData) => {
-    const output = await aiStrategy.generate(strategyData, promptLib.selectedPrompt?.system_prompt)
+    // 将 radar 的 S/R 战术双线注入给 AI
+    const srTactical = radar.data?.entry_trigger?.sr_levels?.tactical ?? null
+    const output = await aiStrategy.generate(strategyData, promptLib.selectedPrompt?.system_prompt, srTactical)
     if (output?.structured) {
       hyperliquidApiPost('/api/beetrader_strategy/history/ai-strategy', {
         coin: targetCoin,
@@ -354,17 +363,11 @@ export function UnifiedAnalysis() {
                 </CardTitle>
               </CardHeader>
               <CardContent className='space-y-4'>
-                {/* S/R 战术双线 + OI */}
+                {/* OI / 资金费率 */}
                 {radar.data ? (
-                  <>
-                    <SrLevelsCard srLevels={radar.data.entry_trigger.sr_levels} />
-                    <OiFundingCard oi={radar.data.entry_trigger.oi} />
-                  </>
+                  <OiFundingCard oi={radar.data.entry_trigger.oi} />
                 ) : loading ? (
-                  <div className='space-y-3'>
-                    <Skeleton className='h-24 w-full' />
-                    <Skeleton className='h-20 w-full' />
-                  </div>
+                  <Skeleton className='h-20 w-full' />
                 ) : null}
 
                 {/* MACD / 布林带 / RSI / KDJ */}
@@ -388,9 +391,6 @@ export function UnifiedAnalysis() {
                     <Skeleton className='h-32 w-full' />
                   </div>
                 ) : null}
-
-                {/* 5分钟量级变化 */}
-                <MarketDepth coin={coin} />
 
                 {/* 清算热力图 */}
                 {radar.data && (
@@ -458,6 +458,16 @@ export function UnifiedAnalysis() {
                 ) : loading ? (
                   <Skeleton className='h-20 w-full' />
                 ) : null}
+
+                {/* S/R 战术双线 */}
+                {radar.data ? (
+                  <SrLevelsCard srLevels={radar.data.entry_trigger.sr_levels} />
+                ) : loading ? (
+                  <Skeleton className='h-24 w-full' />
+                ) : null}
+
+                {/* 5分钟量级变化 */}
+                <MarketDepth coin={coin} />
 
                 {/* 多周期状态 + 多空分界线 + 阶梯 + 策略建议 */}
                 {strategy.data ? (
