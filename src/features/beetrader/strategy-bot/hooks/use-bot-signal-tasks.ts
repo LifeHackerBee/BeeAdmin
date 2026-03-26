@@ -75,7 +75,7 @@ export function useBotSignalTasks(enabled: boolean = true) {
     if (!enabled) return
     const hasRunning = tasks.some((t) => t.status === 'running')
     if (hasRunning) {
-      pollRef.current = setInterval(fetchTasks, 15_000)
+      pollRef.current = setInterval(fetchTasks, 5_000)
     }
     return () => {
       if (pollRef.current) {

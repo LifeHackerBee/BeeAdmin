@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useStrategyBotJobs, type StrategyBotJob, type UpdateBotJobData, type DefaultPrompts, type BotMode, type CreateBotJobData } from '../hooks/use-strategy-bot-jobs'
-import { useBotSignalTasks, calcPnl, type BacktestTrackerTask } from '../hooks/use-bot-signal-tasks'
+import { useBotSignalTasks, type BacktestTrackerTask } from '../hooks/use-bot-signal-tasks'
+import { hyperliquidApiGet } from '@/lib/hyperliquid-api-client'
 import { useBotLogs, type BotLog } from '../hooks/use-bot-logs'
 import { useLiveStatus } from '../hooks/use-live-status'
 import { useAgentPrompts } from '../hooks/use-agent-prompts'
@@ -521,6 +522,10 @@ export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
   const hasOpenPositions = jobs.some((j) => j.has_open_position)
   const signalTasks = useBotSignalTasks(hasOpenPositions)
 
+  // 实时价格: 对所有 running 的 job 每 5s 直接查 Hyperliquid 价格
+  const runningCoins = useMemo(() => jobs.filter((j) => j.status === 'running').map((j) => j.coin), [jobs])
+  const livePrices = useLivePrices(runningCoins, runningCoins.length > 0)
+
   // 策略模板: 概览卡片需要显示配置状态，所以默认加载
   const [promptsNeeded, setPromptsNeeded] = useState(true)
   const strategyPrompts = useStrategyPrompts(promptsNeeded)
@@ -550,13 +555,18 @@ export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
   const aggWinRate = aggTrades > 0 ? (aggWins / aggTrades) * 100 : 0
   const openPositions = jobs.filter((j) => j.has_open_position).length
 
-  // 汇总浮动盈亏
+  // 汇总浮动盈亏 (用实时价格)
   const aggFloatingPnl = jobs.reduce((sum, j) => {
     if (!j.has_open_position || !j.open_task_id) return sum
     const task = signalTasks.tasks.find((t) => t.id === j.open_task_id && t.status === 'running')
-    if (!task) return sum
-    const pnl = calcPnl(task)
-    return pnl != null ? sum + pnl : sum
+    if (!task || !task.entry_price || !task.entry_direction) return sum
+    const price = livePrices[j.coin] ?? task.last_tracked_price
+    if (!price) return sum
+    const change = (price - task.entry_price) / task.entry_price
+    const posValue = task.test_amount * task.test_leverage
+    const gross = task.entry_direction === 'long' ? change * posValue : -change * posValue
+    const fee = posValue * 0.000410 * 2
+    return sum + gross - fee
   }, 0)
 
   // 现网模式: 未验证时显示验证门控
@@ -715,6 +725,7 @@ export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
                     key={job.id}
                     job={job}
                     trackerTasks={signalTasks.tasks}
+                    livePrice={livePrices[job.coin]}
                     logs={botLogs.logs.filter((l) => l.job_id === job.id)}
                     tradeLogs={botLogs.tradeLogs.filter((l) => l.job_id === job.id)}
                     onFetchLogs={() => botLogs.refetch(job.id)}
@@ -774,13 +785,75 @@ export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
   )
 }
 
+// ── 实时价格轮询 ──
+
+function useLivePrices(coins: string[], enabled: boolean) {
+  const [prices, setPrices] = useState<Record<string, number>>({})
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const fetchPrices = useCallback(async () => {
+    if (coins.length === 0) return
+    const results: Record<string, number> = {}
+    await Promise.allSettled(
+      coins.map(async (coin) => {
+        try {
+          const res = await hyperliquidApiGet<{ price?: number }>(`/api/hyperliquid/market/price/${coin}`)
+          if (res.price != null) results[coin] = res.price
+        } catch { /* ignore */ }
+      }),
+    )
+    if (Object.keys(results).length > 0) {
+      setPrices((prev) => ({ ...prev, ...results }))
+    }
+  }, [coins.join(',')])  // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!enabled || coins.length === 0) return
+    fetchPrices()
+    intervalRef.current = setInterval(fetchPrices, 5_000)
+    return () => {
+      if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null }
+    }
+  }, [enabled, fetchPrices, coins.length])
+
+  return prices
+}
+
+// ── 实时更新指示 ──
+
+function LiveDot() {
+  return (
+    <span className='relative flex h-1.5 w-1.5'>
+      <span className='animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75' />
+      <span className='relative inline-flex rounded-full h-1.5 w-1.5 bg-green-500' />
+    </span>
+  )
+}
+
+/** 值变化时短暂闪烁 */
+function useLiveFlash(value: unknown): boolean {
+  const prevRef = useRef(value)
+  const [flash, setFlash] = useState(false)
+  useEffect(() => {
+    if (prevRef.current !== value && value != null) {
+      setFlash(true)
+      const t = setTimeout(() => setFlash(false), 600)
+      prevRef.current = value
+      return () => clearTimeout(t)
+    }
+    prevRef.current = value
+  }, [value])
+  return flash
+}
+
 // ── Job 行 ──
 
 function JobRow({
-  job, trackerTasks, logs, tradeLogs, onFetchLogs, promptTemplates, onStart, onPause, onDelete, onReset, onSettings,
+  job, trackerTasks, livePrice, logs, tradeLogs, onFetchLogs, promptTemplates, onStart, onPause, onDelete, onReset, onSettings,
 }: {
   job: StrategyBotJob
   trackerTasks: BacktestTrackerTask[]
+  livePrice?: number
   logs: BotLog[]
   tradeLogs: BotLog[]
   onFetchLogs: () => void
@@ -806,10 +879,29 @@ function JobRow({
   const openTask = job.has_open_position && job.open_task_id
     ? trackerTasks.find((t) => t.id === job.open_task_id && t.status === 'running')
     : null
-  const floatingPnl = openTask ? calcPnl(openTask) : null
+
+  // 优先使用实时价格，fallback 到 tracker 缓存价
+  const currentPrice = livePrice ?? openTask?.last_tracked_price ?? null
+
+  // 用实时价重新计算浮动盈亏（而非依赖 tracker 缓存的 PnL）
+  const floatingPnl = (() => {
+    if (!openTask || !currentPrice || !openTask.entry_price || !openTask.entry_direction) return null
+    const change = (currentPrice - openTask.entry_price) / openTask.entry_price
+    const positionValue = openTask.test_amount * openTask.test_leverage
+    const grossPnl = openTask.entry_direction === 'long' ? change * positionValue : -change * positionValue
+    const feeRate = 0.000410
+    const fee = positionValue * feeRate * 2
+    return grossPnl - fee
+  })()
   const floatingRoi = floatingPnl != null && openTask && openTask.test_amount > 0
     ? (floatingPnl / openTask.test_amount) * 100
     : null
+
+  // 实时闪烁效果
+  const priceFlash = useLiveFlash(currentPrice)
+  const balanceFlash = useLiveFlash(balance)
+  const pnlFlash = useLiveFlash(floatingPnl != null ? Math.round(floatingPnl * 100) : null)
+  const isLive = job.status === 'running'
 
   // 匹配当前使用的策略模板名称
   const matchedTemplate = job.custom_system_prompt
@@ -871,7 +963,10 @@ function JobRow({
         {/* 3. 账户资产 */}
         <TableCell>
           <div className='flex flex-col'>
-            <span className='text-xs font-mono font-medium'>${balance.toFixed(2)}</span>
+            <span className={`text-xs font-mono font-medium flex items-center gap-1 transition-colors duration-300 ${balanceFlash ? 'text-blue-500' : ''}`}>
+              ${balance.toFixed(2)}
+              {isLive && <LiveDot />}
+            </span>
             <span className='text-[10px] font-mono text-muted-foreground'>初始 ${initialBalance.toFixed(0)}</span>
             {pnlFromBalance !== 0 && (
               <span className={`text-[10px] font-mono ${pnlFromBalance >= 0 ? 'text-green-500' : 'text-red-500'}`}>
@@ -927,8 +1022,11 @@ function JobRow({
 
         {/* 6. 当前现价 */}
         <TableCell>
-          {openTask?.last_tracked_price != null ? (
-            <span className='text-xs font-mono'>{fmtPrice(openTask.last_tracked_price)}</span>
+          {currentPrice != null || livePrice != null ? (
+            <span className={`text-xs font-mono flex items-center gap-1 transition-colors duration-300 ${priceFlash ? 'text-yellow-500' : ''}`}>
+              {fmtPrice(currentPrice ?? livePrice!)}
+              {isLive && <LiveDot />}
+            </span>
           ) : (
             <span className='text-xs text-muted-foreground'>-</span>
           )}
@@ -961,7 +1059,7 @@ function JobRow({
             )}
             {/* 浮动盈亏 */}
             {floatingPnl != null && (
-              <div className='flex items-center gap-1'>
+              <div className={`flex items-center gap-1 transition-colors duration-300 ${pnlFlash ? 'brightness-150' : ''}`}>
                 <span className={`text-[10px] font-mono ${floatingPnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                   浮动 {floatingPnl >= 0 ? '+' : ''}${floatingPnl.toFixed(2)}
                 </span>
@@ -970,6 +1068,7 @@ function JobRow({
                     ({floatingRoi >= 0 ? '+' : ''}{floatingRoi.toFixed(1)}%)
                   </span>
                 )}
+                {isLive && <LiveDot />}
               </div>
             )}
           </div>
