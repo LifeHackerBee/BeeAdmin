@@ -201,6 +201,7 @@ function CreateBotDialog({
   const [autoTrade, setAutoTrade] = useState(true)
   const [balance, setBalance] = useState(isLive ? 50 : 20000)
   const [maxOrderUsd, setMaxOrderUsd] = useState(50)
+  const [minRr, setMinRr] = useState(1.5)
   const [creating, setCreating] = useState(false)
   const strategyPrompts = useStrategyPrompts()
   const [selectedStrategyId, setSelectedStrategyId] = useState<string>('_default')
@@ -220,6 +221,7 @@ function CreateBotDialog({
         auto_trade: autoTrade,
         account_balance: balance,
         mode,
+        min_rr_ratio: minRr,
         ...(isLive ? { max_order_usd: maxOrderUsd } : {}),
         ...(selectedPrompt ? {
           custom_system_prompt: selectedPrompt.system_prompt,
@@ -338,6 +340,20 @@ function CreateBotDialog({
               max={3600}
             />
             <p className='text-[10px] text-muted-foreground'>大镖客策略分析较慢，建议 120s 以上</p>
+          </div>
+          <div className='space-y-1'>
+            <Label>最低盈亏比 (R:R)</Label>
+            <Input
+              type='number'
+              value={minRr}
+              onChange={(e) => setMinRr(Number(e.target.value))}
+              min={0}
+              max={10}
+              step={0.1}
+            />
+            <p className='text-[10px] text-muted-foreground'>
+              {minRr > 0 ? `盈亏比 < ${minRr}:1 时自动调整止盈或拒绝开仓` : '关闭盈亏比检查'}
+            </p>
           </div>
           <div className='flex items-center gap-2'>
             <Switch id='auto-trade' checked={autoTrade} onCheckedChange={setAutoTrade} />
@@ -1219,6 +1235,7 @@ function BotSettingsDialog({
   const [userPrompt, setUserPrompt] = useState(job.custom_user_prompt ?? '')
   const [tpPct, setTpPct] = useState(job.tp_pct != null && job.tp_pct > 0 ? String(job.tp_pct) : '')
   const [slPct, setSlPct] = useState(job.sl_pct != null && job.sl_pct > 0 ? String(job.sl_pct) : '')
+  const [minRrRatio, setMinRrRatio] = useState(String(job.min_rr_ratio ?? 1.5))
   const [saving, setSaving] = useState(false)
   const [defaults, setDefaults] = useState<DefaultPrompts | null>(null)
   const [loadingDefaults, setLoadingDefaults] = useState(false)
@@ -1247,11 +1264,13 @@ function BotSettingsDialog({
     try {
       const tp = parseFloat(tpPct) || 0
       const sl = parseFloat(slPct) || 0
+      const rr = parseFloat(minRrRatio)
       await onSave({
         custom_system_prompt: systemPrompt.trim() || null,
         custom_user_prompt: userPrompt.trim() || null,
         tp_pct: tp > 0 ? tp : 0,
         sl_pct: sl > 0 ? sl : 0,
+        min_rr_ratio: rr >= 0 ? rr : 1.5,
       })
     } catch {
       // error handled by hook
@@ -1572,12 +1591,29 @@ function BotSettingsDialog({
                       <p className='text-[10px] text-muted-foreground'>留空或设为 0 则使用 AI 自行判断止损点位</p>
                     )}
                   </div>
+                  <div className='space-y-1 pt-2 border-t'>
+                    <Label>最低盈亏比 (R:R)</Label>
+                    <Input
+                      type='number'
+                      value={minRrRatio}
+                      onChange={(e) => setMinRrRatio(e.target.value)}
+                      min={0}
+                      max={10}
+                      step={0.1}
+                      placeholder='1.5'
+                    />
+                    <p className='text-[10px] text-muted-foreground'>
+                      {parseFloat(minRrRatio) > 0
+                        ? `开仓前校验盈亏比 >= ${minRrRatio}:1，不满足则自动调整止盈或拒绝交易`
+                        : '设为 0 则关闭盈亏比检查，完全信任 AI 信号'}
+                    </p>
+                  </div>
                   {tp > 0 && sl > 0 && (
                     <Alert>
                       <AlertDescription className='text-xs'>
                         盈亏比: {(tp / sl).toFixed(2)}:1
-                        {tp / sl < 1.5 && (
-                          <span className='text-yellow-500 ml-2'>（低于推荐的 1.5:1）</span>
+                        {tp / sl < (parseFloat(minRrRatio) || 1.5) && (
+                          <span className='text-yellow-500 ml-2'>（低于设定的 {parseFloat(minRrRatio) || 1.5}:1）</span>
                         )}
                         <span className='text-muted-foreground ml-2'>
                           | 止盈 +${(bal * tp / 100).toFixed(0)} / 止损 -${(bal * sl / 100).toFixed(0)}

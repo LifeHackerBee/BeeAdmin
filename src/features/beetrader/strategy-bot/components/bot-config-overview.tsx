@@ -23,8 +23,10 @@ export function BotConfigOverview({
   const defaultAgent = agentPrompts.find((p) => p.is_default)
   const hasStrategy = !!defaultStrategy?.system_prompt
   const hasAgent = !!defaultAgent?.system_prompt
-  const tradeTools = AGENT_TOOLS.filter((t) => t.category === 'trade').length
-  const infoTools = AGENT_TOOLS.filter((t) => t.category === 'info').length
+  const enabledToolNames = defaultAgent?.enabled_tools ?? null
+  const enabledCount = enabledToolNames ? enabledToolNames.length : AGENT_TOOLS.length
+  const tradeTools = AGENT_TOOLS.filter((t) => t.category === 'trade' && (!enabledToolNames || enabledToolNames.includes(t.name))).length
+  const infoTools = AGENT_TOOLS.filter((t) => t.category === 'info' && (!enabledToolNames || enabledToolNames.includes(t.name))).length
 
   return (
     <Card>
@@ -108,7 +110,7 @@ export function BotConfigOverview({
               )}
               <div className='flex items-center gap-2 text-[10px]'>
                 <Badge variant='secondary' className='text-[10px] px-1 py-0 h-4'>
-                  {AGENT_TOOLS.length} tools
+                  {enabledCount}/{AGENT_TOOLS.length} tools
                 </Badge>
                 <span className='text-muted-foreground'>
                   {tradeTools} 交易 · {infoTools} 查询

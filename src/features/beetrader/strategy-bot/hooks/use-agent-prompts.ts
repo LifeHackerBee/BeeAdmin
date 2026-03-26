@@ -7,6 +7,8 @@ export interface AgentPrompt {
   description: string
   system_prompt: string
   is_default: boolean
+  enabled_tools: string[] | null  // null = 全部启用
+  min_rr_ratio: number | null     // null = 使用默认 1.5
   created_at: string
   updated_at: string
 }
@@ -78,7 +80,7 @@ export function useAgentPrompts(enabled: boolean = true) {
     fetchPrompts()
   }, [enabled, fetchPrompts])
 
-  const createPrompt = useCallback(async (data: { name: string; description?: string; system_prompt: string; is_default?: boolean }) => {
+  const createPrompt = useCallback(async (data: { name: string; description?: string; system_prompt: string; is_default?: boolean; enabled_tools?: string[] | null; min_rr_ratio?: number | null }) => {
     const res = await apiPost<{ success: boolean; data: AgentPrompt }>('/api/agent_prompts', data)
     if (res.success) {
       await fetchPrompts()
@@ -87,7 +89,7 @@ export function useAgentPrompts(enabled: boolean = true) {
     return null
   }, [fetchPrompts])
 
-  const updatePrompt = useCallback(async (id: number, data: { name?: string; description?: string; system_prompt?: string }) => {
+  const updatePrompt = useCallback(async (id: number, data: { name?: string; description?: string; system_prompt?: string; enabled_tools?: string[] | null; min_rr_ratio?: number | null }) => {
     const res = await apiPatch<{ success: boolean; data: AgentPrompt }>(`/api/agent_prompts/${id}`, data)
     if (res.success) {
       await fetchPrompts()

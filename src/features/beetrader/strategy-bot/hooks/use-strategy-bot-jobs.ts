@@ -38,6 +38,7 @@ export interface StrategyBotJob {
   taker_fee_rate: number
   maker_fee_rate: number
   max_order_usd: number
+  min_rr_ratio: number
   scale_in_count: number
   scale_out_count: number
   created_at: string
@@ -54,6 +55,7 @@ export interface UpdateBotJobData {
   taker_fee_rate?: number
   maker_fee_rate?: number
   max_order_usd?: number
+  min_rr_ratio?: number
 }
 
 export interface CreateBotJobData {
@@ -65,6 +67,7 @@ export interface CreateBotJobData {
   taker_fee_rate?: number
   maker_fee_rate?: number
   max_order_usd?: number
+  min_rr_ratio?: number
   // 前端扩展: 创建后自动 PATCH 到 job
   custom_system_prompt?: string | null
   custom_user_prompt?: string | null

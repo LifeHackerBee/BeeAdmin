@@ -1,7 +1,8 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { Switch } from '@/components/ui/switch'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
@@ -9,12 +10,22 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
-import { Bot, Send, RotateCcw, Star, Loader2, Wrench, User, AlertCircle } from 'lucide-react'
-import { hyperliquidApiGet } from '@/lib/hyperliquid-api-client'
+import {
+  Collapsible, CollapsibleContent, CollapsibleTrigger,
+} from '@/components/ui/collapsible'
+import { Bot, Send, RotateCcw, Star, Loader2, Wrench, User, AlertCircle, ChevronDown, ChevronRight } from 'lucide-react'
 import type { AgentPrompt } from '../hooks/use-agent-prompts'
 import { AGENT_TOOLS } from './agent-config-dialog'
 
-interface ToolCall {
+const ALL_TOOL_NAMES = AGENT_TOOLS.map((t) => t.name)
+
+const CATEGORY_STYLE: Record<string, { dot: string; label: string }> = {
+  info: { dot: 'bg-green-500', label: '查询' },
+  trade: { dot: 'bg-blue-500', label: '交易' },
+  control: { dot: 'bg-gray-500', label: '控制' },
+}
+
+interface ToolCallItem {
   name: string
   args: Record<string, unknown>
   result?: unknown
@@ -24,165 +35,10 @@ interface ChatMessage {
   id: string
   role: 'user' | 'assistant' | 'tool'
   content: string
-  toolCalls?: ToolCall[]
+  toolCalls?: ToolCallItem[]
+  rounds?: number
   timestamp: Date
   error?: boolean
-}
-
-// 模拟 tool 执行结果
-async function executeToolCall(name: string, args: Record<string, unknown>, coin: string): Promise<unknown> {
-  const baseUrl = import.meta.env.VITE_HYPERLIQUID_TRADER_API_URL || 'http://localhost:8000'
-  const apiKey = import.meta.env.VITE_HYPERLIQUID_TRADER_API_KEY
-
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-  if (apiKey) headers['X-API-Key'] = apiKey
-
-  switch (name) {
-    case 'get_current_price': {
-      const c = (args.coin as string) || coin
-      try {
-        const res = await fetch(`${baseUrl}/api/hyperliquid/market/price/${c}`, { headers })
-        const data = await res.json()
-        return { coin: c, price: data.price ?? 'N/A' }
-      } catch {
-        return { error: `无法获取 ${c} 价格` }
-      }
-    }
-    case 'get_ai_strategy':
-    case 'get_today_strategy':
-    case 'get_strategy_1h':
-    case 'get_strategy_4h': {
-      const c = (args.coin as string) || coin
-      const periodMap: Record<string, string> = {
-        get_ai_strategy: 'latest', get_today_strategy: 'today',
-        get_strategy_1h: '1h', get_strategy_4h: '4h',
-      }
-      const period = periodMap[name] || 'latest'
-      try {
-        const res = await fetch(`${baseUrl}/api/beetrader_strategy/history/query/${period}?coin=${c}`, { headers })
-        const data = await res.json()
-        if (data.success && data.record) {
-          const rec = data.record
-          return {
-            coin: c, period, created_at: rec.created_at,
-            current_price: rec.strategy_data?.current_price,
-            ai_signal: rec.ai_signal,
-            strategy: rec.strategy_data?.strategy,
-            timeframe_status: rec.strategy_data?.timeframe_status,
-          }
-        }
-        return { info: `${c} 在 ${period} 时段暂无分析记录` }
-      } catch {
-        return { error: `获取 ${period} 策略失败` }
-      }
-    }
-    case 'refresh_strategy': {
-      const c = (args.coin as string) || coin
-      try {
-        const res = await fetch(`${baseUrl}/api/beetrader_strategy/analyze/fresh?coin=${c}`, { headers })
-        const data = await res.json()
-        if (data.success && data.data) {
-          const d = data.data
-          return {
-            coin: c,
-            source: 'fresh',
-            current_price: d.current_price,
-            timeframe_status: d.timeframe_status,
-            strategy: d.strategy,
-            staircase_pattern: d.staircase_pattern,
-            bull_bear_line: d.bull_bear_line,
-            volume_analysis: d.volume_analysis,
-          }
-        }
-        return { error: data.error || '强制分析失败' }
-      } catch {
-        return { error: `强制分析 ${c} 失败` }
-      }
-    }
-    case 'get_position': {
-      try {
-        const res = await hyperliquidApiGet<{ success: boolean; data?: unknown }>(`/api/strategy_bot/jobs`)
-        const jobs = (res as { jobs?: { coin: string; has_open_position?: boolean; open_task_id?: number }[] }).jobs ?? []
-        const job = jobs.find((j: { coin: string }) => j.coin === coin)
-        if (!job) return { has_position: false, coin }
-        return {
-          coin,
-          has_position: job.has_open_position ?? false,
-          open_task_id: job.open_task_id,
-        }
-      } catch {
-        return { error: '获取持仓信息失败' }
-      }
-    }
-    case 'get_account_balance': {
-      try {
-        const res = await hyperliquidApiGet<{ success: boolean; data?: unknown }>(`/api/strategy_bot/jobs`)
-        const jobs = (res as { jobs?: { coin: string; account_balance?: number; account_initial_balance?: number; total_pnl?: number }[] }).jobs ?? []
-        const job = jobs.find((j: { coin: string }) => j.coin === coin)
-        if (!job) return { error: `未找到 ${coin} 机器人` }
-        return {
-          coin,
-          balance: job.account_balance,
-          initial_balance: job.account_initial_balance,
-          total_pnl: job.total_pnl,
-        }
-      } catch {
-        return { error: '获取账户余额失败' }
-      }
-    }
-    case 'wait':
-      return { status: 'waiting', reason: args.reason || '观望中' }
-    case 'open_long':
-    case 'open_short':
-    case 'close_position':
-    case 'add_position':
-    case 'reduce_position':
-    case 'place_limit_order':
-    case 'cancel_order':
-      return { status: 'simulated', action: name, args, note: '测试模式 — 未执行真实交易' }
-    case 'get_liquidation_price':
-      return { liquidation_price: null, note: '模拟模式无强平价' }
-    case 'get_timeframe_status': {
-      const c = (args.coin as string) || coin
-      try {
-        const res = await fetch(`${baseUrl}/api/beetrader_strategy/strategy-modules/${c}?modules=timeframe_status`, { headers })
-        const data = await res.json()
-        if (data.success) return { coin: c, current_price: data.current_price, cache_age_minutes: data.cache_age_minutes, ...data.modules.timeframe_status }
-        return { error: data.error || '获取多周期状态失败' }
-      } catch { return { error: `无法获取 ${c} 多周期状态` } }
-    }
-    case 'get_staircase_pattern': {
-      const c = (args.coin as string) || coin
-      try {
-        const res = await fetch(`${baseUrl}/api/beetrader_strategy/strategy-modules/${c}?modules=staircase_pattern`, { headers })
-        const data = await res.json()
-        if (data.success) return { coin: c, current_price: data.current_price, cache_age_minutes: data.cache_age_minutes, ...data.modules.staircase_pattern }
-        return { error: data.error || '获取阶梯形态失败' }
-      } catch { return { error: `无法获取 ${c} 阶梯形态` } }
-    }
-    case 'get_resonance_analysis': {
-      const c = (args.coin as string) || coin
-      try {
-        const res = await fetch(`${baseUrl}/api/beetrader_strategy/strategy-modules/${c}?modules=strategy`, { headers })
-        const data = await res.json()
-        if (data.success) return { coin: c, current_price: data.current_price, cache_age_minutes: data.cache_age_minutes, ...data.modules.strategy }
-        return { error: data.error || '获取共振分析失败' }
-      } catch { return { error: `无法获取 ${c} 共振分析` } }
-    }
-    case 'get_market_indicators': {
-      const c = (args.coin as string) || coin
-      const tfs = (args.timeframes as string) || '5m,15m,1h'
-      try {
-        const res = await fetch(`${baseUrl}/api/hyperliquid/market/indicators/${c}?timeframes=${encodeURIComponent(tfs)}`, { headers })
-        const data = await res.json()
-        return data.success ? { coin: c, timeframes: data.timeframes } : { error: data.detail || '获取指标失败' }
-      } catch {
-        return { error: `无法获取 ${c} 指标数据` }
-      }
-    }
-    default:
-      return { error: `未知 tool: ${name}` }
-  }
 }
 
 interface Props {
@@ -198,27 +54,62 @@ export function AgentTestDialog({ open, onOpenChange, prompts, defaultCoin = 'BT
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const [toolsPanelOpen, setToolsPanelOpen] = useState(false)
+  const [enabledTools, setEnabledTools] = useState<Set<string>>(new Set(ALL_TOOL_NAMES))
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
+  const currentPrompt = prompts.find((p) => p.id === selectedId)
+
+  // 选择 Agent 模板时同步其 enabled_tools
   useEffect(() => {
     if (!open) return
     const def = prompts.find((p) => p.is_default)
-    if (def) setSelectedId(def.id)
+    if (def) {
+      setSelectedId(def.id)
+      setEnabledTools(new Set(def.enabled_tools ?? ALL_TOOL_NAMES))
+    }
   }, [open, prompts])
+
+  const handleSelectPrompt = useCallback((v: string) => {
+    const id = Number(v)
+    setSelectedId(id)
+    const p = prompts.find((x) => x.id === id)
+    if (p) setEnabledTools(new Set(p.enabled_tools ?? ALL_TOOL_NAMES))
+  }, [prompts])
 
   useEffect(() => {
     if (open) setCoin(defaultCoin)
   }, [open, defaultCoin])
 
-  // 自动滚到底部
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-    }
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
   }, [messages])
 
-  const currentPrompt = prompts.find((p) => p.id === selectedId)
+  const toggleTool = useCallback((name: string) => {
+    setEnabledTools((prev) => {
+      const next = new Set(prev)
+      if (next.has(name)) next.delete(name); else next.add(name)
+      return next
+    })
+  }, [])
+
+  const toggleCategory = useCallback((category: string) => {
+    const catTools = AGENT_TOOLS.filter((t) => t.category === category).map((t) => t.name)
+    setEnabledTools((prev) => {
+      const next = new Set(prev)
+      const allOn = catTools.every((n) => next.has(n))
+      catTools.forEach((n) => allOn ? next.delete(n) : next.add(n))
+      return next
+    })
+  }, [])
+
+  const toolStats = useMemo(() => ({
+    enabled: enabledTools.size,
+    total: ALL_TOOL_NAMES.length,
+  }), [enabledTools])
+
+  const enabledToolNames = useMemo(() => Array.from(enabledTools), [enabledTools])
 
   const handleSend = useCallback(async () => {
     const text = input.trim()
@@ -226,120 +117,75 @@ export function AgentTestDialog({ open, onOpenChange, prompts, defaultCoin = 'BT
     setInput('')
 
     const userMsg: ChatMessage = {
-      id: crypto.randomUUID(),
-      role: 'user',
-      content: text,
-      timestamp: new Date(),
+      id: crypto.randomUUID(), role: 'user', content: text, timestamp: new Date(),
     }
     setMessages((prev) => [...prev, userMsg])
     setLoading(true)
 
     try {
-      // 调用后端 Agent 测试接口 (如果存在)，否则用前端模拟
-      const agentPromptText = currentPrompt?.system_prompt || ''
-      const systemText = agentPromptText || `你是交易执行 Agent。根据用户指令和市场数据决定交易操作。可用 tools: ${AGENT_TOOLS.map((t) => t.name).join(', ')}`
-
       const baseUrl = import.meta.env.VITE_HYPERLIQUID_TRADER_API_URL || 'http://localhost:8000'
       const apiKey = import.meta.env.VITE_HYPERLIQUID_TRADER_API_KEY
       const headers: Record<string, string> = { 'Content-Type': 'application/json' }
       if (apiKey) headers['X-API-Key'] = apiKey
 
-      // 尝试调用后端 agent/test 端点
-      let agentResponse: { content?: string; tool_calls?: { name: string; args: Record<string, unknown> }[]; error?: string } | null = null
-      try {
-        const res = await fetch(`${baseUrl}/api/strategy_bot/agent/test`, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            message: text,
-            coin,
-            system_prompt: systemText,
-            history: messages.filter((m) => m.role !== 'tool').slice(-10).map((m) => ({
-              role: m.role,
-              content: m.content,
-            })),
-          }),
-        })
-        if (res.ok) {
-          agentResponse = await res.json()
-        }
-      } catch {
-        // 后端未部署 agent/test 端点，用前端模拟
+      const systemText = currentPrompt?.system_prompt || ''
+      const minRr = currentPrompt?.min_rr_ratio ?? 1.5
+
+      // 构建历史（只传 user / assistant，不传 tool）
+      const history = messages
+        .filter((m) => m.role !== 'tool')
+        .slice(-10)
+        .map((m) => ({ role: m.role, content: m.content }))
+
+      const res = await fetch(`${baseUrl}/api/strategy_bot/agent/chat`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          message: text,
+          coin,
+          system_prompt: systemText || undefined,
+          enabled_tools: enabledToolNames,
+          history,
+          min_rr_ratio: minRr,
+        }),
+      })
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: res.statusText }))
+        throw new Error(String(err.detail || err.error || `HTTP ${res.status}`))
       }
 
-      if (agentResponse && !agentResponse.error) {
-        // 后端返回了 agent 响应
-        const toolCalls = (agentResponse.tool_calls || []).map((tc) => ({
-          name: tc.name,
-          args: tc.args,
-        }))
+      const data: { content: string; tool_calls: ToolCallItem[]; rounds: number } = await res.json()
 
-        // 执行 tool calls 获取结果
-        const executedToolCalls: ToolCall[] = []
-        for (const tc of toolCalls) {
-          const result = await executeToolCall(tc.name, tc.args, coin)
-          executedToolCalls.push({ ...tc, result })
-        }
-
-        if (executedToolCalls.length > 0) {
-          const toolMsg: ChatMessage = {
-            id: crypto.randomUUID(),
-            role: 'tool',
-            content: executedToolCalls.map((tc) =>
-              `🔧 ${tc.name}(${Object.keys(tc.args).length > 0 ? JSON.stringify(tc.args) : ''})\n→ ${JSON.stringify(tc.result, null, 2)}`
-            ).join('\n\n'),
-            toolCalls: executedToolCalls,
-            timestamp: new Date(),
-          }
-          setMessages((prev) => [...prev, toolMsg])
-        }
-
-        const assistantMsg: ChatMessage = {
+      // 渲染 tool calls（如果有）
+      if (data.tool_calls && data.tool_calls.length > 0) {
+        const toolMsg: ChatMessage = {
           id: crypto.randomUUID(),
-          role: 'assistant',
-          content: agentResponse.content || '(无文本响应)',
+          role: 'tool',
+          content: data.tool_calls.map((tc) =>
+            `🔧 ${tc.name}(${Object.keys(tc.args).length > 0 ? JSON.stringify(tc.args) : ''})\n→ ${JSON.stringify(tc.result, null, 2)}`
+          ).join('\n\n'),
+          toolCalls: data.tool_calls,
           timestamp: new Date(),
         }
-        setMessages((prev) => [...prev, assistantMsg])
-      } else {
-        // 前端模拟模式：根据关键词模拟 tool call
-        const simulatedCalls = simulateToolCalls(text, coin)
-
-        if (simulatedCalls.length > 0) {
-          const executedToolCalls: ToolCall[] = []
-          for (const tc of simulatedCalls) {
-            const result = await executeToolCall(tc.name, tc.args, coin)
-            executedToolCalls.push({ ...tc, result })
-          }
-
-          const toolMsg: ChatMessage = {
-            id: crypto.randomUUID(),
-            role: 'tool',
-            content: executedToolCalls.map((tc) =>
-              `🔧 ${tc.name}(${Object.keys(tc.args).length > 0 ? JSON.stringify(tc.args) : ''})\n→ ${JSON.stringify(tc.result, null, 2)}`
-            ).join('\n\n'),
-            toolCalls: executedToolCalls,
-            timestamp: new Date(),
-          }
-          setMessages((prev) => [...prev, toolMsg])
-        }
-
-        const assistantMsg: ChatMessage = {
-          id: crypto.randomUUID(),
-          role: 'assistant',
-          content: agentResponse?.error
-            ? `⚠️ 后端 Agent 测试端点未就绪，使用前端模拟模式。\n\n${generateSimulatedResponse(text, simulatedCalls)}`
-            : generateSimulatedResponse(text, simulatedCalls),
-          timestamp: new Date(),
-          error: !!agentResponse?.error,
-        }
-        setMessages((prev) => [...prev, assistantMsg])
+        setMessages((prev) => [...prev, toolMsg])
       }
+
+      // 渲染 assistant 最终回复
+      const assistantMsg: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: data.content || '(无文本响应)',
+        rounds: data.rounds,
+        timestamp: new Date(),
+      }
+      setMessages((prev) => [...prev, assistantMsg])
+
     } catch (err) {
       const errorMsg: ChatMessage = {
         id: crypto.randomUUID(),
         role: 'assistant',
-        content: `执行出错: ${err instanceof Error ? err.message : String(err)}`,
+        content: `Agent 调用失败: ${err instanceof Error ? err.message : String(err)}`,
         timestamp: new Date(),
         error: true,
       }
@@ -348,7 +194,7 @@ export function AgentTestDialog({ open, onOpenChange, prompts, defaultCoin = 'BT
       setLoading(false)
       inputRef.current?.focus()
     }
-  }, [input, loading, coin, currentPrompt, messages])
+  }, [input, loading, coin, currentPrompt, messages, enabledToolNames])
 
   const handleReset = () => {
     setMessages([])
@@ -371,7 +217,7 @@ export function AgentTestDialog({ open, onOpenChange, prompts, defaultCoin = 'BT
             交易执行 Agent 测试
           </DialogTitle>
           <div className='flex items-center gap-2 mt-1'>
-            <Select value={selectedId?.toString() ?? ''} onValueChange={(v) => setSelectedId(Number(v))}>
+            <Select value={selectedId?.toString() ?? ''} onValueChange={handleSelectPrompt}>
               <SelectTrigger className='h-7 text-[10px] w-[160px]'>
                 <SelectValue placeholder='选择配置...' />
               </SelectTrigger>
@@ -392,13 +238,84 @@ export function AgentTestDialog({ open, onOpenChange, prompts, defaultCoin = 'BT
               className='h-7 text-[10px] w-[80px] font-mono'
               placeholder='BTC'
             />
-            <Badge variant={currentPrompt?.system_prompt ? 'default' : 'secondary'} className='text-[10px] px-1.5 py-0'>
-              {currentPrompt?.system_prompt ? 'Agent 已配置' : '模拟模式'}
+            <Badge variant='default' className='text-[10px] px-1.5 py-0'>
+              OpenAI Agent
             </Badge>
             <Button variant='ghost' size='sm' className='h-7 text-[10px] ml-auto gap-1' onClick={handleReset}>
               <RotateCcw className='h-3 w-3' /> 清空
             </Button>
           </div>
+
+          {/* Tools 选择面板 */}
+          <Collapsible open={toolsPanelOpen} onOpenChange={setToolsPanelOpen} className='mt-1'>
+            <CollapsibleTrigger asChild>
+              <button className='flex items-center gap-1.5 text-[10px] text-muted-foreground hover:text-foreground transition-colors w-full py-1'>
+                {toolsPanelOpen ? <ChevronDown className='h-3 w-3' /> : <ChevronRight className='h-3 w-3' />}
+                <Wrench className='h-3 w-3' />
+                <span>可用 Tools</span>
+                <Badge variant='outline' className='text-[10px] px-1 py-0 h-4'>
+                  {toolStats.enabled}/{toolStats.total}
+                </Badge>
+                {toolStats.enabled < toolStats.total && (
+                  <span className='text-yellow-500'>({toolStats.total - toolStats.enabled} 已禁用)</span>
+                )}
+              </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className='border rounded-md p-2 mt-1 space-y-1.5 max-h-[200px] overflow-y-auto'>
+                <div className='flex items-center gap-1 pb-1 border-b'>
+                  <Button variant='ghost' size='sm' className='h-5 text-[10px] px-1.5' onClick={() => setEnabledTools(new Set(ALL_TOOL_NAMES))}>
+                    全选
+                  </Button>
+                  <Button variant='ghost' size='sm' className='h-5 text-[10px] px-1.5' onClick={() => setEnabledTools(new Set())}>
+                    全不选
+                  </Button>
+                  {currentPrompt?.enabled_tools && (
+                    <Button variant='ghost' size='sm' className='h-5 text-[10px] px-1.5' onClick={() => setEnabledTools(new Set(currentPrompt.enabled_tools ?? ALL_TOOL_NAMES))}>
+                      同步配置
+                    </Button>
+                  )}
+                </div>
+
+                {(['info', 'trade', 'control'] as const).map((cat) => {
+                  const catTools = AGENT_TOOLS.filter((t) => t.category === cat)
+                  const style = CATEGORY_STYLE[cat]
+                  const allOn = catTools.every((t) => enabledTools.has(t.name))
+                  return (
+                    <div key={cat}>
+                      <div className='flex items-center gap-1.5 py-0.5'>
+                        <Switch checked={allOn} onCheckedChange={() => toggleCategory(cat)} className='scale-[0.55]' />
+                        <span className={`inline-block w-1.5 h-1.5 rounded-full ${style.dot}`} />
+                        <span className='text-[10px] font-medium'>{style.label}</span>
+                        <span className='text-[10px] text-muted-foreground'>
+                          ({catTools.filter((t) => enabledTools.has(t.name)).length}/{catTools.length})
+                        </span>
+                      </div>
+                      <div className='flex flex-wrap gap-1 pl-6 pb-1'>
+                        {catTools.map((tool) => {
+                          const on = enabledTools.has(tool.name)
+                          return (
+                            <button
+                              key={tool.name}
+                              onClick={() => toggleTool(tool.name)}
+                              title={`${tool.desc}\n参数: ${tool.params}`}
+                              className={`text-[10px] font-mono px-1.5 py-0.5 rounded border transition-all ${
+                                on
+                                  ? 'bg-primary/10 border-primary/30 text-foreground'
+                                  : 'bg-muted/30 border-transparent text-muted-foreground/40 line-through'
+                              } hover:border-primary/50`}
+                            >
+                              {tool.name}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
         </DialogHeader>
 
         {/* 消息区域 */}
@@ -408,12 +325,13 @@ export function AgentTestDialog({ open, onOpenChange, prompts, defaultCoin = 'BT
               <div className='text-center py-12 text-muted-foreground'>
                 <Bot className='h-10 w-10 mx-auto mb-3 opacity-20' />
                 <p className='text-sm'>向 Agent 发送指令来测试 Tool Call 能力</p>
+                <p className='text-[10px] mt-1'>已启用 {toolStats.enabled} 个 Tools · 后端 OpenAI Agent 执行</p>
                 <div className='mt-3 flex flex-wrap justify-center gap-1.5'>
                   {[
-                    '查看 BTC 当前价格',
+                    `查看 ${coin} 当前价格`,
                     '分析当前市场，给出交易建议',
                     '查看持仓和账户余额',
-                    '开多 BTC，止盈 90000，止损 85000',
+                    `帮我计算 ${coin} 做多入场 87000 止盈 90000 止损 85000 的盈亏比`,
                   ].map((hint) => (
                     <button
                       key={hint}
@@ -447,7 +365,7 @@ export function AgentTestDialog({ open, onOpenChange, prompts, defaultCoin = 'BT
                   {msg.role === 'tool' && (
                     <div className='flex items-center gap-1 mb-1 text-[10px] text-orange-600 font-medium'>
                       <Wrench className='h-2.5 w-2.5' />
-                      Tool Calls
+                      Tool Calls ({msg.toolCalls?.length ?? 0})
                     </div>
                   )}
                   {msg.error && (
@@ -457,8 +375,13 @@ export function AgentTestDialog({ open, onOpenChange, prompts, defaultCoin = 'BT
                     </div>
                   )}
                   <pre className='whitespace-pre-wrap font-mono leading-relaxed'>{msg.content}</pre>
-                  <div className='text-[10px] text-muted-foreground mt-1 text-right'>
-                    {msg.timestamp.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                  <div className='flex items-center justify-end gap-2 mt-1'>
+                    {msg.rounds != null && msg.rounds > 0 && (
+                      <span className='text-[10px] text-blue-500'>{msg.rounds} 轮 tool calls</span>
+                    )}
+                    <span className='text-[10px] text-muted-foreground'>
+                      {msg.timestamp.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                    </span>
                   </div>
                 </div>
                 {msg.role === 'user' && (
@@ -475,7 +398,7 @@ export function AgentTestDialog({ open, onOpenChange, prompts, defaultCoin = 'BT
                 </div>
                 <div className='bg-muted rounded-lg px-3 py-2 text-xs flex items-center gap-1.5'>
                   <Loader2 className='h-3 w-3 animate-spin' />
-                  Agent 思考中...
+                  Agent 执行中 (OpenAI tool-calling)...
                 </div>
               </div>
             )}
@@ -490,7 +413,7 @@ export function AgentTestDialog({ open, onOpenChange, prompts, defaultCoin = 'BT
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={`向 Agent 发送指令... (如: 查看 ${coin} 现价)`}
+              placeholder={`向 Agent 发送指令... (如: 分析 ${coin} 并给出交易建议)`}
               className='text-xs'
               disabled={loading}
             />
@@ -502,98 +425,4 @@ export function AgentTestDialog({ open, onOpenChange, prompts, defaultCoin = 'BT
       </DialogContent>
     </Dialog>
   )
-}
-
-// 前端模拟: 根据用户输入推断要调用的 tools
-function simulateToolCalls(text: string, coin: string): { name: string; args: Record<string, unknown> }[] {
-  const calls: { name: string; args: Record<string, unknown> }[] = []
-  const lower = text.toLowerCase()
-
-  if (lower.includes('价格') || lower.includes('price') || lower.includes('现价')) {
-    calls.push({ name: 'get_current_price', args: { coin } })
-  }
-  if (lower.includes('刷新') || lower.includes('强制') || lower.includes('refresh')) {
-    calls.push({ name: 'refresh_strategy', args: { coin } })
-  } else if (lower.includes('今日') || lower.includes('today') || lower.includes('当日')) {
-    calls.push({ name: 'get_today_strategy', args: { coin } })
-  } else if (lower.includes('前1小时') || lower.includes('1h') || lower.includes('一小时')) {
-    calls.push({ name: 'get_strategy_1h', args: { coin } })
-  } else if (lower.includes('前4小时') || lower.includes('4h') || lower.includes('四小时')) {
-    calls.push({ name: 'get_strategy_4h', args: { coin } })
-  } else if (lower.includes('策略') || lower.includes('信号') || lower.includes('建议')) {
-    calls.push({ name: 'get_ai_strategy', args: { coin } })
-  }
-  if (lower.includes('持仓') || lower.includes('position') || lower.includes('仓位')) {
-    calls.push({ name: 'get_position', args: {} })
-  }
-  if (lower.includes('余额') || lower.includes('账户') || lower.includes('balance') || lower.includes('资产')) {
-    calls.push({ name: 'get_account_balance', args: {} })
-  }
-  if (lower.includes('强平') || lower.includes('liquidat')) {
-    calls.push({ name: 'get_liquidation_price', args: {} })
-  }
-  if (lower.includes('macd') || lower.includes('volume') || lower.includes('成交量')) {
-    calls.push({ name: 'get_market_indicators', args: { coin, timeframes: '5m,15m,1h' } })
-  }
-  if (lower.includes('短线') || lower.includes('中线') || lower.includes('长线') || lower.includes('多周期') || lower.includes('timeframe')) {
-    calls.push({ name: 'get_timeframe_status', args: { coin } })
-  }
-  if (lower.includes('阶梯') || lower.includes('形态') || lower.includes('staircase') || lower.includes('pattern')) {
-    calls.push({ name: 'get_staircase_pattern', args: { coin } })
-  }
-  if (lower.includes('共振') || lower.includes('resonan') || lower.includes('偏向') || lower.includes('bias') || lower.includes('指标') || lower.includes('indicator')) {
-    calls.push({ name: 'get_resonance_analysis', args: { coin } })
-  }
-  if (lower.includes('开多') || lower.includes('做多') || lower.includes('buy') || lower.includes('long')) {
-    calls.push({ name: 'open_long', args: { entry_price: 'market', take_profit: 0, stop_loss: 0 } })
-  }
-  if (lower.includes('开空') || lower.includes('做空') || lower.includes('sell') || lower.includes('short')) {
-    calls.push({ name: 'open_short', args: { entry_price: 'market', take_profit: 0, stop_loss: 0 } })
-  }
-  if (lower.includes('平仓') || lower.includes('close')) {
-    calls.push({ name: 'close_position', args: {} })
-  }
-  if (lower.includes('加仓') || lower.includes('add')) {
-    calls.push({ name: 'add_position', args: { scale_ratio: 0.5 } })
-  }
-  if (lower.includes('减仓') || lower.includes('reduce')) {
-    calls.push({ name: 'reduce_position', args: { scale_ratio: 0.5 } })
-  }
-
-  // 默认: 如果没匹配到任何 tool，至少获取价格
-  if (calls.length === 0) {
-    calls.push({ name: 'get_current_price', args: { coin } })
-  }
-
-  return calls
-}
-
-function generateSimulatedResponse(_text: string, toolCalls: { name: string; args: Record<string, unknown> }[]): string {
-  const toolNames = toolCalls.map((tc) => tc.name)
-  const parts: string[] = []
-
-  if (toolNames.includes('open_long') || toolNames.includes('open_short')) {
-    parts.push('📋 已模拟执行交易指令（测试模式，未实际下单）。')
-  }
-  if (toolNames.includes('get_ai_strategy')) {
-    parts.push('已获取最新 AI 策略信号，请查看上方 Tool Call 返回数据。')
-  }
-  if (toolNames.includes('get_current_price')) {
-    parts.push('已查询实时价格。')
-  }
-  if (toolNames.includes('get_position') || toolNames.includes('get_account_balance')) {
-    parts.push('已查询账户/持仓状态。')
-  }
-  if (toolNames.includes('close_position')) {
-    parts.push('📋 已模拟平仓（测试模式）。')
-  }
-  if (toolNames.includes('wait')) {
-    parts.push('当前建议观望，暂不执行交易。')
-  }
-
-  if (parts.length === 0) {
-    parts.push('已处理您的请求。')
-  }
-
-  return parts.join('\n')
 }
