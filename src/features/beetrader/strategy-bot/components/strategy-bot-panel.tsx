@@ -1,7 +1,5 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { useStrategyBotJobs, type StrategyBotJob, type UpdateBotJobData, type DefaultPrompts, type BotMode, type CreateBotJobData } from '../hooks/use-strategy-bot-jobs'
-import { useBotSignalTasks, type BacktestTrackerTask } from '../hooks/use-bot-signal-tasks'
-import { hyperliquidApiGet } from '@/lib/hyperliquid-api-client'
 import { useBotLogs, type BotLog } from '../hooks/use-bot-logs'
 import { useLiveStatus } from '../hooks/use-live-status'
 import { useAgentPrompts } from '../hooks/use-agent-prompts'
@@ -116,7 +114,7 @@ function StatusBadge({ status }: { status: StrategyBotJob['status'] }) {
 
 // ── 信号详情 ──
 
-function SignalDetail({ action, confidence, signal }: { action: string | null; confidence: number | null; signal: Record<string, unknown> | null }) {
+function SignalDetail({ action, confidence: resonance, signal }: { action: string | null; confidence: number | null; signal: Record<string, unknown> | null }) {
   if (!action) return <span className='text-muted-foreground text-xs'>-</span>
 
   const Icon = action === 'long' ? TrendingUp : action === 'short' ? TrendingDown : action === 'close' ? RotateCcw : action === 'add' ? Plus : action === 'reduce' ? Minus : Minus
@@ -137,7 +135,7 @@ function SignalDetail({ action, confidence, signal }: { action: string | null; c
             <span className={`flex items-center gap-1 text-xs font-medium ${color}`}>
               <Icon className='h-3 w-3' />
               {label}
-              {confidence != null && <span className='font-mono text-[10px] opacity-70'>({confidence})</span>}
+              {resonance != null && <span className='font-mono text-[10px] opacity-70'>共振 {resonance}/10</span>}
             </span>
             {hasPrices && (
               <div className='flex flex-col mt-0.5 text-[10px] font-mono leading-tight'>
@@ -207,12 +205,17 @@ function CreateBotDialog({
   const [minRr, setMinRr] = useState(1.5)
   const [creating, setCreating] = useState(false)
   const strategyPrompts = useStrategyPrompts()
+  const agentPrompts = useAgentPrompts(open)
   const [selectedStrategyId, setSelectedStrategyId] = useState<string>('_default')
+  const [selectedAgentId, setSelectedAgentId] = useState<string>('_default')
   const [showPromptPreview, setShowPromptPreview] = useState(false)
 
   const selectedPrompt = selectedStrategyId === '_default'
     ? null
     : strategyPrompts.prompts.find((p) => p.id === Number(selectedStrategyId)) ?? null
+  const selectedAgent = selectedAgentId === '_default'
+    ? agentPrompts.defaultPrompt
+    : agentPrompts.prompts.find((p) => p.id === Number(selectedAgentId)) ?? null
 
   const handleCreate = async () => {
     if (!coin.trim()) return
@@ -230,6 +233,8 @@ function CreateBotDialog({
           custom_system_prompt: selectedPrompt.system_prompt,
           ...(selectedPrompt.user_prompt_template ? { custom_user_prompt: selectedPrompt.user_prompt_template } : {}),
         } : {}),
+        // Agent prompt 作为 custom_user_prompt 的一部分传递（或存储为独立字段）
+        // 当前架构: Agent prompt 存在 agent_prompts 表，机器人通过默认 Agent 执行
       })
       setCoin('')
       setBalance(isLive ? 50 : 20000)
@@ -296,6 +301,34 @@ function CreateBotDialog({
             )}
           </div>
 
+          {/* 交易执行 Agent 选择 */}
+          <div className='space-y-1'>
+            <Label>交易执行 Agent</Label>
+            <Select value={selectedAgentId} onValueChange={setSelectedAgentId}>
+              <SelectTrigger className='h-9 text-xs'>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value='_default'>
+                  <span className='text-xs'>默认 Agent</span>
+                </SelectItem>
+                {agentPrompts.prompts.map((p) => (
+                  <SelectItem key={p.id} value={p.id.toString()}>
+                    <span className='text-xs flex items-center gap-1'>
+                      {p.is_default && <Star className='h-3 w-3 text-yellow-500 fill-yellow-500' />}
+                      {p.name}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className='text-[10px] text-muted-foreground'>
+              {selectedAgent
+                ? selectedAgent.description || `使用「${selectedAgent.name}」Agent`
+                : '默认交易执行规则'}
+            </p>
+          </div>
+
           <div className='space-y-1'>
             <Label>币种</Label>
             <Input
@@ -305,33 +338,40 @@ function CreateBotDialog({
               onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
             />
           </div>
-          <div className='space-y-1'>
-            <Label>{isLive ? '账户额度 ($)' : '虚拟账户额度 ($)'}</Label>
-            <Input
-              type='number'
-              value={balance}
-              onChange={(e) => setBalance(Number(e.target.value))}
-              min={isLive ? 10 : 100}
-              max={isLive ? 10000 : 1000000}
-              step={isLive ? 10 : 1000}
-            />
-            <p className='text-[10px] text-muted-foreground'>
-              {isLive ? '现网交易额度，受单笔限额约束' : '每笔交易使用全部余额开仓'}
-            </p>
-          </div>
-          {isLive && (
-            <div className='space-y-1'>
-              <Label>单笔最大下单额 ($)</Label>
-              <Input
-                type='number'
-                value={maxOrderUsd}
-                onChange={(e) => setMaxOrderUsd(Number(e.target.value))}
-                min={10}
-                max={10000}
-                step={10}
-              />
-              <p className='text-[10px] text-muted-foreground'>硬性限制每笔订单最大金额</p>
-            </div>
+          {isLive ? (
+            <>
+              <div className='space-y-1'>
+                <Label>账户额度 ($)</Label>
+                <Input
+                  type='number'
+                  value={balance}
+                  onChange={(e) => setBalance(Number(e.target.value))}
+                  min={10}
+                  max={10000}
+                  step={10}
+                />
+                <p className='text-[10px] text-muted-foreground'>现网交易额度，受单笔限额约束</p>
+              </div>
+              <div className='space-y-1'>
+                <Label>单笔最大下单额 ($)</Label>
+                <Input
+                  type='number'
+                  value={maxOrderUsd}
+                  onChange={(e) => setMaxOrderUsd(Number(e.target.value))}
+                  min={10}
+                  max={10000}
+                  step={10}
+                />
+                <p className='text-[10px] text-muted-foreground'>硬性限制每笔订单最大金额</p>
+              </div>
+            </>
+          ) : (
+            <Alert>
+              <Info className='h-3 w-3' />
+              <AlertDescription className='text-[11px]'>
+                模拟交易使用「模拟交易所」的余额和持仓，在上方模拟交易所面板中管理资金。
+              </AlertDescription>
+            </Alert>
           )}
           <div className='space-y-1'>
             <Label>分析间隔 (秒)</Label>
@@ -520,14 +560,6 @@ export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
   const [agentConfigOpen, setAgentConfigOpen] = useState(false)
   const [agentTestOpen, setAgentTestOpen] = useState(false)
 
-  // 延迟加载: 只在有持仓的 job 时才加载 signal tasks
-  const hasOpenPositions = jobs.some((j) => j.has_open_position)
-  const signalTasks = useBotSignalTasks(hasOpenPositions)
-
-  // 实时价格: 对所有 running 的 job 每 5s 直接查 Hyperliquid 价格
-  const runningCoins = useMemo(() => jobs.filter((j) => j.status === 'running').map((j) => j.coin), [jobs])
-  const livePrices = useLivePrices(runningCoins, runningCoins.length > 0)
-
   // 策略模板: 概览卡片需要显示配置状态，所以默认加载
   const [promptsNeeded, setPromptsNeeded] = useState(true)
   const strategyPrompts = useStrategyPrompts(promptsNeeded)
@@ -540,36 +572,12 @@ export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
     setRefreshing(true)
     await Promise.all([
       fetchJobs(),
-      ...(hasOpenPositions ? [signalTasks.refetch()] : []),
       ...(isLive ? [liveStatus.checkHealth()] : []),
     ])
     setRefreshing(false)
   }
 
   const runningCount = jobs.filter((j) => j.status === 'running').length
-  const totalAnalyses = jobs.reduce((sum, j) => sum + (j.total_analyses ?? 0), 0)
-  const totalBalance = jobs.reduce((sum, j) => sum + (j.account_balance ?? 0), 0)
-  const totalInitial = jobs.reduce((sum, j) => sum + (j.account_initial_balance ?? 0), 0)
-  const aggPnl = jobs.reduce((sum, j) => sum + (j.total_pnl ?? 0), 0)
-  const aggWins = jobs.reduce((sum, j) => sum + (j.win_count ?? 0), 0)
-  const aggLosses = jobs.reduce((sum, j) => sum + (j.loss_count ?? 0), 0)
-  const aggTrades = aggWins + aggLosses
-  const aggWinRate = aggTrades > 0 ? (aggWins / aggTrades) * 100 : 0
-  const openPositions = jobs.filter((j) => j.has_open_position).length
-
-  // 汇总浮动盈亏 (用实时价格)
-  const aggFloatingPnl = jobs.reduce((sum, j) => {
-    if (!j.has_open_position || !j.open_task_id) return sum
-    const task = signalTasks.tasks.find((t) => t.id === j.open_task_id && t.status === 'running')
-    if (!task || !task.entry_price || !task.entry_direction) return sum
-    const price = livePrices[j.coin] ?? task.last_tracked_price
-    if (!price) return sum
-    const change = (price - task.entry_price) / task.entry_price
-    const posValue = task.test_amount * task.test_leverage
-    const gross = task.entry_direction === 'long' ? change * posValue : -change * posValue
-    const fee = posValue * 0.000410 * 2
-    return sum + gross - fee
-  }, 0)
 
   // 现网模式: 未验证时显示验证门控
   if (isLive && !liveStatus.verified) {
@@ -607,78 +615,6 @@ export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
       {/* 模拟交易所（仅 paper 模式） */}
       {!isLive && <SimExchangePanel />}
 
-      {/* 概览统计 — 紧凑单行 */}
-      {jobs.length > 0 && (() => {
-        const totalPnlWithFloat = aggPnl + aggFloatingPnl
-        const roiPct = totalInitial > 0 ? ((totalBalance + aggFloatingPnl - totalInitial) / totalInitial * 100) : 0
-        return (
-          <Card>
-            <CardContent className='px-4 py-2.5'>
-              <div className='flex items-center gap-4 flex-wrap text-xs'>
-                {/* 总资产 */}
-                <div className='flex items-center gap-1.5'>
-                  <span className='text-muted-foreground'>总资产</span>
-                  <span className='font-mono font-bold'>${totalBalance.toFixed(0)}</span>
-                  <span className={`text-[10px] font-mono ${roiPct >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                    {roiPct >= 0 ? '+' : ''}{roiPct.toFixed(1)}%
-                  </span>
-                </div>
-
-                <span className='text-muted-foreground/30'>|</span>
-
-                {/* 总盈亏 = 已实现 + 未实现 */}
-                <div className='flex items-center gap-1.5'>
-                  <span className='text-muted-foreground'>盈亏</span>
-                  <span className={`font-mono font-bold ${totalPnlWithFloat >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                    {totalPnlWithFloat >= 0 ? '+' : ''}${totalPnlWithFloat.toFixed(2)}
-                  </span>
-                  {aggPnl !== 0 && (
-                    <span className='text-[10px] text-muted-foreground font-mono'>
-                      已实现 {aggPnl >= 0 ? '+' : ''}{aggPnl.toFixed(0)}
-                    </span>
-                  )}
-                  {aggFloatingPnl !== 0 && (
-                    <span className={`text-[10px] font-mono ${aggFloatingPnl >= 0 ? 'text-green-500/70' : 'text-red-500/70'}`}>
-                      浮动 {aggFloatingPnl >= 0 ? '+' : ''}{aggFloatingPnl.toFixed(2)}
-                    </span>
-                  )}
-                </div>
-
-                <span className='text-muted-foreground/30'>|</span>
-
-                {/* 持仓 & 胜率 */}
-                <div className='flex items-center gap-3'>
-                  {openPositions > 0 && (
-                    <span className='text-blue-500'>
-                      {openPositions} 持仓
-                    </span>
-                  )}
-                  {aggTrades > 0 ? (
-                    <span className='text-muted-foreground'>
-                      {aggTrades} 笔 · 胜率 {aggWinRate.toFixed(0)}%
-                      <span className='ml-1 text-[10px]'>
-                        (<span className='text-green-500'>{aggWins}W</span>/<span className='text-red-500'>{aggLosses}L</span>)
-                      </span>
-                    </span>
-                  ) : (
-                    <span className='text-muted-foreground'>暂无交易</span>
-                  )}
-                </div>
-
-                {/* 运行状态 */}
-                <span className='ml-auto text-muted-foreground'>
-                  {runningCount > 0 ? (
-                    <span className='text-green-500'>{runningCount} 运行中</span>
-                  ) : (
-                    <span>全部暂停</span>
-                  )}
-                  <span className='text-muted-foreground/50 ml-1'>· {totalAnalyses} 次分析</span>
-                </span>
-              </div>
-            </CardContent>
-          </Card>
-        )
-      })()}
 
       {/* 错误提示 */}
       {error && (
@@ -713,15 +649,11 @@ export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className='w-16'>币种</TableHead>
-                  <TableHead className='w-20'>状态</TableHead>
-                  <TableHead>账户资产</TableHead>
-                  <TableHead>持仓情况</TableHead>
-                  <TableHead>买入价</TableHead>
-                  <TableHead>当前现价</TableHead>
-                  <TableHead>盈亏情况</TableHead>
-                  <TableHead className='w-20 text-center'>交易日志</TableHead>
+                  <TableHead>币种</TableHead>
+                  <TableHead>状态</TableHead>
+                  <TableHead>分析策略</TableHead>
                   <TableHead>当前信号</TableHead>
+                  <TableHead className='w-20 text-center'>日志</TableHead>
                   <TableHead className='w-28 text-right'>操作</TableHead>
                 </TableRow>
               </TableHeader>
@@ -730,8 +662,6 @@ export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
                   <JobRow
                     key={job.id}
                     job={job}
-                    trackerTasks={signalTasks.tasks}
-                    livePrice={livePrices[job.coin]}
                     botLogs={botLogs}
                     onFetchLogs={() => botLogs.refetch(job.id)}
                     promptTemplates={strategyPrompts.prompts}
@@ -790,75 +720,12 @@ export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
   )
 }
 
-// ── 实时价格轮询 ──
-
-function useLivePrices(coins: string[], enabled: boolean) {
-  const [prices, setPrices] = useState<Record<string, number>>({})
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-
-  const fetchPrices = useCallback(async () => {
-    if (coins.length === 0) return
-    const results: Record<string, number> = {}
-    await Promise.allSettled(
-      coins.map(async (coin) => {
-        try {
-          const res = await hyperliquidApiGet<{ price?: number }>(`/api/hyperliquid/market/price/${coin}`)
-          if (res.price != null) results[coin] = res.price
-        } catch { /* ignore */ }
-      }),
-    )
-    if (Object.keys(results).length > 0) {
-      setPrices((prev) => ({ ...prev, ...results }))
-    }
-  }, [coins.join(',')])  // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (!enabled || coins.length === 0) return
-    fetchPrices()
-    intervalRef.current = setInterval(fetchPrices, 5_000)
-    return () => {
-      if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null }
-    }
-  }, [enabled, fetchPrices, coins.length])
-
-  return prices
-}
-
-// ── 实时更新指示 ──
-
-function LiveDot() {
-  return (
-    <span className='relative flex h-1.5 w-1.5'>
-      <span className='animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75' />
-      <span className='relative inline-flex rounded-full h-1.5 w-1.5 bg-green-500' />
-    </span>
-  )
-}
-
-/** 值变化时短暂闪烁 */
-function useLiveFlash(value: unknown): boolean {
-  const prevRef = useRef(value)
-  const [flash, setFlash] = useState(false)
-  useEffect(() => {
-    if (prevRef.current !== value && value != null) {
-      setFlash(true)
-      const t = setTimeout(() => setFlash(false), 600)
-      prevRef.current = value
-      return () => clearTimeout(t)
-    }
-    prevRef.current = value
-  }, [value])
-  return flash
-}
-
 // ── Job 行 ──
 
 function JobRow({
-  job, trackerTasks, livePrice, botLogs, onFetchLogs, promptTemplates, onStart, onPause, onDelete, onReset, onSettings,
+  job, botLogs, onFetchLogs, promptTemplates, onStart, onPause, onDelete, onReset, onSettings,
 }: {
   job: StrategyBotJob
-  trackerTasks: BacktestTrackerTask[]
-  livePrice?: number
   botLogs: ReturnType<typeof useBotLogs>
   onFetchLogs: () => void
   promptTemplates: { id: number; name: string; system_prompt: string; is_default: boolean }[]
@@ -869,45 +736,8 @@ function JobRow({
   onSettings: () => void
 }) {
   const [logsDialogOpen, setLogsDialogOpen] = useState(false)
-  const balance = job.account_balance ?? 20000
-  const initialBalance = job.account_initial_balance ?? 20000
-  const pnlFromBalance = balance - initialBalance
-  const totalPnl = job.total_pnl ?? 0
-  const winCount = job.win_count ?? 0
-  const lossCount = job.loss_count ?? 0
-  const totalTrades = job.total_trades ?? 0
-  const winRate = totalTrades > 0 ? (winCount / totalTrades) * 100 : 0
-  const canReset = job.status !== 'running' && !job.has_open_position && totalTrades > 0
+  const canReset = job.status !== 'running' && !job.has_open_position && (job.total_trades ?? 0) > 0
 
-  // 当前持仓 task
-  const openTask = job.has_open_position && job.open_task_id
-    ? trackerTasks.find((t) => t.id === job.open_task_id && t.status === 'running')
-    : null
-
-  // 优先使用实时价格，fallback 到 tracker 缓存价
-  const currentPrice = livePrice ?? openTask?.last_tracked_price ?? null
-
-  // 用实时价重新计算浮动盈亏（而非依赖 tracker 缓存的 PnL）
-  const floatingPnl = (() => {
-    if (!openTask || !currentPrice || !openTask.entry_price || !openTask.entry_direction) return null
-    const change = (currentPrice - openTask.entry_price) / openTask.entry_price
-    const positionValue = openTask.test_amount * openTask.test_leverage
-    const grossPnl = openTask.entry_direction === 'long' ? change * positionValue : -change * positionValue
-    const feeRate = 0.000410
-    const fee = positionValue * feeRate * 2
-    return grossPnl - fee
-  })()
-  const floatingRoi = floatingPnl != null && openTask && openTask.test_amount > 0
-    ? (floatingPnl / openTask.test_amount) * 100
-    : null
-
-  // 实时闪烁效果
-  const priceFlash = useLiveFlash(currentPrice)
-  const balanceFlash = useLiveFlash(balance)
-  const pnlFlash = useLiveFlash(floatingPnl != null ? Math.round(floatingPnl * 100) : null)
-  const isLive = job.status === 'running'
-
-  // 匹配当前使用的策略模板名称
   const matchedTemplate = job.custom_system_prompt
     ? promptTemplates.find((p) => p.system_prompt === job.custom_system_prompt)
     : null
@@ -920,26 +750,7 @@ function JobRow({
       <TableRow>
         {/* 1. 币种 */}
         <TableCell>
-          <div className='flex flex-col'>
-            <span className='font-medium'>{job.coin}</span>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span className='text-[10px] text-muted-foreground truncate max-w-[80px] cursor-help'>
-                    {strategyLabel}
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent side='bottom' className='max-w-sm'>
-                  <p className='text-xs font-medium mb-1'>分析策略: {strategyLabel}</p>
-                  <pre className='text-[10px] text-muted-foreground whitespace-pre-wrap max-h-40 overflow-y-auto'>
-                    {job.custom_system_prompt
-                      ? job.custom_system_prompt.slice(0, 300) + (job.custom_system_prompt.length > 300 ? '...' : '')
-                      : '使用内置大镖客策略'}
-                  </pre>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </div>
+          <span className='font-medium'>{job.coin}</span>
         </TableCell>
 
         {/* 2. 状态 */}
@@ -947,160 +758,30 @@ function JobRow({
           <div className='flex flex-col gap-0.5'>
             <StatusBadge status={job.status} />
             {job.status === 'error' && job.last_error && (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className='text-[10px] text-destructive truncate max-w-[100px] cursor-help'>
-                      {job.last_error}
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent side='bottom' className='max-w-xs'>
-                    <p className='text-xs'>{job.last_error}</p>
-                    <p className='text-xs text-muted-foreground mt-1'>连续错误 {job.consecutive_errors} 次</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            )}
-          </div>
-        </TableCell>
-
-        {/* 3. 账户资产 */}
-        <TableCell>
-          <div className='flex flex-col'>
-            <span className={`text-xs font-mono font-medium flex items-center gap-1 transition-colors duration-300 ${balanceFlash ? 'text-blue-500' : ''}`}>
-              ${balance.toFixed(2)}
-              {isLive && <LiveDot />}
-            </span>
-            <span className='text-[10px] font-mono text-muted-foreground'>初始 ${initialBalance.toFixed(0)}</span>
-            {pnlFromBalance !== 0 && (
-              <span className={`text-[10px] font-mono ${pnlFromBalance >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                {pnlFromBalance >= 0 ? '+' : ''}{((pnlFromBalance / initialBalance) * 100).toFixed(1)}%
+              <span className='text-[10px] text-destructive truncate max-w-[100px]' title={job.last_error}>
+                {job.last_error}
               </span>
             )}
           </div>
         </TableCell>
 
-        {/* 4. 持仓情况 */}
+        {/* 3. 分析策略 */}
         <TableCell>
-          {job.has_open_position ? (
-            <div className='flex flex-col gap-0.5'>
-              <div className='flex items-center gap-1'>
-                <Badge variant='outline' className='text-xs text-blue-500 border-blue-500/30'>
-                  {openTask?.entry_direction === 'long' ? '做多' : openTask?.entry_direction === 'short' ? '做空' : '持仓中'}
-                </Badge>
-                {((job.scale_in_count ?? 0) > 0 || (job.scale_out_count ?? 0) > 0) && (
-                  <span className='text-[10px] text-muted-foreground'>
-                    {(job.scale_in_count ?? 0) > 0 && <span className='text-blue-500'>+{job.scale_in_count}加</span>}
-                    {(job.scale_in_count ?? 0) > 0 && (job.scale_out_count ?? 0) > 0 && ' '}
-                    {(job.scale_out_count ?? 0) > 0 && <span className='text-purple-500'>-{job.scale_out_count}减</span>}
-                  </span>
-                )}
-              </div>
-              {openTask && (
-                <span className='text-[10px] font-mono text-muted-foreground'>
-                  仓位 ${openTask.test_amount.toFixed(0)}
-                </span>
-              )}
-            </div>
-          ) : (
-            <span className='text-xs text-muted-foreground'>空仓</span>
-          )}
+          <span className='text-xs text-muted-foreground'>{strategyLabel}</span>
         </TableCell>
 
-        {/* 5. 买入价 */}
+        {/* 4. 当前信号 */}
         <TableCell>
-          {openTask?.entry_price != null ? (
-            <div className='flex flex-col'>
-              <span className='text-xs font-mono'>{fmtPrice(openTask.entry_price)}</span>
-              {openTask.take_profit != null && (
-                <span className='text-[10px] font-mono text-green-500/70'>TP {fmtPrice(openTask.take_profit)}</span>
-              )}
-              {openTask.stop_loss != null && (
-                <span className='text-[10px] font-mono text-red-500/70'>SL {fmtPrice(openTask.stop_loss)}</span>
-              )}
-            </div>
-          ) : (
-            <span className='text-xs text-muted-foreground'>-</span>
-          )}
+          <SignalDetail action={job.last_signal_action} confidence={job.last_signal_confidence} signal={job.last_signal_json} />
         </TableCell>
 
-        {/* 6. 当前现价 */}
-        <TableCell>
-          {currentPrice != null || livePrice != null ? (
-            <span className={`text-xs font-mono flex items-center gap-1 transition-colors duration-300 ${priceFlash ? 'text-yellow-500' : ''}`}>
-              {fmtPrice(currentPrice ?? livePrice!)}
-              {isLive && <LiveDot />}
-            </span>
-          ) : (
-            <span className='text-xs text-muted-foreground'>-</span>
-          )}
-        </TableCell>
-
-        {/* 7. 盈亏情况 */}
-        <TableCell>
-          <div className='flex flex-col gap-0.5'>
-            {/* 已实现盈亏 */}
-            {totalTrades > 0 ? (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className='cursor-help'>
-                      <span className={`text-xs font-mono font-bold ${totalPnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                        {totalPnl >= 0 ? '+' : ''}${totalPnl.toFixed(2)}
-                      </span>
-                      <span className='text-[10px] text-muted-foreground ml-1'>
-                        {winRate.toFixed(0)}% ({winCount}W/{lossCount}L)
-                      </span>
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p className='text-xs'>已实现盈亏 | 共 {totalTrades} 笔 | 分析 {job.total_analyses} 次</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            ) : (
-              <span className='text-xs text-muted-foreground'>暂无交易</span>
-            )}
-            {/* 浮动盈亏 */}
-            {floatingPnl != null && (
-              <div className={`flex items-center gap-1 transition-colors duration-300 ${pnlFlash ? 'brightness-150' : ''}`}>
-                <span className={`text-[10px] font-mono ${floatingPnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                  浮动 {floatingPnl >= 0 ? '+' : ''}${floatingPnl.toFixed(2)}
-                </span>
-                {floatingRoi != null && (
-                  <span className={`text-[10px] font-mono ${floatingPnl >= 0 ? 'text-green-500/70' : 'text-red-500/70'}`}>
-                    ({floatingRoi >= 0 ? '+' : ''}{floatingRoi.toFixed(1)}%)
-                  </span>
-                )}
-                {isLive && <LiveDot />}
-              </div>
-            )}
-          </div>
-        </TableCell>
-
-        {/* 8. 交易日志 */}
+        {/* 5. 日志 */}
         <TableCell className='text-center'>
-          <Button
-            variant='ghost'
-            size='sm'
-            className='h-7 text-xs gap-1'
-            onClick={() => { onFetchLogs(); setLogsDialogOpen(true) }}
-          >
+          <Button variant='ghost' size='sm' className='h-7 text-xs gap-1'
+            onClick={() => { onFetchLogs(); setLogsDialogOpen(true) }}>
             <ScrollText className='h-3.5 w-3.5' />
             {botLogs.tradeLogs.length > 0 && <span className='font-mono'>{botLogs.tradeTotal || botLogs.tradeLogs.length}</span>}
           </Button>
-        </TableCell>
-
-        {/* 9. 当前信号 */}
-        <TableCell>
-          <SignalDetail action={job.last_signal_action} confidence={job.last_signal_confidence} signal={job.last_signal_json} />
-          {(job.tp_pct || job.sl_pct) && (
-            <div className='text-[10px] font-mono text-muted-foreground mt-0.5'>
-              {job.tp_pct ? <span className='text-green-500/70'>TP {job.tp_pct}%</span> : null}
-              {job.tp_pct && job.sl_pct ? ' / ' : null}
-              {job.sl_pct ? <span className='text-red-500/70'>SL {job.sl_pct}%</span> : null}
-            </div>
-          )}
         </TableCell>
 
         {/* 操作 */}

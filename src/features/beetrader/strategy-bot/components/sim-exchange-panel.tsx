@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -14,9 +14,10 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
 import {
-  Wallet, RefreshCw, Plus, Trash2, RotateCcw, X,
+  Wallet, RefreshCw, Plus, Trash2, RotateCcw, X, ScrollText,
 } from 'lucide-react'
-import { useSimExchange, type SimPosition, type SimOrder } from '../hooks/use-sim-exchange'
+import { hyperliquidApiGet } from '@/lib/hyperliquid-api-client'
+import { useSimExchange, type SimPosition, type SimOrder, type SimFill } from '../hooks/use-sim-exchange'
 
 function fmtPrice(v: number | null | undefined): string {
   if (v == null) return '-'
@@ -27,6 +28,7 @@ export function SimExchangePanel() {
   const sim = useSimExchange()
   const [orderDialogOpen, setOrderDialogOpen] = useState(false)
   const [balanceDialogOpen, setBalanceDialogOpen] = useState(false)
+  const [fillsDialogOpen, setFillsDialogOpen] = useState(false)
   const [newBalance, setNewBalance] = useState('')
 
   // 市价单表单
@@ -100,14 +102,12 @@ export function SimExchangePanel() {
               <span className='text-muted-foreground'>净值</span>
               <span className='font-mono font-bold ml-1'>${(account.equity ?? account.balance).toFixed(2)}</span>
             </div>
-            {(account.unrealized_pnl ?? 0) !== 0 && (
-              <div>
-                <span className='text-muted-foreground'>浮盈亏</span>
-                <span className={`font-mono font-bold ml-1 ${(account.unrealized_pnl ?? 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                  {(account.unrealized_pnl ?? 0) >= 0 ? '+' : ''}${(account.unrealized_pnl ?? 0).toFixed(2)}
-                </span>
-              </div>
-            )}
+            <div>
+              <span className='text-muted-foreground'>浮盈亏</span>
+              <span className={`font-mono font-bold ml-1 ${(account.unrealized_pnl ?? 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                {(account.unrealized_pnl ?? 0) >= 0 ? '+' : ''}${(account.unrealized_pnl ?? 0).toFixed(2)}
+              </span>
+            </div>
             <div>
               <span className='text-muted-foreground'>已实现</span>
               <span className={`font-mono ml-1 ${account.total_pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
@@ -171,26 +171,18 @@ export function SimExchangePanel() {
           </div>
         )}
 
-        {/* 最近成交 */}
+        {/* 最近成交 (最多5条) */}
         {sim.fills.length > 0 && (
           <div>
-            <div className='text-xs font-medium text-muted-foreground mb-1'>最近成交</div>
-            <div className='space-y-0.5 max-h-[120px] overflow-y-auto'>
-              {sim.fills.slice(0, 10).map((fill) => (
-                <div key={fill.id} className='flex items-center gap-2 text-[10px] font-mono py-0.5'>
-                  <Badge variant='outline' className='text-[10px] px-1 py-0 h-4'>{fill.coin}</Badge>
-                  <span className={fill.side === 'buy' ? 'text-green-500' : 'text-red-500'}>{fill.side}</span>
-                  <span>{fmtPrice(fill.price)}</span>
-                  <span className='text-muted-foreground'>${fill.size_usd.toFixed(0)}</span>
-                  {fill.pnl != null && (
-                    <span className={fill.pnl >= 0 ? 'text-green-500' : 'text-red-500'}>
-                      {fill.pnl >= 0 ? '+' : ''}${fill.pnl.toFixed(2)}
-                    </span>
-                  )}
-                  <span className='text-muted-foreground ml-auto'>
-                    {new Date(fill.created_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                </div>
+            <div className='flex items-center justify-between mb-1'>
+              <span className='text-xs font-medium text-muted-foreground'>最近成交</span>
+              <Button variant='ghost' size='sm' className='h-6 text-[10px] px-2 gap-1' onClick={() => setFillsDialogOpen(true)}>
+                <ScrollText className='h-3 w-3' /> 查看全部
+              </Button>
+            </div>
+            <div className='space-y-0.5'>
+              {sim.fills.slice(0, 5).map((fill) => (
+                <FillRow key={fill.id} fill={fill} />
               ))}
             </div>
           </div>
@@ -261,7 +253,129 @@ export function SimExchangePanel() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* 全部成交记录弹窗 */}
+      <FillsDialog open={fillsDialogOpen} onOpenChange={setFillsDialogOpen} />
     </Card>
+  )
+}
+
+// ── 成交行 ──
+function FillRow({ fill }: { fill: SimFill }) {
+  return (
+    <div className='flex items-center gap-2 text-[10px] font-mono py-0.5'>
+      <Badge variant='outline' className='text-[10px] px-1 py-0 h-4'>{fill.coin}</Badge>
+      <span className={fill.side === 'buy' ? 'text-green-500' : 'text-red-500'}>{fill.side}</span>
+      <span>{fmtPrice(fill.price)}</span>
+      <span className='text-muted-foreground'>${fill.size_usd.toFixed(0)}</span>
+      {fill.pnl != null && fill.pnl !== 0 && (
+        <span className={fill.pnl >= 0 ? 'text-green-500' : 'text-red-500'}>
+          {fill.pnl >= 0 ? '+' : ''}${fill.pnl.toFixed(2)}
+        </span>
+      )}
+      <span className='text-muted-foreground ml-auto'>
+        {new Date(fill.created_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+      </span>
+    </div>
+  )
+}
+
+// ── 全部成交弹窗（分页） ──
+function FillsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
+  const PAGE_SIZE = 20
+  const [fills, setFills] = useState<SimFill[]>([])
+  const [total, setTotal] = useState(0)
+  const [page, setPage] = useState(1)
+  const [loading, setLoading] = useState(false)
+
+  const fetchPage = useCallback(async (p: number) => {
+    setLoading(true)
+    try {
+      const offset = (p - 1) * PAGE_SIZE
+      const res = await hyperliquidApiGet<{ success: boolean; fills: SimFill[]; total: number }>(
+        `/api/sim_exchange/fills?limit=${PAGE_SIZE}&offset=${offset}`
+      )
+      if (res.success) { setFills(res.fills); setTotal(res.total); setPage(p) }
+    } catch { /* */ }
+    finally { setLoading(false) }
+  }, [])
+
+  // 打开时加载第一页
+  useState(() => { if (open) fetchPage(1) })
+
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (v) fetchPage(1) }}>
+      <DialogContent className='sm:max-w-xl max-h-[80vh] flex flex-col'>
+        <DialogHeader>
+          <DialogTitle className='flex items-center gap-2 text-sm'>
+            <ScrollText className='h-4 w-4' />
+            成交记录
+            {total > 0 && <Badge variant='secondary' className='text-[10px] px-1.5 py-0'>{total}</Badge>}
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className='flex-1 overflow-y-auto min-h-0'>
+          {loading ? (
+            <div className='py-8 text-center text-muted-foreground text-sm'>加载中...</div>
+          ) : fills.length === 0 ? (
+            <div className='py-8 text-center text-muted-foreground text-sm'>暂无成交</div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className='text-[10px] h-7'>币种</TableHead>
+                  <TableHead className='text-[10px] h-7'>方向</TableHead>
+                  <TableHead className='text-[10px] h-7'>价格</TableHead>
+                  <TableHead className='text-[10px] h-7'>金额</TableHead>
+                  <TableHead className='text-[10px] h-7'>手续费</TableHead>
+                  <TableHead className='text-[10px] h-7'>盈亏</TableHead>
+                  <TableHead className='text-[10px] h-7'>类型</TableHead>
+                  <TableHead className='text-[10px] h-7'>时间</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {fills.map((f) => (
+                  <TableRow key={f.id}>
+                    <TableCell className='text-xs'>{f.coin}</TableCell>
+                    <TableCell><span className={`text-xs ${f.side === 'buy' ? 'text-green-500' : 'text-red-500'}`}>{f.side}</span></TableCell>
+                    <TableCell className='text-xs font-mono'>{fmtPrice(f.price)}</TableCell>
+                    <TableCell className='text-xs font-mono'>${f.size_usd.toFixed(0)}</TableCell>
+                    <TableCell className='text-xs font-mono text-muted-foreground'>${f.fee.toFixed(2)}</TableCell>
+                    <TableCell>
+                      {f.pnl != null && f.pnl !== 0 ? (
+                        <span className={`text-xs font-mono ${f.pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                          {f.pnl >= 0 ? '+' : ''}${f.pnl.toFixed(2)}
+                        </span>
+                      ) : <span className='text-xs text-muted-foreground'>-</span>}
+                    </TableCell>
+                    <TableCell className='text-[10px] text-muted-foreground'>{f.order_type}</TableCell>
+                    <TableCell className='text-[10px] text-muted-foreground'>
+                      {new Date(f.created_at).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </div>
+
+        {total > PAGE_SIZE && (
+          <div className='flex items-center justify-between pt-2 border-t'>
+            <span className='text-[10px] text-muted-foreground'>共 {total} 条 · 第 {page}/{totalPages} 页</span>
+            <div className='flex items-center gap-1'>
+              <Button variant='outline' size='sm' className='h-7 text-xs px-2' disabled={page <= 1 || loading} onClick={() => fetchPage(page - 1)}>
+                上一页
+              </Button>
+              <Button variant='outline' size='sm' className='h-7 text-xs px-2' disabled={page >= totalPages || loading} onClick={() => fetchPage(page + 1)}>
+                下一页
+              </Button>
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   )
 }
 
