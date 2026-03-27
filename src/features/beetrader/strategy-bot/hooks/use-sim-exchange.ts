@@ -65,17 +65,27 @@ export function useSimExchange(accountId: string = 'default') {
   const [loading, setLoading] = useState(false)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
+  const [lastTpSlEvents, setLastTpSlEvents] = useState<{ triggered: string; reason: string; coin: string; pnl: number }[]>([])
+
   const fetchAccount = useCallback(async () => {
     try {
-      const res = await hyperliquidApiGet<{ success: boolean; account: SimAccount; positions: SimPosition[] }>(
+      const res = await hyperliquidApiGet<{
+        success: boolean; account: SimAccount; positions: SimPosition[];
+        tp_sl_events?: { triggered: string; reason: string; coin: string; pnl: number }[];
+      }>(
         `/api/sim_exchange/account?account_id=${accountId}`
       )
       if (res.success) {
         setAccount(res.account)
         setPositions(res.positions)
+        if (res.tp_sl_events && res.tp_sl_events.length > 0) {
+          setLastTpSlEvents(res.tp_sl_events)
+          // 触发后自动刷新成交记录
+          fetchFills().catch(() => {})
+        }
       }
     } catch { /* */ }
-  }, [accountId])
+  }, [accountId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchOrders = useCallback(async () => {
     try {
@@ -166,7 +176,7 @@ export function useSimExchange(accountId: string = 'default') {
   }, [accountId, refetch])
 
   return {
-    account, positions, orders, fills, loading,
+    account, positions, orders, fills, loading, lastTpSlEvents,
     refetch, marketOrder, closePosition, limitOrder, cancelOrder, setBalance, updateTpSl, resetAccount,
   }
 }

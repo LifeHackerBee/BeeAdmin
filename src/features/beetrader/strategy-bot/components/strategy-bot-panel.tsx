@@ -8,6 +8,7 @@ import { AgentConfigDialog } from './agent-config-dialog'
 import { AgentTestDialog } from './agent-test-dialog'
 import { BotConfigOverview } from './bot-config-overview'
 import { SimExchangePanel } from './sim-exchange-panel'
+import { useSimExchange } from '../hooks/use-sim-exchange'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -565,6 +566,9 @@ export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
   const strategyPrompts = useStrategyPrompts(promptsNeeded)
   const agentPrompts = useAgentPrompts(promptsNeeded)
 
+  // 模拟交易所数据（胜率等给 JobRow 用）
+  const simExchange = useSimExchange()
+
   // 延迟加载: 日志只在用户请求时加载
   const botLogs = useBotLogs()
 
@@ -589,32 +593,8 @@ export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
       {/* 现网 API 状态栏 */}
       {isLive && <LiveStatusBar health={liveStatus.health} loading={liveStatus.loading} onRefresh={liveStatus.checkHealth} />}
 
-      {/* 顶部操作栏 */}
-      <div className='flex items-center justify-end gap-2'>
-        <Button variant='outline' size='sm' onClick={handleRefresh} disabled={refreshing}>
-          <RefreshCw className={`h-4 w-4 mr-1 ${refreshing ? 'animate-spin' : ''}`} />
-          刷新
-        </Button>
-        <Button size='sm' onClick={() => { setPromptsNeeded(true); setDialogOpen(true) }} variant={isLive ? 'destructive' : 'default'}>
-          <Plus className='h-4 w-4 mr-1' />
-          {isLive ? '添加现网机器人' : '添加机器人'}
-        </Button>
-      </div>
-
-      {/* 机器人配置概览 */}
-      <BotConfigOverview
-        strategyPrompts={strategyPrompts.prompts}
-        agentPrompts={agentPrompts.prompts}
-        runningJobs={runningCount}
-        totalJobs={jobs.length}
-        onOpenStrategyConfig={() => setStrategyConfigOpen(true)}
-        onOpenAgentConfig={() => setAgentConfigOpen(true)}
-        onOpenAgentTest={() => setAgentTestOpen(true)}
-      />
-
       {/* 模拟交易所（仅 paper 模式） */}
       {!isLive && <SimExchangePanel />}
-
 
       {/* 错误提示 */}
       {error && (
@@ -632,18 +612,43 @@ export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
         </div>
       ) : jobs.length === 0 ? (
         <Card>
+          <div className='flex items-center justify-between px-4 pt-3 pb-2 border-b'>
+            <div className='flex items-center gap-2'>
+              <Bot className='h-4 w-4 text-blue-500' />
+              <span className='text-sm font-medium'>策略管理</span>
+            </div>
+            <div className='flex items-center gap-2'>
+              <BotConfigOverview strategyPrompts={strategyPrompts.prompts} agentPrompts={agentPrompts.prompts} runningJobs={runningCount}
+                onOpenStrategyConfig={() => setStrategyConfigOpen(true)} onOpenAgentConfig={() => setAgentConfigOpen(true)} onOpenAgentTest={() => setAgentTestOpen(true)} />
+              <Button size='sm' onClick={() => { setPromptsNeeded(true); setDialogOpen(true) }} variant={isLive ? 'destructive' : 'default'}>
+                <Plus className='h-3.5 w-3.5 mr-1' /> 添加机器人
+              </Button>
+            </div>
+          </div>
           <CardContent className='py-8 text-center text-muted-foreground'>
             <Bot className='h-10 w-10 mx-auto mb-2 opacity-30' />
             <p>暂无交易机器人</p>
-            <p className='text-xs mt-1'>点击「添加机器人」来创建基于大镖客策略的量化交易测试</p>
+            <p className='text-xs mt-1'>点击「添加机器人」来创建</p>
           </CardContent>
         </Card>
       ) : (
         <Card>
-          <div className='flex items-center gap-2 px-4 pt-3 pb-2 border-b'>
-            <Bot className='h-4 w-4 text-blue-500' />
-            <span className='text-sm font-medium'>策略管理</span>
-            <Badge variant='outline' className='text-xs'>{jobs.length} 个</Badge>
+          <div className='flex items-center justify-between px-4 pt-3 pb-2 border-b'>
+            <div className='flex items-center gap-2'>
+              <Bot className='h-4 w-4 text-blue-500' />
+              <span className='text-sm font-medium'>策略管理</span>
+              <Badge variant='outline' className='text-xs'>{jobs.length} 个</Badge>
+            </div>
+            <div className='flex items-center gap-2'>
+              <BotConfigOverview strategyPrompts={strategyPrompts.prompts} agentPrompts={agentPrompts.prompts} runningJobs={runningCount}
+                onOpenStrategyConfig={() => setStrategyConfigOpen(true)} onOpenAgentConfig={() => setAgentConfigOpen(true)} onOpenAgentTest={() => setAgentTestOpen(true)} />
+              <Button variant='outline' size='sm' className='h-8 text-xs' onClick={handleRefresh} disabled={refreshing}>
+                <RefreshCw className={`h-3.5 w-3.5 mr-1 ${refreshing ? 'animate-spin' : ''}`} /> 刷新
+              </Button>
+              <Button size='sm' className='h-8 text-xs' onClick={() => { setPromptsNeeded(true); setDialogOpen(true) }} variant={isLive ? 'destructive' : 'default'}>
+                <Plus className='h-3.5 w-3.5 mr-1' /> 添加机器人
+              </Button>
+            </div>
           </div>
           <div className='overflow-x-auto'>
             <Table>
@@ -652,6 +657,7 @@ export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
                   <TableHead>币种</TableHead>
                   <TableHead>状态</TableHead>
                   <TableHead>分析策略</TableHead>
+                  <TableHead>胜率</TableHead>
                   <TableHead>当前信号</TableHead>
                   <TableHead className='w-20 text-center'>日志</TableHead>
                   <TableHead className='w-28 text-right'>操作</TableHead>
@@ -662,6 +668,7 @@ export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
                   <JobRow
                     key={job.id}
                     job={job}
+                    simAccount={simExchange.account}
                     botLogs={botLogs}
                     onFetchLogs={() => botLogs.refetch(job.id)}
                     promptTemplates={strategyPrompts.prompts}
@@ -723,9 +730,10 @@ export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
 // ── Job 行 ──
 
 function JobRow({
-  job, botLogs, onFetchLogs, promptTemplates, onStart, onPause, onDelete, onReset, onSettings,
+  job, simAccount, botLogs, onFetchLogs, promptTemplates, onStart, onPause, onDelete, onReset, onSettings,
 }: {
   job: StrategyBotJob
+  simAccount?: { total_trades: number; win_count: number; loss_count: number; total_pnl: number } | null
   botLogs: ReturnType<typeof useBotLogs>
   onFetchLogs: () => void
   promptTemplates: { id: number; name: string; system_prompt: string; is_default: boolean }[]
@@ -770,7 +778,24 @@ function JobRow({
           <span className='text-xs text-muted-foreground'>{strategyLabel}</span>
         </TableCell>
 
-        {/* 4. 当前信号 */}
+        {/* 4. 胜率 */}
+        <TableCell>
+          {simAccount && simAccount.total_trades > 0 ? (
+            <div className='text-xs'>
+              <span className='font-mono font-medium'>
+                {(simAccount.win_count / simAccount.total_trades * 100).toFixed(0)}%
+              </span>
+              <span className='text-[10px] text-muted-foreground ml-1'>
+                {simAccount.total_trades}笔
+                (<span className='text-green-500'>{simAccount.win_count}W</span>/<span className='text-red-500'>{simAccount.loss_count}L</span>)
+              </span>
+            </div>
+          ) : (
+            <span className='text-xs text-muted-foreground'>-</span>
+          )}
+        </TableCell>
+
+        {/* 5. 当前信号 */}
         <TableCell>
           <SignalDetail action={job.last_signal_action} confidence={job.last_signal_confidence} signal={job.last_signal_json} />
         </TableCell>
