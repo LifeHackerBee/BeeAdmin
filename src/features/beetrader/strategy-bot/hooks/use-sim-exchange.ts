@@ -150,6 +150,16 @@ export function useSimExchange(accountId: string = 'default') {
     await refetch()
   }, [accountId, refetch])
 
+  const updateTpSl = useCallback(async (positionId: number, tp: number | null, sl: number | null) => {
+    await hyperliquidApiPost('/api/sim_exchange/update_tp_sl', {
+      position_id: positionId,
+      take_profit: tp ?? 0,
+      stop_loss: sl ?? 0,
+      account_id: accountId,
+    })
+    await refetch()
+  }, [accountId, refetch])
+
   const resetAccount = useCallback(async () => {
     await hyperliquidApiPost(`/api/sim_exchange/reset?account_id=${accountId}`, {})
     await refetch()
@@ -157,6 +167,6 @@ export function useSimExchange(accountId: string = 'default') {
 
   return {
     account, positions, orders, fills, loading,
-    refetch, marketOrder, closePosition, limitOrder, cancelOrder, setBalance, resetAccount,
+    refetch, marketOrder, closePosition, limitOrder, cancelOrder, setBalance, updateTpSl, resetAccount,
   }
 }

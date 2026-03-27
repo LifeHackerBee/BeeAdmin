@@ -121,10 +121,12 @@ export function SimExchangePanel() {
           </div>
         )}
 
-        {/* 持仓列表 */}
-        {sim.positions.length > 0 && (
-          <div>
-            <div className='text-xs font-medium text-muted-foreground mb-1'>持仓 ({sim.positions.length})</div>
+        {/* 持仓列表 — 始终显示 */}
+        <div>
+          <div className='text-xs font-medium text-muted-foreground mb-1'>
+            持仓 {sim.positions.length > 0 ? `(${sim.positions.length})` : ''}
+          </div>
+          {sim.positions.length > 0 ? (
             <Table>
               <TableHeader>
                 <TableRow>
@@ -140,12 +142,16 @@ export function SimExchangePanel() {
               </TableHeader>
               <TableBody>
                 {sim.positions.map((pos) => (
-                  <PositionRow key={pos.id} pos={pos} onClose={(ratio) => sim.closePosition(pos.coin, ratio)} />
+                  <PositionRow key={pos.id} pos={pos}
+                    onClose={(ratio) => sim.closePosition(pos.coin, ratio)}
+                    onUpdateTpSl={(tp, sl) => sim.updateTpSl(pos.id, tp, sl)} />
                 ))}
               </TableBody>
             </Table>
-          </div>
-        )}
+          ) : (
+            <div className='text-xs text-muted-foreground py-2 text-center border rounded-md'>空仓 — 无持仓</div>
+          )}
+        </div>
 
         {/* 挂单列表 */}
         {sim.orders.length > 0 && (
@@ -380,38 +386,84 @@ function FillsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: 
 }
 
 // ── 持仓行 ──
-function PositionRow({ pos, onClose }: { pos: SimPosition; onClose: (ratio: number) => void }) {
+function PositionRow({ pos, onClose, onUpdateTpSl }: {
+  pos: SimPosition
+  onClose: (ratio: number) => void
+  onUpdateTpSl: (tp: number | null, sl: number | null) => void
+}) {
   const isLong = pos.direction === 'long'
   const pnl = pos.unrealized_pnl ?? 0
+  const [editing, setEditing] = useState(false)
+  const [editTp, setEditTp] = useState(String(pos.take_profit ?? ''))
+  const [editSl, setEditSl] = useState(String(pos.stop_loss ?? ''))
+
+  const handleSave = () => {
+    const tp = parseFloat(editTp) || null
+    const sl = parseFloat(editSl) || null
+    onUpdateTpSl(tp, sl)
+    setEditing(false)
+  }
+
   return (
-    <TableRow>
-      <TableCell className='text-xs font-medium'>{pos.coin}</TableCell>
-      <TableCell>
-        <Badge variant='outline' className={`text-[10px] ${isLong ? 'text-green-500 border-green-500/30' : 'text-red-500 border-red-500/30'}`}>
-          {isLong ? '多' : '空'}
-        </Badge>
-      </TableCell>
-      <TableCell className='text-xs font-mono'>{fmtPrice(pos.entry_price)}</TableCell>
-      <TableCell className='text-xs font-mono'>${pos.size_usd.toFixed(0)}</TableCell>
-      <TableCell className='text-xs font-mono'>{fmtPrice(pos.current_price)}</TableCell>
-      <TableCell className={`text-xs font-mono ${pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-        {pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}
-        {pos.unrealized_pnl_pct != null && <span className='text-[10px] ml-0.5'>({pos.unrealized_pnl_pct.toFixed(1)}%)</span>}
-      </TableCell>
-      <TableCell className='text-[10px] font-mono text-muted-foreground'>
-        {pos.take_profit && <span className='text-green-500/70'>TP {fmtPrice(pos.take_profit)}</span>}
-        {pos.take_profit && pos.stop_loss && ' '}
-        {pos.stop_loss && <span className='text-red-500/70'>SL {fmtPrice(pos.stop_loss)}</span>}
-      </TableCell>
-      <TableCell>
-        <div className='flex gap-1'>
-          <Button variant='ghost' size='sm' className='h-6 text-[10px] px-1.5' onClick={() => onClose(0.5)}>减半</Button>
-          <Button variant='ghost' size='sm' className='h-6 text-[10px] px-1.5 text-red-500' onClick={() => onClose(1)}>
-            <X className='h-3 w-3' />
-          </Button>
-        </div>
-      </TableCell>
-    </TableRow>
+    <>
+      <TableRow>
+        <TableCell className='text-xs font-medium'>{pos.coin}</TableCell>
+        <TableCell>
+          <Badge variant='outline' className={`text-[10px] ${isLong ? 'text-green-500 border-green-500/30' : 'text-red-500 border-red-500/30'}`}>
+            {isLong ? '多' : '空'}
+          </Badge>
+        </TableCell>
+        <TableCell className='text-xs font-mono'>{fmtPrice(pos.entry_price)}</TableCell>
+        <TableCell className='text-xs font-mono'>${pos.size_usd.toFixed(0)}</TableCell>
+        <TableCell className='text-xs font-mono'>{fmtPrice(pos.current_price)}</TableCell>
+        <TableCell className={`text-xs font-mono ${pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+          {pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}
+          {pos.unrealized_pnl_pct != null && <span className='text-[10px] ml-0.5'>({pos.unrealized_pnl_pct.toFixed(1)}%)</span>}
+        </TableCell>
+        <TableCell>
+          <button onClick={() => { setEditTp(String(pos.take_profit ?? '')); setEditSl(String(pos.stop_loss ?? '')); setEditing(!editing) }}
+            className='text-[10px] font-mono text-muted-foreground hover:text-foreground cursor-pointer'>
+            {pos.take_profit || pos.stop_loss ? (
+              <>
+                {pos.take_profit != null && <span className='text-green-500/70'>TP {fmtPrice(pos.take_profit)}</span>}
+                {pos.take_profit && pos.stop_loss && ' '}
+                {pos.stop_loss != null && <span className='text-red-500/70'>SL {fmtPrice(pos.stop_loss)}</span>}
+              </>
+            ) : (
+              <span className='text-muted-foreground/50'>设置 TP/SL</span>
+            )}
+          </button>
+        </TableCell>
+        <TableCell>
+          <div className='flex gap-1'>
+            <Button variant='ghost' size='sm' className='h-6 text-[10px] px-1.5' onClick={() => onClose(0.5)}>减半</Button>
+            <Button variant='ghost' size='sm' className='h-6 text-[10px] px-1.5 text-red-500' onClick={() => onClose(1)}>
+              <X className='h-3 w-3' />
+            </Button>
+          </div>
+        </TableCell>
+      </TableRow>
+      {editing && (
+        <TableRow>
+          <TableCell colSpan={8} className='py-1.5 px-3 bg-muted/30'>
+            <div className='flex items-center gap-2'>
+              <span className='text-[10px] text-muted-foreground w-8'>TP</span>
+              <Input type='number' value={editTp} onChange={(e) => setEditTp(e.target.value)}
+                className='h-6 text-[10px] w-28 font-mono' placeholder='止盈价' />
+              <span className='text-[10px] text-muted-foreground w-8'>SL</span>
+              <Input type='number' value={editSl} onChange={(e) => setEditSl(e.target.value)}
+                className='h-6 text-[10px] w-28 font-mono' placeholder='止损价' />
+              <Button size='sm' className='h-6 text-[10px] px-2' onClick={handleSave}>保存</Button>
+              <Button variant='ghost' size='sm' className='h-6 text-[10px] px-2' onClick={() => setEditing(false)}>取消</Button>
+              {(pos.take_profit || pos.stop_loss) && (
+                <Button variant='ghost' size='sm' className='h-6 text-[10px] px-2 text-red-500'
+                  onClick={() => { onUpdateTpSl(null, null); setEditing(false) }}>清除</Button>
+              )}
+            </div>
+          </TableCell>
+        </TableRow>
+      )}
+    </>
   )
 }
 
