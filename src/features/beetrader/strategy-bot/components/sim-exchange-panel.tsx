@@ -1,0 +1,326 @@
+import { useState } from 'react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Badge } from '@/components/ui/badge'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from '@/components/ui/table'
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from '@/components/ui/dialog'
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select'
+import {
+  Wallet, RefreshCw, Plus, Trash2, RotateCcw, X,
+} from 'lucide-react'
+import { useSimExchange, type SimPosition, type SimOrder } from '../hooks/use-sim-exchange'
+
+function fmtPrice(v: number | null | undefined): string {
+  if (v == null) return '-'
+  return v >= 1000 ? `$${v.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : `$${v.toFixed(4)}`
+}
+
+export function SimExchangePanel() {
+  const sim = useSimExchange()
+  const [orderDialogOpen, setOrderDialogOpen] = useState(false)
+  const [balanceDialogOpen, setBalanceDialogOpen] = useState(false)
+  const [newBalance, setNewBalance] = useState('')
+
+  // 市价单表单
+  const [orderCoin, setOrderCoin] = useState('BTC')
+  const [orderDir, setOrderDir] = useState<'long' | 'short'>('long')
+  const [orderSize, setOrderSize] = useState('1000')
+  const [orderTp, setOrderTp] = useState('')
+  const [orderSl, setOrderSl] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+
+  const account = sim.account
+  const winRate = account && account.total_trades > 0
+    ? (account.win_count / account.total_trades * 100).toFixed(0) : '0'
+
+  const handleMarketOrder = async () => {
+    if (!orderCoin || !orderSize) return
+    setSubmitting(true)
+    try {
+      await sim.marketOrder({
+        coin: orderCoin,
+        direction: orderDir,
+        size_usd: parseFloat(orderSize),
+        take_profit: orderTp ? parseFloat(orderTp) : undefined,
+        stop_loss: orderSl ? parseFloat(orderSl) : undefined,
+      })
+      setOrderDialogOpen(false)
+    } catch { /* */ }
+    finally { setSubmitting(false) }
+  }
+
+  const handleSetBalance = async () => {
+    const val = parseFloat(newBalance)
+    if (isNaN(val) || val < 0) return
+    await sim.setBalance(val)
+    setBalanceDialogOpen(false)
+  }
+
+  return (
+    <Card>
+      <CardHeader className='pb-2'>
+        <div className='flex items-center justify-between'>
+          <CardTitle className='text-base flex items-center gap-2'>
+            <Wallet className='h-4 w-4 text-purple-500' />
+            模拟交易所
+          </CardTitle>
+          <div className='flex items-center gap-1.5'>
+            <Button variant='outline' size='sm' className='h-7 text-xs gap-1' onClick={sim.refetch} disabled={sim.loading}>
+              <RefreshCw className={`h-3 w-3 ${sim.loading ? 'animate-spin' : ''}`} />
+            </Button>
+            <Button variant='outline' size='sm' className='h-7 text-xs gap-1' onClick={() => setOrderDialogOpen(true)}>
+              <Plus className='h-3 w-3' /> 下单
+            </Button>
+            <Button variant='outline' size='sm' className='h-7 text-xs gap-1' onClick={() => { setNewBalance(String(account?.balance ?? 20000)); setBalanceDialogOpen(true) }}>
+              <Wallet className='h-3 w-3' /> 设置余额
+            </Button>
+            <Button variant='ghost' size='sm' className='h-7 text-xs gap-1 text-red-500' onClick={sim.resetAccount}>
+              <RotateCcw className='h-3 w-3' /> 重置
+            </Button>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className='space-y-3'>
+        {/* 账户概览 */}
+        {account && (
+          <div className='flex items-center gap-4 flex-wrap text-xs'>
+            <div>
+              <span className='text-muted-foreground'>余额</span>
+              <span className='font-mono font-bold ml-1'>${account.balance.toFixed(2)}</span>
+            </div>
+            <div>
+              <span className='text-muted-foreground'>净值</span>
+              <span className='font-mono font-bold ml-1'>${(account.equity ?? account.balance).toFixed(2)}</span>
+            </div>
+            {(account.unrealized_pnl ?? 0) !== 0 && (
+              <div>
+                <span className='text-muted-foreground'>浮盈亏</span>
+                <span className={`font-mono font-bold ml-1 ${(account.unrealized_pnl ?? 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                  {(account.unrealized_pnl ?? 0) >= 0 ? '+' : ''}${(account.unrealized_pnl ?? 0).toFixed(2)}
+                </span>
+              </div>
+            )}
+            <div>
+              <span className='text-muted-foreground'>已实现</span>
+              <span className={`font-mono ml-1 ${account.total_pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                {account.total_pnl >= 0 ? '+' : ''}${account.total_pnl.toFixed(2)}
+              </span>
+            </div>
+            <div>
+              <span className='text-muted-foreground'>胜率</span>
+              <span className='ml-1'>{winRate}% ({account.win_count}W/{account.loss_count}L)</span>
+            </div>
+          </div>
+        )}
+
+        {/* 持仓列表 */}
+        {sim.positions.length > 0 && (
+          <div>
+            <div className='text-xs font-medium text-muted-foreground mb-1'>持仓 ({sim.positions.length})</div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className='text-[10px] h-7'>币种</TableHead>
+                  <TableHead className='text-[10px] h-7'>方向</TableHead>
+                  <TableHead className='text-[10px] h-7'>入场价</TableHead>
+                  <TableHead className='text-[10px] h-7'>数量</TableHead>
+                  <TableHead className='text-[10px] h-7'>现价</TableHead>
+                  <TableHead className='text-[10px] h-7'>浮盈亏</TableHead>
+                  <TableHead className='text-[10px] h-7'>TP/SL</TableHead>
+                  <TableHead className='text-[10px] h-7 w-16'></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {sim.positions.map((pos) => (
+                  <PositionRow key={pos.id} pos={pos} onClose={(ratio) => sim.closePosition(pos.coin, ratio)} />
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+
+        {/* 挂单列表 */}
+        {sim.orders.length > 0 && (
+          <div>
+            <div className='text-xs font-medium text-muted-foreground mb-1'>挂单 ({sim.orders.length})</div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className='text-[10px] h-7'>币种</TableHead>
+                  <TableHead className='text-[10px] h-7'>方向</TableHead>
+                  <TableHead className='text-[10px] h-7'>价格</TableHead>
+                  <TableHead className='text-[10px] h-7'>金额</TableHead>
+                  <TableHead className='text-[10px] h-7'>时间</TableHead>
+                  <TableHead className='text-[10px] h-7 w-16'></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {sim.orders.map((order) => (
+                  <OrderRow key={order.id} order={order} onCancel={() => sim.cancelOrder(order.id)} />
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+
+        {/* 最近成交 */}
+        {sim.fills.length > 0 && (
+          <div>
+            <div className='text-xs font-medium text-muted-foreground mb-1'>最近成交</div>
+            <div className='space-y-0.5 max-h-[120px] overflow-y-auto'>
+              {sim.fills.slice(0, 10).map((fill) => (
+                <div key={fill.id} className='flex items-center gap-2 text-[10px] font-mono py-0.5'>
+                  <Badge variant='outline' className='text-[10px] px-1 py-0 h-4'>{fill.coin}</Badge>
+                  <span className={fill.side === 'buy' ? 'text-green-500' : 'text-red-500'}>{fill.side}</span>
+                  <span>{fmtPrice(fill.price)}</span>
+                  <span className='text-muted-foreground'>${fill.size_usd.toFixed(0)}</span>
+                  {fill.pnl != null && (
+                    <span className={fill.pnl >= 0 ? 'text-green-500' : 'text-red-500'}>
+                      {fill.pnl >= 0 ? '+' : ''}${fill.pnl.toFixed(2)}
+                    </span>
+                  )}
+                  <span className='text-muted-foreground ml-auto'>
+                    {new Date(fill.created_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {!account && !sim.loading && (
+          <div className='text-center py-4 text-muted-foreground text-xs'>模拟交易所未初始化，点击操作自动创建</div>
+        )}
+      </CardContent>
+
+      {/* 下单弹窗 */}
+      <Dialog open={orderDialogOpen} onOpenChange={setOrderDialogOpen}>
+        <DialogContent className='sm:max-w-sm'>
+          <DialogHeader><DialogTitle className='text-sm'>市价下单</DialogTitle></DialogHeader>
+          <div className='space-y-3 py-2'>
+            <div className='grid grid-cols-2 gap-2'>
+              <div className='space-y-1'>
+                <Label className='text-xs'>币种</Label>
+                <Input value={orderCoin} onChange={(e) => setOrderCoin(e.target.value.toUpperCase())} className='h-8 text-xs' />
+              </div>
+              <div className='space-y-1'>
+                <Label className='text-xs'>方向</Label>
+                <Select value={orderDir} onValueChange={(v) => setOrderDir(v as 'long' | 'short')}>
+                  <SelectTrigger className='h-8 text-xs'><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value='long'><span className='text-green-500'>做多 Long</span></SelectItem>
+                    <SelectItem value='short'><span className='text-red-500'>做空 Short</span></SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className='space-y-1'>
+              <Label className='text-xs'>金额 (USD)</Label>
+              <Input type='number' value={orderSize} onChange={(e) => setOrderSize(e.target.value)} className='h-8 text-xs' />
+            </div>
+            <div className='grid grid-cols-2 gap-2'>
+              <div className='space-y-1'>
+                <Label className='text-xs'>止盈 (可选)</Label>
+                <Input type='number' value={orderTp} onChange={(e) => setOrderTp(e.target.value)} className='h-8 text-xs' placeholder='TP' />
+              </div>
+              <div className='space-y-1'>
+                <Label className='text-xs'>止损 (可选)</Label>
+                <Input type='number' value={orderSl} onChange={(e) => setOrderSl(e.target.value)} className='h-8 text-xs' placeholder='SL' />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant='outline' onClick={() => setOrderDialogOpen(false)}>取消</Button>
+            <Button onClick={handleMarketOrder} disabled={submitting} variant={orderDir === 'long' ? 'default' : 'destructive'}>
+              {submitting ? '下单中...' : orderDir === 'long' ? '做多' : '做空'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 设置余额弹窗 */}
+      <Dialog open={balanceDialogOpen} onOpenChange={setBalanceDialogOpen}>
+        <DialogContent className='sm:max-w-xs'>
+          <DialogHeader><DialogTitle className='text-sm'>设置余额</DialogTitle></DialogHeader>
+          <div className='space-y-2 py-2'>
+            <Label className='text-xs'>新余额 (USD)</Label>
+            <Input type='number' value={newBalance} onChange={(e) => setNewBalance(e.target.value)}
+              className='h-8 text-xs' onKeyDown={(e) => e.key === 'Enter' && handleSetBalance()} />
+          </div>
+          <DialogFooter>
+            <Button variant='outline' onClick={() => setBalanceDialogOpen(false)}>取消</Button>
+            <Button onClick={handleSetBalance}>确认</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </Card>
+  )
+}
+
+// ── 持仓行 ──
+function PositionRow({ pos, onClose }: { pos: SimPosition; onClose: (ratio: number) => void }) {
+  const isLong = pos.direction === 'long'
+  const pnl = pos.unrealized_pnl ?? 0
+  return (
+    <TableRow>
+      <TableCell className='text-xs font-medium'>{pos.coin}</TableCell>
+      <TableCell>
+        <Badge variant='outline' className={`text-[10px] ${isLong ? 'text-green-500 border-green-500/30' : 'text-red-500 border-red-500/30'}`}>
+          {isLong ? '多' : '空'}
+        </Badge>
+      </TableCell>
+      <TableCell className='text-xs font-mono'>{fmtPrice(pos.entry_price)}</TableCell>
+      <TableCell className='text-xs font-mono'>${pos.size_usd.toFixed(0)}</TableCell>
+      <TableCell className='text-xs font-mono'>{fmtPrice(pos.current_price)}</TableCell>
+      <TableCell className={`text-xs font-mono ${pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+        {pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}
+        {pos.unrealized_pnl_pct != null && <span className='text-[10px] ml-0.5'>({pos.unrealized_pnl_pct.toFixed(1)}%)</span>}
+      </TableCell>
+      <TableCell className='text-[10px] font-mono text-muted-foreground'>
+        {pos.take_profit && <span className='text-green-500/70'>TP {fmtPrice(pos.take_profit)}</span>}
+        {pos.take_profit && pos.stop_loss && ' '}
+        {pos.stop_loss && <span className='text-red-500/70'>SL {fmtPrice(pos.stop_loss)}</span>}
+      </TableCell>
+      <TableCell>
+        <div className='flex gap-1'>
+          <Button variant='ghost' size='sm' className='h-6 text-[10px] px-1.5' onClick={() => onClose(0.5)}>减半</Button>
+          <Button variant='ghost' size='sm' className='h-6 text-[10px] px-1.5 text-red-500' onClick={() => onClose(1)}>
+            <X className='h-3 w-3' />
+          </Button>
+        </div>
+      </TableCell>
+    </TableRow>
+  )
+}
+
+// ── 挂单行 ──
+function OrderRow({ order, onCancel }: { order: SimOrder; onCancel: () => void }) {
+  return (
+    <TableRow>
+      <TableCell className='text-xs font-medium'>{order.coin}</TableCell>
+      <TableCell>
+        <Badge variant='outline' className={`text-[10px] ${order.side === 'buy' ? 'text-green-500' : 'text-red-500'}`}>
+          {order.side}
+        </Badge>
+      </TableCell>
+      <TableCell className='text-xs font-mono'>{fmtPrice(order.price)}</TableCell>
+      <TableCell className='text-xs font-mono'>${order.size_usd.toFixed(0)}</TableCell>
+      <TableCell className='text-[10px] text-muted-foreground'>
+        {new Date(order.created_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+      </TableCell>
+      <TableCell>
+        <Button variant='ghost' size='sm' className='h-6 text-[10px] px-1.5 text-red-500' onClick={onCancel}>
+          <Trash2 className='h-3 w-3' />
+        </Button>
+      </TableCell>
+    </TableRow>
+  )
+}

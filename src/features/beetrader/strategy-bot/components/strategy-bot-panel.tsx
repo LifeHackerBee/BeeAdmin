@@ -9,6 +9,7 @@ import { StrategyConfigDialog } from './strategy-config-dialog'
 import { AgentConfigDialog } from './agent-config-dialog'
 import { AgentTestDialog } from './agent-test-dialog'
 import { BotConfigOverview } from './bot-config-overview'
+import { SimExchangePanel } from './sim-exchange-panel'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -602,6 +603,9 @@ export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
         onOpenAgentConfig={() => setAgentConfigOpen(true)}
         onOpenAgentTest={() => setAgentTestOpen(true)}
       />
+
+      {/* 模拟交易所（仅 paper 模式） */}
+      {!isLive && <SimExchangePanel />}
 
       {/* 概览统计 — 紧凑单行 */}
       {jobs.length > 0 && (() => {
@@ -1411,6 +1415,7 @@ function BotSettingsDialog({
   const [tpPct, setTpPct] = useState(job.tp_pct != null && job.tp_pct > 0 ? String(job.tp_pct) : '')
   const [slPct, setSlPct] = useState(job.sl_pct != null && job.sl_pct > 0 ? String(job.sl_pct) : '')
   const [minRrRatio, setMinRrRatio] = useState(String(job.min_rr_ratio ?? 1.5))
+  const [disableTimeout, setDisableTimeout] = useState(job.disable_timeout ?? false)
   const [saving, setSaving] = useState(false)
   const [defaults, setDefaults] = useState<DefaultPrompts | null>(null)
   const [loadingDefaults, setLoadingDefaults] = useState(false)
@@ -1446,6 +1451,7 @@ function BotSettingsDialog({
         tp_pct: tp > 0 ? tp : 0,
         sl_pct: sl > 0 ? sl : 0,
         min_rr_ratio: rr >= 0 ? rr : 1.5,
+        disable_timeout: disableTimeout,
       })
     } catch {
       // error handled by hook
@@ -1796,6 +1802,21 @@ function BotSettingsDialog({
                       </AlertDescription>
                     </Alert>
                   )}
+
+                  {/* 超时控制 */}
+                  <div className='space-y-1 pt-2 border-t'>
+                    <div className='flex items-center gap-2'>
+                      <Switch id='disable-timeout' checked={disableTimeout} onCheckedChange={setDisableTimeout} />
+                      <Label htmlFor='disable-timeout' className='cursor-pointer text-xs'>
+                        禁用追踪超时
+                      </Label>
+                    </div>
+                    <p className='text-[10px] text-muted-foreground'>
+                      {disableTimeout
+                        ? '持仓将一直保持直到触发止盈/止损或手动平仓，不会因超时自动平仓'
+                        : '持仓会在 AI 信号指定的有效时间后自动平仓（默认最长 24 小时）'}
+                    </p>
+                  </div>
                 </>
               )
             })()}

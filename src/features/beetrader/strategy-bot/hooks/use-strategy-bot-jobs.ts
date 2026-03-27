@@ -39,6 +39,7 @@ export interface StrategyBotJob {
   maker_fee_rate: number
   max_order_usd: number
   min_rr_ratio: number
+  disable_timeout: boolean
   scale_in_count: number
   scale_out_count: number
   created_at: string
@@ -56,6 +57,7 @@ export interface UpdateBotJobData {
   maker_fee_rate?: number
   max_order_usd?: number
   min_rr_ratio?: number
+  disable_timeout?: boolean
 }
 
 export interface CreateBotJobData {
