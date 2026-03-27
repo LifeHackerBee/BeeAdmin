@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
@@ -14,7 +15,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
 import {
-  Wallet, RefreshCw, Plus, RotateCcw, X, ScrollText,
+  Wallet, RefreshCw, Plus, RotateCcw, ScrollText, Pencil,
 } from 'lucide-react'
 import { hyperliquidApiGet } from '@/lib/hyperliquid-api-client'
 import { useSimExchange, type SimPosition, type SimFill } from '../hooks/use-sim-exchange'
@@ -130,68 +131,140 @@ export function SimExchangePanel() {
           </div>
         )}
 
-        {/* 持仓 + 最近成交 — 左右两栏 */}
-        <div className='grid grid-cols-1 lg:grid-cols-2 gap-3'>
-          {/* 左栏: 持仓 */}
-          <div className='border rounded-lg'>
-            <div className='flex items-center justify-between px-3 py-2 border-b bg-muted/30'>
-              <span className='text-xs font-medium'>持仓 {sim.positions.length > 0 ? `(${sim.positions.length})` : ''}</span>
-            </div>
-            <div className='p-2'>
-              {sim.positions.length > 0 ? (
-                <div className='space-y-2'>
-                  {sim.positions.map((pos) => (
-                    <PositionCard key={pos.id} pos={pos}
+        {/* Tab 切换: 持仓 / 挂单 / 成交历史 */}
+        <Tabs defaultValue='positions' className='w-full'>
+          <TabsList className='h-8'>
+            <TabsTrigger value='positions' className='text-xs h-7 px-3'>
+              持仓 ({sim.positions.length})
+            </TabsTrigger>
+            {sim.orders.length > 0 && (
+              <TabsTrigger value='orders' className='text-xs h-7 px-3'>
+                挂单 ({sim.orders.length})
+              </TabsTrigger>
+            )}
+            <TabsTrigger value='fills' className='text-xs h-7 px-3'>
+              成交历史
+            </TabsTrigger>
+          </TabsList>
+
+          {/* ── 持仓表格 ── */}
+          <TabsContent value='positions' className='mt-2'>
+            <div className='border rounded-md overflow-hidden'>
+              <Table>
+                <TableHeader>
+                  <TableRow className='bg-muted/30'>
+                    <TableHead className='text-[10px] h-7'>Coin</TableHead>
+                    <TableHead className='text-[10px] h-7'>Size</TableHead>
+                    <TableHead className='text-[10px] h-7'>Position Value</TableHead>
+                    <TableHead className='text-[10px] h-7'>Entry Price</TableHead>
+                    <TableHead className='text-[10px] h-7'>Mark Price</TableHead>
+                    <TableHead className='text-[10px] h-7'>PNL (ROE %)</TableHead>
+                    <TableHead className='text-[10px] h-7'>TP/SL</TableHead>
+                    <TableHead className='text-[10px] h-7 text-right'>Close</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {sim.positions.length > 0 ? sim.positions.map((pos) => (
+                    <PositionTableRow key={pos.id} pos={pos}
                       onClose={(ratio) => sim.closePosition(pos.coin, ratio)}
                       onUpdateTpSl={(tp, sl) => sim.updateTpSl(pos.id, tp, sl)} />
-                  ))}
-                </div>
-              ) : (
-                <div className='text-xs text-muted-foreground py-6 text-center'>空仓</div>
-              )}
-              {/* 挂单 */}
-              {sim.orders.length > 0 && (
-                <div className='mt-2 pt-2 border-t space-y-1'>
-                  <span className='text-[10px] font-medium text-muted-foreground'>挂单 ({sim.orders.length})</span>
-                  {sim.orders.map((order) => (
-                    <div key={order.id} className='flex items-center gap-2 text-[10px] font-mono px-2 py-1 rounded bg-muted/30'>
-                      <Badge variant='outline' className='text-[10px] px-1 py-0 h-4'>{order.coin}</Badge>
-                      <span className={order.side === 'buy' ? 'text-green-500' : 'text-red-500'}>{order.side}</span>
-                      <span>{fmtPrice(order.price)}</span>
-                      <span className='text-muted-foreground'>${order.size_usd.toFixed(0)}</span>
-                      <Button variant='ghost' size='sm' className='h-5 w-5 p-0 ml-auto text-red-500' onClick={() => sim.cancelOrder(order.id)}>
-                        <X className='h-3 w-3' />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              )}
+                  )) : (
+                    <TableRow>
+                      <TableCell colSpan={8} className='text-center text-xs text-muted-foreground py-6'>空仓</TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
             </div>
-          </div>
+          </TabsContent>
 
-          {/* 右栏: 最近成交 */}
-          <div className='border rounded-lg'>
-            <div className='flex items-center justify-between px-3 py-2 border-b bg-muted/30'>
-              <span className='text-xs font-medium'>最近成交</span>
-              {sim.fills.length > 0 && (
-                <Button variant='ghost' size='sm' className='h-5 text-[10px] px-1.5 gap-1' onClick={() => setFillsDialogOpen(true)}>
-                  <ScrollText className='h-3 w-3' /> 全部
-                </Button>
-              )}
-            </div>
-            <div className='p-2'>
-              {sim.fills.length > 0 ? (
-                <div className='space-y-0.5'>
-                  {sim.fills.slice(0, 8).map((fill) => (
-                    <FillRow key={fill.id} fill={fill} />
+          {/* ── 挂单表格 ── */}
+          <TabsContent value='orders' className='mt-2'>
+            <div className='border rounded-md overflow-hidden'>
+              <Table>
+                <TableHeader>
+                  <TableRow className='bg-muted/30'>
+                    <TableHead className='text-[10px] h-7'>Coin</TableHead>
+                    <TableHead className='text-[10px] h-7'>Side</TableHead>
+                    <TableHead className='text-[10px] h-7'>Price</TableHead>
+                    <TableHead className='text-[10px] h-7'>Size</TableHead>
+                    <TableHead className='text-[10px] h-7'>Time</TableHead>
+                    <TableHead className='text-[10px] h-7 text-right'>Cancel</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {sim.orders.map((order) => (
+                    <TableRow key={order.id}>
+                      <TableCell className='text-xs font-medium'>{order.coin}</TableCell>
+                      <TableCell><span className={`text-xs ${order.side === 'buy' ? 'text-green-500' : 'text-red-500'}`}>{order.side.toUpperCase()}</span></TableCell>
+                      <TableCell className='text-xs font-mono'>{fmtPrice(order.price)}</TableCell>
+                      <TableCell className='text-xs font-mono'>${order.size_usd.toFixed(0)}</TableCell>
+                      <TableCell className='text-[10px] text-muted-foreground'>
+                        {new Date(order.created_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                      </TableCell>
+                      <TableCell className='text-right'>
+                        <Button variant='ghost' size='sm' className='h-6 text-[10px] px-2 text-red-500' onClick={() => sim.cancelOrder(order.id)}>Cancel</Button>
+                      </TableCell>
+                    </TableRow>
                   ))}
+                </TableBody>
+              </Table>
+            </div>
+          </TabsContent>
+
+          {/* ── 成交历史表格 ── */}
+          <TabsContent value='fills' className='mt-2'>
+            <div className='border rounded-md overflow-hidden'>
+              <Table>
+                <TableHeader>
+                  <TableRow className='bg-muted/30'>
+                    <TableHead className='text-[10px] h-7'>Coin</TableHead>
+                    <TableHead className='text-[10px] h-7'>Side</TableHead>
+                    <TableHead className='text-[10px] h-7'>Price</TableHead>
+                    <TableHead className='text-[10px] h-7'>Size</TableHead>
+                    <TableHead className='text-[10px] h-7'>Fee</TableHead>
+                    <TableHead className='text-[10px] h-7'>PNL</TableHead>
+                    <TableHead className='text-[10px] h-7'>Type</TableHead>
+                    <TableHead className='text-[10px] h-7'>Time</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {sim.fills.length > 0 ? sim.fills.slice(0, 10).map((f) => (
+                    <TableRow key={f.id}>
+                      <TableCell className='text-xs font-medium'>{f.coin}</TableCell>
+                      <TableCell><span className={`text-xs ${f.side === 'buy' ? 'text-green-500' : 'text-red-500'}`}>{f.side.toUpperCase()}</span></TableCell>
+                      <TableCell className='text-xs font-mono'>{fmtPrice(f.price)}</TableCell>
+                      <TableCell className='text-xs font-mono'>${f.size_usd.toFixed(0)}</TableCell>
+                      <TableCell className='text-xs font-mono text-muted-foreground'>${f.fee.toFixed(2)}</TableCell>
+                      <TableCell>
+                        {f.pnl != null && f.pnl !== 0 ? (
+                          <span className={`text-xs font-mono ${f.pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                            {f.pnl >= 0 ? '+' : ''}${f.pnl.toFixed(2)}
+                          </span>
+                        ) : <span className='text-xs text-muted-foreground'>-</span>}
+                      </TableCell>
+                      <TableCell className='text-[10px] text-muted-foreground'>{f.order_type}</TableCell>
+                      <TableCell className='text-[10px] text-muted-foreground'>
+                        {new Date(f.created_at).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                      </TableCell>
+                    </TableRow>
+                  )) : (
+                    <TableRow>
+                      <TableCell colSpan={8} className='text-center text-xs text-muted-foreground py-6'>暂无成交</TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+              {sim.fills.length > 10 && (
+                <div className='text-center py-2 border-t'>
+                  <Button variant='ghost' size='sm' className='text-xs gap-1' onClick={() => setFillsDialogOpen(true)}>
+                    <ScrollText className='h-3 w-3' /> 查看全部 ({sim.fills.length}+)
+                  </Button>
                 </div>
-              ) : (
-                <div className='text-xs text-muted-foreground py-6 text-center'>暂无成交</div>
               )}
             </div>
-          </div>
-        </div>
+          </TabsContent>
+        </Tabs>
 
         {!account && !sim.loading && (
           <div className='text-center py-4 text-muted-foreground text-xs'>模拟交易所未初始化，点击操作自动创建</div>
@@ -266,22 +339,90 @@ export function SimExchangePanel() {
 }
 
 // ── 成交行 ──
-function FillRow({ fill }: { fill: SimFill }) {
+// ── 持仓表格行（Hyperliquid 风格） ──
+function PositionTableRow({ pos, onClose, onUpdateTpSl }: {
+  pos: SimPosition
+  onClose: (ratio: number) => void
+  onUpdateTpSl: (tp: number | null, sl: number | null) => void
+}) {
+  const isLong = pos.direction === 'long'
+  const pnl = pos.unrealized_pnl ?? 0
+  const pnlPct = pos.unrealized_pnl_pct ?? 0
+  const [editingTpSl, setEditingTpSl] = useState(false)
+  const [editTp, setEditTp] = useState(String(pos.take_profit ?? ''))
+  const [editSl, setEditSl] = useState(String(pos.stop_loss ?? ''))
+
+  const handleSaveTpSl = () => {
+    onUpdateTpSl(parseFloat(editTp) || null, parseFloat(editSl) || null)
+    setEditingTpSl(false)
+  }
+
   return (
-    <div className='flex items-center gap-2 text-[10px] font-mono py-0.5'>
-      <Badge variant='outline' className='text-[10px] px-1 py-0 h-4'>{fill.coin}</Badge>
-      <span className={fill.side === 'buy' ? 'text-green-500' : 'text-red-500'}>{fill.side}</span>
-      <span>{fmtPrice(fill.price)}</span>
-      <span className='text-muted-foreground'>${fill.size_usd.toFixed(0)}</span>
-      {fill.pnl != null && fill.pnl !== 0 && (
-        <span className={fill.pnl >= 0 ? 'text-green-500' : 'text-red-500'}>
-          {fill.pnl >= 0 ? '+' : ''}${fill.pnl.toFixed(2)}
-        </span>
+    <>
+      <TableRow>
+        <TableCell>
+          <span className={`text-xs font-bold ${isLong ? 'text-green-600' : 'text-red-600'}`}>
+            {pos.coin} <span className='font-normal text-[10px]'>{pos.leverage ?? 1}x</span>
+          </span>
+        </TableCell>
+        <TableCell className='text-xs font-mono'>
+          <span className={isLong ? 'text-green-600' : 'text-red-600'}>
+            {isLong ? '' : '-'}${pos.size_usd.toFixed(0)}
+          </span>
+        </TableCell>
+        <TableCell className='text-xs font-mono'>${pos.size_usd.toFixed(2)} USDC</TableCell>
+        <TableCell className='text-xs font-mono'>{fmtPrice(pos.entry_price)}</TableCell>
+        <TableCell className='text-xs font-mono'>{fmtPrice(pos.current_price)}</TableCell>
+        <TableCell>
+          <span className={`text-xs font-mono ${pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+            {pnl >= 0 ? '+' : ''}${pnl.toFixed(2)} ({pnlPct >= 0 ? '+' : ''}{pnlPct.toFixed(1)}%)
+          </span>
+        </TableCell>
+        <TableCell>
+          <button
+            onClick={() => { setEditTp(String(pos.take_profit ?? '')); setEditSl(String(pos.stop_loss ?? '')); setEditingTpSl(!editingTpSl) }}
+            className='text-[10px] font-mono flex items-center gap-1 hover:text-foreground text-muted-foreground'
+          >
+            {pos.take_profit || pos.stop_loss ? (
+              <span>
+                {pos.take_profit != null ? fmtPrice(pos.take_profit) : '--'}
+                {' / '}
+                {pos.stop_loss != null ? fmtPrice(pos.stop_loss) : '--'}
+              </span>
+            ) : (
+              <span>-- / --</span>
+            )}
+            <Pencil className='h-2.5 w-2.5' />
+          </button>
+        </TableCell>
+        <TableCell className='text-right'>
+          <div className='flex items-center justify-end gap-1'>
+            <Button variant='outline' size='sm' className='h-6 text-[10px] px-2' onClick={() => onClose(0.5)}>Reduce</Button>
+            <Button variant='outline' size='sm' className='h-6 text-[10px] px-2' onClick={() => onClose(1)}>Market</Button>
+          </div>
+        </TableCell>
+      </TableRow>
+      {editingTpSl && (
+        <TableRow>
+          <TableCell colSpan={8} className='py-1.5 bg-muted/20'>
+            <div className='flex items-center gap-2 px-1'>
+              <span className='text-[10px] text-green-600 font-medium'>TP</span>
+              <Input type='number' value={editTp} onChange={(e) => setEditTp(e.target.value)}
+                className='h-6 text-[10px] w-28 font-mono' placeholder='Take Profit' />
+              <span className='text-[10px] text-red-600 font-medium'>SL</span>
+              <Input type='number' value={editSl} onChange={(e) => setEditSl(e.target.value)}
+                className='h-6 text-[10px] w-28 font-mono' placeholder='Stop Loss' />
+              <Button size='sm' className='h-6 text-[10px] px-2' onClick={handleSaveTpSl}>Confirm</Button>
+              <Button variant='ghost' size='sm' className='h-6 text-[10px] px-2' onClick={() => setEditingTpSl(false)}>Cancel</Button>
+              {(pos.take_profit || pos.stop_loss) && (
+                <Button variant='ghost' size='sm' className='h-6 text-[10px] px-2 text-red-500'
+                  onClick={() => { onUpdateTpSl(null, null); setEditingTpSl(false) }}>Clear</Button>
+              )}
+            </div>
+          </TableCell>
+        </TableRow>
       )}
-      <span className='text-muted-foreground ml-auto'>
-        {new Date(fill.created_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
-      </span>
-    </div>
+    </>
   )
 }
 
@@ -384,90 +525,4 @@ function FillsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: 
   )
 }
 
-// ── 持仓卡片 ──
-function PositionCard({ pos, onClose, onUpdateTpSl }: {
-  pos: SimPosition
-  onClose: (ratio: number) => void
-  onUpdateTpSl: (tp: number | null, sl: number | null) => void
-}) {
-  const isLong = pos.direction === 'long'
-  const pnl = pos.unrealized_pnl ?? 0
-  const pnlPct = pos.unrealized_pnl_pct ?? 0
-  const [editing, setEditing] = useState(false)
-  const [editTp, setEditTp] = useState(String(pos.take_profit ?? ''))
-  const [editSl, setEditSl] = useState(String(pos.stop_loss ?? ''))
-
-  const handleSaveTpSl = () => {
-    onUpdateTpSl(parseFloat(editTp) || null, parseFloat(editSl) || null)
-    setEditing(false)
-  }
-
-  return (
-    <div className={`rounded-lg border p-3 ${isLong ? 'border-green-500/20 bg-green-50/30 dark:bg-green-950/10' : 'border-red-500/20 bg-red-50/30 dark:bg-red-950/10'}`}>
-      {/* 第一行: 币种 + 方向 + 盈亏 + 操作 */}
-      <div className='flex items-center justify-between'>
-        <div className='flex items-center gap-2'>
-          <span className='text-sm font-bold'>{pos.coin}</span>
-          <Badge variant='outline' className={`text-[10px] ${isLong ? 'text-green-600 border-green-500/30' : 'text-red-600 border-red-500/30'}`}>
-            {isLong ? '做多' : '做空'}
-          </Badge>
-          <span className='text-xs font-mono text-muted-foreground'>${pos.size_usd.toFixed(0)}</span>
-        </div>
-        <div className='flex items-center gap-2'>
-          <span className={`text-sm font-bold font-mono ${pnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-            {pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}
-            <span className='text-[10px] ml-0.5'>({pnlPct >= 0 ? '+' : ''}{pnlPct.toFixed(1)}%)</span>
-          </span>
-          <Button variant='outline' size='sm' className='h-6 text-[10px] px-2' onClick={() => onClose(0.5)}>减半</Button>
-          <Button variant='outline' size='sm' className='h-6 text-[10px] px-2 text-red-500 border-red-500/30' onClick={() => onClose(1)}>平仓</Button>
-        </div>
-      </div>
-
-      {/* 第二行: 入场价 → 现价 + TP/SL */}
-      <div className='flex items-center justify-between mt-2 text-xs'>
-        <div className='flex items-center gap-3 font-mono'>
-          <div>
-            <span className='text-muted-foreground'>入场 </span>
-            <span className='font-medium'>{fmtPrice(pos.entry_price)}</span>
-          </div>
-          <span className='text-muted-foreground'>→</span>
-          <div>
-            <span className='text-muted-foreground'>现价 </span>
-            <span className='font-medium'>{fmtPrice(pos.current_price)}</span>
-          </div>
-        </div>
-        <button onClick={() => { setEditTp(String(pos.take_profit ?? '')); setEditSl(String(pos.stop_loss ?? '')); setEditing(!editing) }}
-          className='text-[10px] font-mono text-muted-foreground hover:text-foreground cursor-pointer'>
-          {pos.take_profit || pos.stop_loss ? (
-            <span>
-              {pos.take_profit != null && <span className='text-green-600'>TP {fmtPrice(pos.take_profit)}</span>}
-              {pos.take_profit && pos.stop_loss && <span className='text-muted-foreground mx-1'>|</span>}
-              {pos.stop_loss != null && <span className='text-red-600'>SL {fmtPrice(pos.stop_loss)}</span>}
-            </span>
-          ) : (
-            <span className='text-muted-foreground/50 underline'>设置 TP/SL</span>
-          )}
-        </button>
-      </div>
-
-      {/* TP/SL 编辑行 */}
-      {editing && (
-        <div className='flex items-center gap-2 mt-2 pt-2 border-t'>
-          <span className='text-[10px] text-green-600'>TP</span>
-          <Input type='number' value={editTp} onChange={(e) => setEditTp(e.target.value)}
-            className='h-6 text-[10px] w-24 font-mono' placeholder='止盈价' />
-          <span className='text-[10px] text-red-600'>SL</span>
-          <Input type='number' value={editSl} onChange={(e) => setEditSl(e.target.value)}
-            className='h-6 text-[10px] w-24 font-mono' placeholder='止损价' />
-          <Button size='sm' className='h-6 text-[10px] px-2' onClick={handleSaveTpSl}>保存</Button>
-          <Button variant='ghost' size='sm' className='h-6 text-[10px] px-2' onClick={() => setEditing(false)}>取消</Button>
-          {(pos.take_profit || pos.stop_loss) && (
-            <Button variant='ghost' size='sm' className='h-6 text-[10px] px-2 text-red-500'
-              onClick={() => { onUpdateTpSl(null, null); setEditing(false) }}>清除</Button>
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
 
