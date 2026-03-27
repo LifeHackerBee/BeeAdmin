@@ -107,7 +107,7 @@ export function StrategyRecommendation({ data }: Props) {
                 <div className='bg-green-500 transition-all' style={{ width: `${bullPct}%` }} />
               )}
               {neutralPct > 0 && (
-                <div className='bg-slate-300 dark:bg-slate-600 transition-all' style={{ width: `${neutralPct}%` }} />
+                <div className='bg-yellow-400 dark:bg-yellow-600 transition-all' style={{ width: `${neutralPct}%` }} />
               )}
               {bearPct > 0 && (
                 <div className='bg-red-500 transition-all' style={{ width: `${bearPct}%` }} />
@@ -119,8 +119,8 @@ export function StrategyRecommendation({ data }: Props) {
                 <span className='text-green-600 dark:text-green-400 font-medium'>看多 {bullCount}</span>
               </span>
               <span className='flex items-center gap-1'>
-                <span className='inline-block w-2 h-2 rounded-full bg-slate-300 dark:bg-slate-600' />
-                <span className='text-muted-foreground'>中性 {neutralCount}</span>
+                <span className='inline-block w-2 h-2 rounded-full bg-yellow-400 dark:bg-yellow-600' />
+                <span className='text-yellow-600 dark:text-yellow-400 font-medium'>中性 {neutralCount}</span>
               </span>
               <span className='flex items-center gap-1'>
                 <span className='inline-block w-2 h-2 rounded-full bg-red-500' />
@@ -176,19 +176,22 @@ export function StrategyRecommendation({ data }: Props) {
                         ? 'text-green-600 dark:text-green-400'
                         : d.signal === 'bearish' || d.signal === 'warning'
                           ? 'text-red-600 dark:text-red-400'
-                          : 'text-muted-foreground'
-                      const signalLabel = d.signal === 'bullish' ? '多' : d.signal === 'bearish' ? '空' : d.signal === 'confirmed' ? '确认' : d.signal === 'warning' ? '警告' : '—'
+                          : 'text-yellow-600 dark:text-yellow-400'
+                      const signalLabel = d.signal === 'bullish' ? '看多' : d.signal === 'bearish' ? '看空' : d.signal === 'confirmed' ? '确认' : d.signal === 'warning' ? '警告' : '中性'
+                      const signalBg = d.signal === 'bullish' || d.signal === 'confirmed'
+                        ? 'bg-green-100 dark:bg-green-900/30'
+                        : d.signal === 'bearish' || d.signal === 'warning'
+                          ? 'bg-red-100 dark:bg-red-900/30'
+                          : 'bg-yellow-100 dark:bg-yellow-900/20'
                       const tf = weightToTimeframe(d.indicator, d.weight)
 
                       return (
-                        <div key={i} className='flex items-center px-3 py-1 text-xs'>
-                          <span className='text-muted-foreground w-14 shrink-0'>{tf}</span>
-                          <span className={`font-medium w-8 shrink-0 ${signalColor}`}>{signalLabel}</span>
-                          {d.state && (
-                            <span className='text-muted-foreground truncate' title={d.state}>
-                              {d.state}
-                            </span>
-                          )}
+                        <div key={i} className='flex items-center px-3 py-1.5 text-xs gap-2'>
+                          <span className='text-muted-foreground w-12 shrink-0'>{tf}</span>
+                          <span className={`font-medium px-1.5 py-0.5 rounded text-[10px] shrink-0 ${signalColor} ${signalBg}`}>{signalLabel}</span>
+                          <span className='text-muted-foreground truncate flex-1' title={d.state || ''}>
+                            {d.state || '—'}
+                          </span>
                         </div>
                       )
                     })}
