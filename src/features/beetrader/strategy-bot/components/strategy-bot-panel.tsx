@@ -1081,11 +1081,6 @@ function TradeLogRow({ log }: { log: BotLog }) {
             <div className='flex items-center gap-2 text-xs'>
               <Badge variant='outline' className='text-[10px] px-1.5 py-0'>{log.coin}</Badge>
               <span>{log.message}</span>
-              {pnl != null && (
-                <span className={`font-mono font-bold ${pnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}
-                </span>
-              )}
             </div>
           )}
 
