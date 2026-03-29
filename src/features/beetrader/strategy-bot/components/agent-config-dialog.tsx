@@ -23,6 +23,7 @@ export const AGENT_TOOLS = [
   { name: 'refresh_strategy', desc: '强制重新分析全量指标（实时计算，不写库）', params: 'coin', category: 'info' as const },
   { name: 'get_account_state', desc: '查看账户余额、持仓详情、强平价、绩效', params: 'coin', category: 'info' as const },
   { name: 'analyze_market', desc: '获取多周期状态、阶梯形态、共振分析、指标数据', params: 'coin', category: 'info' as const },
+  { name: 'get_volume_flow', desc: '获取5分钟量级变化：量比、异常放量、多空方向', params: 'coin', category: 'info' as const },
   { name: 'calculate_risk_reward', desc: '计算盈亏比并校验是否满足最低要求', params: 'entry_price, take_profit, stop_loss, direction', category: 'trade' as const },
   { name: 'open_position', desc: '开仓（多/空）', params: 'direction (long/short), entry_price, take_profit, stop_loss', category: 'trade' as const },
   { name: 'close_position', desc: '平仓（全部）', params: '无', category: 'trade' as const },

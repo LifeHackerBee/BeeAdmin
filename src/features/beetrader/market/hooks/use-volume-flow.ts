@@ -8,6 +8,7 @@ export interface VolumeBar {
   volume: number
   isBullish: boolean  // close >= open
   isSpike: boolean    // volume >= 2× average
+  spikeRatio: number  // volume / avgVolume (具体倍数)
   open: number
   close: number
 }
@@ -68,12 +69,14 @@ async function fetchVolumeFlow(coin: string): Promise<VolumeFlowData> {
     const date = new Date(d.t)
     const hh = date.getHours().toString().padStart(2, '0')
     const mm = date.getMinutes().toString().padStart(2, '0')
+    const ratio = avgVolume > 0 ? volume / avgVolume : 0
     return {
       time: d.t,
       timeLabel: `${hh}:${mm}`,
       volume,
       isBullish: close >= open,
-      isSpike: volume >= avgVolume * SPIKE_THRESHOLD,
+      isSpike: ratio >= SPIKE_THRESHOLD,
+      spikeRatio: Math.round(ratio * 10) / 10,
       open,
       close,
     }

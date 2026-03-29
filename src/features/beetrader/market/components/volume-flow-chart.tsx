@@ -44,10 +44,13 @@ function VolumeTooltip({
         {bar.isBullish ? '▲ 多方' : '▼ 空方'}{' '}
         {pct >= 0 ? '+' : ''}{pct.toFixed(2)}%
       </div>
+      <div className='text-muted-foreground'>
+        量比 {bar.spikeRatio.toFixed(1)}× 均量
+      </div>
       {bar.isSpike && (
         <div className='text-amber-500 font-semibold flex items-center gap-1'>
           <Zap className='h-3 w-3' />
-          量级异常（≥ 2× 均量）
+          量能异常 ({bar.spikeRatio.toFixed(1)}× 均量)
         </div>
       )}
     </div>
@@ -111,6 +114,17 @@ export function VolumeFlowChart({ coin }: VolumeFlowChartProps) {
                       : 'text-foreground'
                   }
                 />
+                <Stat
+                  label='量比'
+                  value={currentRatio ? `${currentRatio.toFixed(1)}×` : '-'}
+                  accent={
+                    currentRatio && currentRatio >= 2
+                      ? 'text-amber-500'
+                      : currentRatio && currentRatio >= 1.5
+                        ? 'text-yellow-500'
+                        : 'text-foreground'
+                  }
+                />
                 {data.spikeCount > 0 && (
                   <Stat
                     label='异常次数'
@@ -121,7 +135,7 @@ export function VolumeFlowChart({ coin }: VolumeFlowChartProps) {
                 {currentRatio !== null && currentRatio >= 2 && (
                   <span className='flex items-center gap-0.5 text-[10px] text-amber-500 font-semibold'>
                     <Zap className='h-3 w-3' />
-                    {currentRatio.toFixed(1)}×
+                    放量 {currentRatio.toFixed(1)}×
                   </span>
                 )}
               </div>

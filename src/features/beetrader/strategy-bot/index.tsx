@@ -1,12 +1,16 @@
-import { useState } from 'react'
 import { Bot } from 'lucide-react'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { StrategyBotPanel } from './components/strategy-bot-panel'
 import type { BotMode } from './hooks/use-strategy-bot-jobs'
 
-export function StrategyBot() {
-  const [mode, setMode] = useState<BotMode>('paper')
+export function StrategyBotPage({ mode }: { mode: BotMode }) {
+  const setMode = (v: string) => {
+    const url = new URL(window.location.href)
+    url.searchParams.set('mode', v)
+    window.history.replaceState({}, '', url.toString())
+    window.location.reload()
+  }
 
   return (
     <div className='flex flex-col space-y-3'>
@@ -16,7 +20,7 @@ export function StrategyBot() {
         <span className='text-sm text-muted-foreground'>基于大镖客策略的量化交易</span>
       </div>
 
-      <Tabs value={mode} onValueChange={(v) => setMode(v as BotMode)}>
+      <Tabs value={mode} onValueChange={setMode}>
         <TabsList>
           <TabsTrigger value='paper'>模拟交易</TabsTrigger>
           <TabsTrigger value='live' className='gap-1.5'>
@@ -24,13 +28,9 @@ export function StrategyBot() {
             <Badge variant='destructive' className='text-[10px] px-1 py-0 h-4'>LIVE</Badge>
           </TabsTrigger>
         </TabsList>
-        <TabsContent value='paper' className='mt-3'>
-          <StrategyBotPanel mode='paper' />
-        </TabsContent>
-        <TabsContent value='live' className='mt-3'>
-          <StrategyBotPanel mode='live' />
-        </TabsContent>
       </Tabs>
+
+      <StrategyBotPanel mode={mode} />
     </div>
   )
 }
