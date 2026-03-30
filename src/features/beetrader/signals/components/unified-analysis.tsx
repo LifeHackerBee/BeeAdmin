@@ -98,8 +98,7 @@ export function UnifiedAnalysis() {
     } | null }>(
       '/api/beetrader_strategy/history/latest'
     ).then((res) => {
-      if (res.record) {
-        setCoin(res.record.coin)
+      if (res.record && res.record.coin === coin) {
         unified.setStrategy(res.record.strategy_data)
         setLastUpdated(new Date(res.record.created_at))
         setUsingCache(true)

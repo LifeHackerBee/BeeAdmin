@@ -1,299 +1,282 @@
 /**
- * CvdPanel — 实时 CVD + 放量 + 盘口 Imbalance 面板
- * ─────────────────────────────────────────────────
- * 数据来源: /ws/cvd/{coin}  (后端实时 WebSocket 推送)
- *
- * 布局:
- *   ┌─ 头部: 状态指示灯 + CVD 当前值 + 方向 Badge ─────────────────┐
- *   │  AreaChart: CVD 曲线 (rolling 300 点)                        │
- *   │  BarChart : VpS 棒图 + 放量比标注                            │
- *   │  Imbalance: 买/卖盘口深度比 进度条                           │
- *   │  BBO      : 最优买一/卖一 + Spread                           │
- *   └──────────────────────────────────────────────────────────────┘
+ * CvdPanel — 实时 CVD 趋势图（1m / 5m / 15m）
+ * ─────────────────────────────────────────────
+ * 风格对标"BTC 5分钟量级变化"：
+ *   - 柱图：每桶 CVD 净变化，绿=净主买，红=净主卖
+ *   - 异常放量桶高亮（亮绿/亮红）
+ *   - 顶部 stats：总 CVD、斜率、放量次数
+ *   - 三个周期 Tab 切换
  */
-import { useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import {
-  AreaChart, Area,
   BarChart, Bar, Cell,
   XAxis, YAxis, ReferenceLine,
   ResponsiveContainer, Tooltip,
 } from 'recharts'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Zap, TrendingUp, TrendingDown, Minus, Wifi, WifiOff, Loader2 } from 'lucide-react'
-import { useCvdStream, type CvdPoint } from '../hooks/use-cvd-stream'
+import {
+  Zap, TrendingUp, TrendingDown, Minus,
+  Wifi, WifiOff, Loader2,
+} from 'lucide-react'
+import { useCvdStream, type CvdBucket, type CvdInterval } from '../hooks/use-cvd-stream'
 
-// ─── helpers ────────────────────────────────────────────────────────────────
+// ─── helpers ──────────────────────────────────────────────────────────────────
 
 function fmtNum(v: number, d = 2): string {
-  if (Math.abs(v) >= 1_000_000) return `${(v / 1_000_000).toFixed(d)}M`
-  if (Math.abs(v) >= 1_000)     return `${(v / 1_000).toFixed(d)}K`
+  const abs = Math.abs(v)
+  if (abs >= 1_000_000) return `${(v / 1_000_000).toFixed(d)}M`
+  if (abs >= 1_000)     return `${(v / 1_000).toFixed(d)}K`
   return v.toFixed(d)
 }
 
-function fmtTs(ts: number): string {
-  const d = new Date(ts)
-  return `${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}:${d.getSeconds().toString().padStart(2,'0')}`
-}
+const INTERVALS: { key: CvdInterval; label: string }[] = [
+  { key: '1m',  label: '1分钟' },
+  { key: '5m',  label: '5分钟' },
+  { key: '15m', label: '15分钟' },
+]
 
-// ─── Tooltip ─────────────────────────────────────────────────────────────────
+// ─── Tooltip ──────────────────────────────────────────────────────────────────
 
-function CvdTooltip({ active, payload }: { active?: boolean; payload?: { payload: CvdPoint }[] }) {
+function CvdTooltip({ active, payload }: { active?: boolean; payload?: { payload: CvdBucket }[] }) {
   if (!active || !payload?.[0]) return null
-  const d = payload[0].payload
+  const b = payload[0].payload
   return (
-    <div className='rounded-md border bg-background/95 p-2 shadow-md text-[10px] space-y-0.5 min-w-[110px]'>
-      <div className='text-muted-foreground'>{fmtTs(d.ts)}</div>
-      <div className={d.cvd >= 0 ? 'text-emerald-500 font-medium' : 'text-red-500 font-medium'}>
-        CVD {d.cvd >= 0 ? '+' : ''}{fmtNum(d.cvd)}
+    <div className='rounded-lg border bg-background p-2.5 shadow-md text-xs space-y-1 min-w-[140px]'>
+      <div className='font-medium text-foreground'>{b.timeLabel}</div>
+      <div className={b.cvdDelta >= 0 ? 'text-emerald-500' : 'text-red-500'}>
+        CVD {b.cvdDelta >= 0 ? '+' : ''}{fmtNum(b.cvdDelta)}
       </div>
-      <div className='text-muted-foreground'>VpS {fmtNum(d.vps)}/s</div>
+      <div className='text-muted-foreground'>成交量 {fmtNum(b.volume)}</div>
+      <div className='text-muted-foreground'>
+        买 {fmtNum(b.buyVol)} / 卖 {fmtNum(b.sellVol)}
+      </div>
+      {b.maxVps > 0 && (
+        <div className='text-muted-foreground'>峰值 VpS {fmtNum(b.maxVps)}/s</div>
+      )}
+      <div className='text-muted-foreground'>量比 {b.spikeRatio.toFixed(1)}× 均量</div>
+      {b.isSpike && (
+        <div className='text-amber-500 font-semibold flex items-center gap-1'>
+          <Zap className='h-3 w-3' />
+          量能异常 ({b.spikeRatio.toFixed(1)}×)
+        </div>
+      )}
     </div>
   )
 }
 
-function VpsTooltip({ active, payload }: { active?: boolean; payload?: { payload: CvdPoint }[] }) {
-  if (!active || !payload?.[0]) return null
-  const d = payload[0].payload
+// ─── Stat badge ───────────────────────────────────────────────────────────────
+
+function Stat({ label, value, accent }: { label: string; value: string; accent?: string }) {
   return (
-    <div className='rounded-md border bg-background/95 p-2 shadow-md text-[10px]'>
-      <div className='text-muted-foreground'>{fmtTs(d.ts)}</div>
-      <div className='font-medium'>{fmtNum(d.vps)}/s</div>
-    </div>
+    <span className='flex flex-col items-center leading-tight'>
+      <span className='text-[9px] text-muted-foreground'>{label}</span>
+      <span className={`text-[11px] font-mono font-semibold ${accent ?? 'text-foreground'}`}>{value}</span>
+    </span>
   )
 }
 
-// ─── Status dot ──────────────────────────────────────────────────────────────
+// ─── Status indicator ─────────────────────────────────────────────────────────
 
 function StatusDot({ status }: { status: string }) {
-  if (status === 'connected')   return <span className='inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse' />
-  if (status === 'connecting')  return <Loader2 className='h-3 w-3 animate-spin text-yellow-500' />
-  if (status === 'error')       return <WifiOff className='h-3 w-3 text-red-500' />
+  if (status === 'connected')  return <span className='inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse' />
+  if (status === 'connecting') return <Loader2 className='h-3 w-3 animate-spin text-yellow-500' />
+  if (status === 'error')      return <WifiOff className='h-3 w-3 text-red-500' />
   return <Wifi className='h-3 w-3 text-muted-foreground/40' />
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
+// ─── Main ─────────────────────────────────────────────────────────────────────
 
 interface CvdPanelProps {
-  coin: string
-  active: boolean  // 只有策略总览可见时才连接
+  coin:   string
+  active: boolean
 }
 
 export function CvdPanel({ coin, active }: CvdPanelProps) {
-  const { snapshot, status, connect, disconnect } = useCvdStream()
+  const { data, status, error, connect, disconnect, liveCvd, liveVps } = useCvdStream()
+  const [interval, setInterval] = useState<CvdInterval>('1m')
 
-  // 根据 active + coin 控制连接生命周期
   useEffect(() => {
-    if (active) {
-      connect(coin)
-    } else {
-      disconnect()
-    }
-  }, [active, coin]) // eslint-disable-line react-hooks/exhaustive-deps
+    if (active) connect(coin)
+    else        disconnect()
+  }, [active]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // coin 变化时重连
   useEffect(() => {
     if (active) connect(coin)
   }, [coin]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const history    = snapshot?.history ?? []
-  const cvd        = snapshot?.cvd ?? 0
-  const vps        = snapshot?.vps ?? 0
-  const vpsRatio   = snapshot?.vps_ratio ?? 1
-  const imbalance  = snapshot?.imbalance ?? 0.5
-  const spread     = snapshot?.spread
-  const bestBid    = snapshot?.best_bid
-  const bestAsk    = snapshot?.best_ask
-  const isSpike    = vpsRatio >= 2.0
-  const cvdDir     = cvd > 0 ? 'long' : cvd < 0 ? 'short' : 'neutral'
+  const barsData    = data[interval]
+  const { bars, avgVolume, totalCvd, spikeCount, slope } = barsData
 
-  // CVD 斜率（最后 20 点）
-  const slopePoints = history.slice(-20)
-  const slope = slopePoints.length >= 2
-    ? (slopePoints[slopePoints.length - 1].cvd - slopePoints[0].cvd) / slopePoints.length
-    : 0
+  const totalCvdDir = totalCvd > 0 ? 'long' : totalCvd < 0 ? 'short' : 'neutral'
+  const slopeDir    = slope > 0.001 ? 'up' : slope < -0.001 ? 'down' : 'flat'
 
-  // VpS 均值（用于参考线）
-  const vpsAvg = history.length > 0
-    ? history.slice(-60).reduce((s, p) => s + p.vps, 0) / Math.min(history.length, 60)
-    : 0
+  // X 轴只显示部分标签避免拥挤
+  const xInterval = interval === '1m' ? 9 : interval === '5m' ? 5 : 2
 
   return (
-    <div className='space-y-2'>
-      {/* ── 头部：状态 + CVD 当前值 ── */}
-      <div className='flex items-center justify-between flex-wrap gap-2'>
-        <div className='flex items-center gap-2'>
-          <StatusDot status={status} />
-          <span className='text-xs text-muted-foreground'>实时 CVD</span>
-          {status === 'connected' && snapshot && (
-            <span className='text-[10px] text-muted-foreground/60 tabular-nums'>
-              {fmtTs(snapshot.ts)}
-            </span>
-          )}
-        </div>
+    <Card className='flex flex-col'>
+      <CardHeader className='pb-2 flex-shrink-0'>
+        <CardTitle className='text-sm flex items-center justify-between flex-wrap gap-2'>
+          {/* 左：标题 + 状态 */}
+          <div className='flex items-center gap-2'>
+            <StatusDot status={status} />
+            <span>{coin} 实时 CVD 趋势</span>
+            {error && <span className='text-[10px] text-red-500'>{error}</span>}
+          </div>
 
-        <div className='flex items-center gap-2'>
-          {/* CVD 值 */}
-          <span className={`text-sm font-mono font-semibold tabular-nums ${
-            cvdDir === 'long' ? 'text-emerald-500' : cvdDir === 'short' ? 'text-red-500' : 'text-muted-foreground'
-          }`}>
-            {cvd >= 0 ? '+' : ''}{fmtNum(cvd)}
-          </span>
+          {/* 右：Stats + 周期切换 */}
+          <div className='flex items-center gap-4'>
+            {bars.length > 0 && (
+              <div className='flex items-center gap-4 mr-1'>
+                {/* 总 CVD */}
+                <Stat
+                  label='累计CVD'
+                  value={(totalCvd >= 0 ? '+' : '') + fmtNum(totalCvd)}
+                  accent={totalCvdDir === 'long' ? 'text-emerald-500' : totalCvdDir === 'short' ? 'text-red-500' : undefined}
+                />
+                {/* 斜率 */}
+                <Stat
+                  label='斜率'
+                  value={`${slopeDir === 'up' ? '↗' : slopeDir === 'down' ? '↘' : '→'} ${Math.abs(slope).toFixed(2)}`}
+                  accent={slopeDir === 'up' ? 'text-emerald-500' : slopeDir === 'down' ? 'text-red-500' : undefined}
+                />
+                {/* 放量次数 */}
+                {spikeCount > 0 && (
+                  <Stat label='异常次数' value={`${spikeCount} 次`} accent='text-amber-500' />
+                )}
+                {/* 实时 live bar */}
+                {status === 'connected' && (
+                  <Stat
+                    label='当前桶'
+                    value={(liveCvd >= 0 ? '+' : '') + fmtNum(liveCvd)}
+                    accent={liveCvd > 0 ? 'text-emerald-500' : liveCvd < 0 ? 'text-red-500' : undefined}
+                  />
+                )}
+                {/* 放量提示 */}
+                {liveVps > 0 && liveVps >= avgVolume / 60 * 2 && (
+                  <span className='flex items-center gap-0.5 text-[10px] text-amber-500 font-semibold'>
+                    <Zap className='h-3 w-3' />
+                    放量
+                  </span>
+                )}
+              </div>
+            )}
 
-          {/* 方向 Badge */}
-          {status === 'connected' && (
-            <Badge
-              variant={cvdDir === 'long' ? 'default' : cvdDir === 'short' ? 'destructive' : 'secondary'}
-              className='text-[10px] px-1.5 py-0 h-4 gap-0.5'
+            {/* 周期 Tab */}
+            <div className='flex rounded-md border overflow-hidden text-[11px]'>
+              {INTERVALS.map(({ key, label }) => (
+                <button
+                  key={key}
+                  onClick={() => setInterval(key)}
+                  className={`px-2 py-0.5 transition-colors ${
+                    interval === key
+                      ? 'bg-foreground text-background'
+                      : 'text-muted-foreground hover:bg-muted'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </CardTitle>
+      </CardHeader>
+
+      <CardContent className='p-2 pt-0' style={{ height: 200 }}>
+        {status === 'error' ? (
+          <div className='flex items-center justify-center h-full text-destructive text-sm'>
+            {error ?? 'WebSocket 连接失败'}
+          </div>
+        ) : status !== 'connected' || bars.length === 0 ? (
+          <div className='flex flex-col items-center justify-center h-full text-muted-foreground text-sm gap-2'>
+            {status === 'connecting'
+              ? <><Loader2 className='h-4 w-4 animate-spin' />正在连接，等待数据积累中...</>
+              : status === 'disconnected'
+                ? '未连接'
+                : <><Loader2 className='h-4 w-4 animate-spin' />等待数据积累（每满1分钟更新一次）...</>
+            }
+          </div>
+        ) : (
+          <ResponsiveContainer width='100%' height='100%'>
+            <BarChart
+              data={bars}
+              margin={{ top: 4, right: 8, bottom: 0, left: 40 }}
+              barCategoryGap='3%'
             >
-              {cvdDir === 'long'    ? <><TrendingUp  className='h-2.5 w-2.5' />净主买</> :
-               cvdDir === 'short'   ? <><TrendingDown className='h-2.5 w-2.5' />净主卖</> :
-                                       <><Minus       className='h-2.5 w-2.5' />均衡</>}
-            </Badge>
-          )}
-
-          {/* 斜率 */}
-          {status === 'connected' && Math.abs(slope) > 0.001 && (
-            <span className={`text-[10px] ${slope > 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-              斜率 {slope > 0 ? '↗' : '↘'} {Math.abs(slope).toFixed(3)}/帧
-            </span>
-          )}
-
-          {/* 放量 spike */}
-          {isSpike && (
-            <span className='flex items-center gap-0.5 text-[10px] text-amber-500 font-semibold'>
-              <Zap className='h-3 w-3' />
-              放量 {vpsRatio.toFixed(1)}×
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* ── CVD 曲线 ── */}
-      {history.length > 1 ? (
-        <div style={{ height: 90 }}>
-          <ResponsiveContainer width='100%' height='100%'>
-            <AreaChart data={history} margin={{ top: 4, right: 4, bottom: 0, left: 36 }}>
-              <defs>
-                <linearGradient id='cvdGradPos' x1='0' y1='0' x2='0' y2='1'>
-                  <stop offset='5%'  stopColor='#10b981' stopOpacity={0.35} />
-                  <stop offset='95%' stopColor='#10b981' stopOpacity={0.02} />
-                </linearGradient>
-                <linearGradient id='cvdGradNeg' x1='0' y1='0' x2='0' y2='1'>
-                  <stop offset='5%'  stopColor='#ef4444' stopOpacity={0.35} />
-                  <stop offset='95%' stopColor='#ef4444' stopOpacity={0.02} />
-                </linearGradient>
-              </defs>
-              <XAxis dataKey='ts' hide />
+              <XAxis
+                dataKey='timeLabel'
+                tick={{ fontSize: 9, fill: '#9ca3af' }}
+                axisLine={false}
+                tickLine={false}
+                interval={xInterval}
+              />
               <YAxis
                 tick={{ fontSize: 9, fill: '#9ca3af' }}
-                axisLine={false} tickLine={false}
-                width={36} tickFormatter={(v) => fmtNum(v, 1)}
+                axisLine={false}
+                tickLine={false}
+                tickFormatter={(v) => fmtNum(v, 1)}
+                width={40}
               />
-              <ReferenceLine y={0} stroke='rgba(156,163,175,0.4)' strokeWidth={1} />
+              {/* CVD=0 基准线 */}
+              <ReferenceLine y={0} stroke='rgba(156,163,175,0.5)' strokeWidth={1} />
               <Tooltip content={<CvdTooltip />} />
-              <Area
-                type='monotone' dataKey='cvd' dot={false} isAnimationActive={false}
-                stroke={cvd >= 0 ? '#10b981' : '#ef4444'}
-                strokeWidth={1.5}
-                fill={cvd >= 0 ? 'url(#cvdGradPos)' : 'url(#cvdGradNeg)'}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-      ) : (
-        <div className='flex items-center justify-center h-[90px] text-xs text-muted-foreground/50'>
-          {status === 'connecting' ? '正在连接...' : status === 'disconnected' ? '等待连接' : '等待数据...'}
-        </div>
-      )}
 
-      {/* ── VpS 棒图 ── */}
-      {history.length > 1 && (
-        <div style={{ height: 56 }}>
-          <ResponsiveContainer width='100%' height='100%'>
-            <BarChart data={history.slice(-60)} margin={{ top: 2, right: 4, bottom: 0, left: 36 }} barCategoryGap='2%'>
-              <XAxis dataKey='ts' hide />
-              <YAxis
-                tick={{ fontSize: 9, fill: '#9ca3af' }}
-                axisLine={false} tickLine={false}
-                width={36} tickFormatter={(v) => fmtNum(v, 1)}
-              />
-              {vpsAvg > 0 && (
-                <ReferenceLine y={vpsAvg} stroke='rgba(156,163,175,0.4)' strokeWidth={1} strokeDasharray='4 3' />
-              )}
-              <Tooltip content={<VpsTooltip />} />
-              <Bar dataKey='vps' radius={[1, 1, 0, 0]} maxBarSize={8} isAnimationActive={false}>
-                {history.slice(-60).map((p, i) => {
-                  const spike = vpsAvg > 0 && p.vps >= vpsAvg * 2
-                  return <Cell key={i} fill={spike ? '#f59e0b' : 'rgba(156,163,175,0.5)'} />
+              <Bar dataKey='cvdDelta' radius={[2, 2, 0, 0]} maxBarSize={14}>
+                {bars.map((b, i) => {
+                  const pos = b.cvdDelta >= 0
+                  return (
+                    <Cell
+                      key={i}
+                      fill={
+                        b.isSpike
+                          ? pos ? '#10b981' : '#ef4444'                          // 放量：亮色
+                          : pos ? 'rgba(16,185,129,0.45)' : 'rgba(239,68,68,0.45)' // 正常：半透明
+                      }
+                    />
+                  )
                 })}
               </Bar>
             </BarChart>
           </ResponsiveContainer>
-        </div>
-      )}
+        )}
+      </CardContent>
 
-      {/* ── 盘口信息行 ── */}
-      {status === 'connected' && snapshot && (
-        <div className='flex items-center gap-4 text-[11px] flex-wrap'>
-          {/* Imbalance 进度条 */}
-          <div className='flex items-center gap-1.5 flex-1 min-w-[140px]'>
-            <span className='text-muted-foreground shrink-0'>盘口</span>
-            <div className='flex-1 h-2 rounded-full overflow-hidden bg-muted'>
-              <div
-                className='h-full bg-emerald-500 transition-all duration-300'
-                style={{ width: `${imbalance * 100}%` }}
-              />
-            </div>
-            <span className={`tabular-nums shrink-0 font-medium ${
-              imbalance > 0.55 ? 'text-emerald-500' : imbalance < 0.45 ? 'text-red-500' : 'text-muted-foreground'
-            }`}>
-              {imbalance > 0.55 ? '买压' : imbalance < 0.45 ? '卖压' : '均衡'} {(imbalance * 100).toFixed(0)}%
-            </span>
-          </div>
-
-          {/* BBO */}
-          {bestBid && bestAsk && (
-            <div className='flex items-center gap-2 text-[11px]'>
-              <span className='text-emerald-600 font-mono'>{bestBid.toFixed(1)}</span>
-              <span className='text-muted-foreground/50'>/</span>
-              <span className='text-red-500 font-mono'>{bestAsk.toFixed(1)}</span>
-              {spread != null && (
-                <span className='text-muted-foreground'>差价 ${String(spread.toFixed(1))}</span>
-              )}
-            </div>
-          )}
-
-          {/* VpS 当前值 */}
-          <div className='flex items-center gap-1 text-[11px]'>
-            <span className='text-muted-foreground'>VpS</span>
-            <span className={`font-mono font-medium ${isSpike ? 'text-amber-500' : 'text-foreground'}`}>
-              {fmtNum(vps)}/s
-            </span>
-            {isSpike && <Zap className='h-3 w-3 text-amber-500' />}
-          </div>
-
-          {/* 成交笔数 */}
-          <span className='text-muted-foreground text-[10px]'>
-            {snapshot.trade_cnt.toLocaleString()} 笔
+      {/* 图例 + 偏向 Badge */}
+      <div className='flex items-center justify-between px-3 pb-2 flex-shrink-0 flex-wrap gap-1'>
+        <div className='flex gap-4 text-[9px] text-muted-foreground'>
+          <span className='flex items-center gap-1'>
+            <span className='inline-block w-2.5 h-2 rounded-sm' style={{ background: 'rgba(16,185,129,0.55)' }} />
+            净主买
+          </span>
+          <span className='flex items-center gap-1'>
+            <span className='inline-block w-2.5 h-2 rounded-sm' style={{ background: 'rgba(239,68,68,0.55)' }} />
+            净主卖
+          </span>
+          <span className='flex items-center gap-1'>
+            <span className='inline-block w-2.5 h-2 rounded-sm' style={{ background: '#10b981' }} />
+            异常放量（买）
+          </span>
+          <span className='flex items-center gap-1'>
+            <span className='inline-block w-2.5 h-2 rounded-sm' style={{ background: '#ef4444' }} />
+            异常放量（卖）
           </span>
         </div>
-      )}
 
-      {/* ── 图例 ── */}
-      <div className='flex gap-4 text-[9px] text-muted-foreground justify-end flex-wrap'>
-        <span className='flex items-center gap-1'>
-          <span className='inline-block w-6 h-[2px] bg-emerald-500' />CVD 净主买
-        </span>
-        <span className='flex items-center gap-1'>
-          <span className='inline-block w-6 h-[2px] bg-red-500' />CVD 净主卖
-        </span>
-        <span className='flex items-center gap-1'>
-          <span className='inline-block w-2 h-2 rounded-sm bg-amber-400' />放量 ≥2×
-        </span>
-        <span className='flex items-center gap-1'>
-          <span className='inline-block w-3 border-t border-dashed' style={{ borderColor: 'rgba(156,163,175,0.6)' }} />均量
-        </span>
+        {/* 综合偏向 */}
+        {bars.length > 0 && (
+          <Badge
+            variant={totalCvdDir === 'long' ? 'default' : totalCvdDir === 'short' ? 'destructive' : 'secondary'}
+            className='text-[10px] px-2 py-0 h-4 gap-0.5'
+          >
+            {totalCvdDir === 'long'
+              ? <><TrendingUp  className='h-2.5 w-2.5' />净主买偏多</>
+              : totalCvdDir === 'short'
+                ? <><TrendingDown className='h-2.5 w-2.5' />净主卖偏空</>
+                : <><Minus       className='h-2.5 w-2.5' />均衡</>}
+          </Badge>
+        )}
       </div>
-    </div>
+    </Card>
   )
 }
