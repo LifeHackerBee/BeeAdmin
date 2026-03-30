@@ -1,8 +1,25 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import { hyperliquidApiGet } from '@/lib/hyperliquid-api-client'
-import type { BacktestTrackerTask } from '../../backtest/hooks/use-backtest-tracker'
 
-export type { BacktestTrackerTask }
+export interface BacktestTrackerTask {
+  id: number
+  task_name: string
+  coin: string
+  status: 'running' | 'stopped' | 'completed'
+  entry_price: number | null
+  entry_time: string | null
+  entry_direction: 'long' | 'short' | null
+  last_tracked_price: number | null
+  total_tracks: number
+  source: string
+  take_profit: number | null
+  stop_loss: number | null
+  exit_reason: string | null
+  final_pnl: number | null
+  test_amount: number
+  test_leverage: number
+  created_at: string
+}
 
 export interface BotSignalStats {
   total: number

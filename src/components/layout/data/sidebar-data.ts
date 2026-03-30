@@ -105,11 +105,6 @@ export const sidebarData: SidebarData = {
               url: '/beetrader/strategy-bot',
               icon: Bot,
             },
-            {
-              title: '回测模块',
-              url: '/beetrader/backtest',
-              icon: BarChart3,
-            },
           ],
         },
       ],

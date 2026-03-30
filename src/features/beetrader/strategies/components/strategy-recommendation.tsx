@@ -61,14 +61,24 @@ export function StrategyRecommendation({ data }: Props) {
 
   const summary = buildResonanceSummary(data.resonance_details, data.resonance_score)
 
-  // 统计多空中性数量
+  // 统计多空中性数量（原始计数）
   const bullCount = data.resonance_details.filter((d) => d.signal === 'bullish' || d.signal === 'confirmed').length
   const bearCount = data.resonance_details.filter((d) => d.signal === 'bearish' || d.signal === 'warning').length
   const total = data.resonance_details.length
   const neutralCount = total - bullCount - bearCount
-  const bullPct = total > 0 ? (bullCount / total) * 100 : 0
-  const neutralPct = total > 0 ? (neutralCount / total) * 100 : 0
-  const bearPct = total > 0 ? (bearCount / total) * 100 : 0
+
+  // 加权统计（高周期权重更大：1h=1, 4h=2, 1d=3, 1w=4）
+  const bullishW = data.resonance_details
+    .filter((d) => d.signal === 'bullish' || d.signal === 'confirmed')
+    .reduce((s, d) => s + Math.abs(d.weight), 0)
+  const bearishW = data.resonance_details
+    .filter((d) => d.signal === 'bearish' || d.signal === 'warning')
+    .reduce((s, d) => s + Math.abs(d.weight), 0)
+  const totalW = bullishW + bearishW
+
+  // 进度条用加权比例（中性权重为0，不占比例条）
+  const bullPct = totalW > 0 ? (bullishW / totalW) * 100 : 0
+  const bearPct = totalW > 0 ? (bearishW / totalW) * 100 : 0
 
   // 按指标类别分组
   const grouped = data.resonance_details.reduce<Record<string, ResonanceDetail[]>>((acc, d) => {
@@ -100,14 +110,11 @@ export function StrategyRecommendation({ data }: Props) {
             </span>
           </div>
 
-          {/* 多空比例条 — 三段连续 */}
+          {/* 多空比例条 — 按加权比例（中性权重为0不占条） */}
           <div className='space-y-1.5'>
             <div className='flex h-2.5 rounded-full overflow-hidden'>
               {bullPct > 0 && (
                 <div className='bg-green-500 transition-all' style={{ width: `${bullPct}%` }} />
-              )}
-              {neutralPct > 0 && (
-                <div className='bg-yellow-400 dark:bg-yellow-600 transition-all' style={{ width: `${neutralPct}%` }} />
               )}
               {bearPct > 0 && (
                 <div className='bg-red-500 transition-all' style={{ width: `${bearPct}%` }} />
@@ -117,6 +124,7 @@ export function StrategyRecommendation({ data }: Props) {
               <span className='flex items-center gap-1'>
                 <span className='inline-block w-2 h-2 rounded-full bg-green-500' />
                 <span className='text-green-600 dark:text-green-400 font-medium'>看多 {bullCount}</span>
+                <span className='text-muted-foreground'>(权重 {bullishW})</span>
               </span>
               <span className='flex items-center gap-1'>
                 <span className='inline-block w-2 h-2 rounded-full bg-yellow-400 dark:bg-yellow-600' />
@@ -125,9 +133,11 @@ export function StrategyRecommendation({ data }: Props) {
               <span className='flex items-center gap-1'>
                 <span className='inline-block w-2 h-2 rounded-full bg-red-500' />
                 <span className='text-red-600 dark:text-red-400 font-medium'>看空 {bearCount}</span>
+                <span className='text-muted-foreground'>(权重 {bearishW})</span>
               </span>
               <span className='text-muted-foreground ml-auto'>共 {total} 项</span>
             </div>
+            <p className='text-[10px] text-muted-foreground'>进度条按加权比例显示，高周期信号权重更大（日线×3、4H×2、1H×1）</p>
           </div>
 
           <p className='text-xs text-muted-foreground'>{summary}</p>

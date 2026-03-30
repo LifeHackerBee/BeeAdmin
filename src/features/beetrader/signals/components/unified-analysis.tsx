@@ -41,6 +41,7 @@ import {
 } from '../../strategies/components/indicator-panels'
 import { FibonacciPanel } from '../../strategies/components/fibonacci-panel'
 import { MovingAveragesPanel, StaircasePatternPanel } from '../../strategies/components/moving-averages-panel'
+import { CvdPanel } from '../../market/components/cvd-panel'
 import { hyperliquidApiGet, hyperliquidApiPost } from '@/lib/hyperliquid-api-client'
 import type { BeeTraderStrategyData } from '../../strategies/types'
 import { Macroscopic } from '../../macroscopic'
@@ -120,12 +121,7 @@ export function UnifiedAnalysis() {
     }).catch(() => {})
   }, [historyLoaded]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 缓存加载后 radar 为空，自动补一次实时分析获取 S/R 数据
-  useEffect(() => {
-    if (usingCache && !radar.data && !loading && coin) {
-      unified.analyze(coin).catch(() => {})
-    }
-  }, [usingCache, radar.data, loading, coin]) // eslint-disable-line react-hooks/exhaustive-deps
+  // 缓存加载后不自动触发实时分析，由用户手动点击刷新
 
   const handleAnalyze = () => {
     if (!coin.trim()) return
@@ -249,11 +245,6 @@ export function UnifiedAnalysis() {
                   className={`text-sm h-8 px-3 ${coin === c ? '' : 'text-muted-foreground'}`}
                   onClick={() => {
                     setCoin(c)
-                    unified.reset()
-                    aiStrategy.reset()
-                    aiAutoTriggered.current = false
-                    doAnalyze(c)
-                    setCountdown(AUTO_REFRESH_INTERVAL)
                   }}
                   disabled={loading}
                 >
@@ -469,6 +460,12 @@ export function UnifiedAnalysis() {
                 {/* 5分钟量级变化 */}
                 <MarketDepth coin={coin} />
 
+                {/* 实时 CVD + VpS + 盘口 Imbalance */}
+                <div className='rounded-lg border p-3'>
+                  <p className='text-xs font-medium text-muted-foreground mb-2'>实时 CVD · 放量 · 盘口压力</p>
+                  <CvdPanel coin={coin} active={!!(hasAnyData || loading)} />
+                </div>
+
                 {/* 多周期状态 + 多空分界线 + 阶梯 + 策略建议 */}
                 {strategy.data ? (
                   <>
@@ -549,7 +546,7 @@ export function UnifiedAnalysis() {
           <div className='flex flex-col items-center justify-center py-12 text-muted-foreground'>
             <Radar className='h-12 w-12 mb-3 opacity-30' />
             <p className='text-lg font-medium mb-1'>交易分析</p>
-            <p className='text-sm'>正在加载分析数据...</p>
+            <p className='text-sm'>选择币种后点击「刷新分析」开始分析</p>
           </div>
         )}
     </div>

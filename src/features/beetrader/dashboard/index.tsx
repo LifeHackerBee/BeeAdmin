@@ -1,6 +1,5 @@
 import { useDashboardStats } from './hooks/use-dashboard-stats'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { BacktestSection } from './components/backtest-section'
 import { TraderAnalysisSection } from './components/trader-analysis-section'
 import { WalletEventSection } from './components/wallet-event-section'
 import { TrackerTaskSection } from './components/tracker-task-section'
@@ -9,7 +8,7 @@ import { RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 export function BeeTraderDashboard() {
-  const { backtest, traderAnalysis, walletEvent, trackerTask, wallets, isLoading } =
+  const { traderAnalysis, walletEvent, trackerTask, wallets, isLoading } =
     useDashboardStats()
 
   return (
@@ -18,7 +17,7 @@ export function BeeTraderDashboard() {
         <div>
           <h2 className='text-3xl font-bold tracking-tight'>BeeTrader 仪表盘</h2>
           <p className='text-muted-foreground'>
-            实时监控交易数据、钱包追踪和回测任务
+            实时监控交易数据、钱包追踪
           </p>
         </div>
         <Button
@@ -32,9 +31,8 @@ export function BeeTraderDashboard() {
       </div>
 
       <Tabs defaultValue='overview' className='space-y-4'>
-        <TabsList className='grid w-full grid-cols-6'>
+        <TabsList className='grid w-full grid-cols-5'>
           <TabsTrigger value='overview'>总览</TabsTrigger>
-          <TabsTrigger value='backtest'>回测任务</TabsTrigger>
           <TabsTrigger value='analysis'>交易者分析</TabsTrigger>
           <TabsTrigger value='events'>仓位事件</TabsTrigger>
           <TabsTrigger value='tracker'>追踪任务</TabsTrigger>
@@ -47,7 +45,7 @@ export function BeeTraderDashboard() {
               <h3 className='text-lg font-semibold mb-4'>钱包管理</h3>
               <WalletsSection data={wallets} isLoading={isLoading} />
             </div>
-            
+
             <div>
               <h3 className='text-lg font-semibold mb-4'>交易者分析</h3>
               <TraderAnalysisSection
@@ -61,10 +59,6 @@ export function BeeTraderDashboard() {
               <WalletEventSection data={walletEvent} isLoading={isLoading} />
             </div>
           </div>
-        </TabsContent>
-
-        <TabsContent value='backtest' className='space-y-4'>
-          <BacktestSection data={backtest} isLoading={isLoading} />
         </TabsContent>
 
         <TabsContent value='analysis' className='space-y-4'>
