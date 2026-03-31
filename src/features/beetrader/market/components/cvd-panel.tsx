@@ -7,12 +7,14 @@
  *   - 顶部 stats：总 CVD、斜率、放量次数
  *   - 三个周期 Tab 切换
  */
-import { useState, useEffect, memo, useMemo } from 'react'
+import { useState, useEffect, memo } from 'react'
 import {
-  BarChart, Bar, Cell,
+  BarChart, Bar,
   XAxis, YAxis, ReferenceLine,
   ResponsiveContainer, Tooltip,
 } from 'recharts'
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyBarProps = any
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
@@ -89,19 +91,29 @@ function StatusDot({ status }: { status: string }) {
 
 // ─── Chart (memoized) ─────────────────────────────────────────────────────────
 
+/** 自定义 Bar shape — 直接读 payload 决定颜色，避免 Cell 组件导致的 hover 全量重渲染 */
+function CvdBarShape(props: AnyBarProps) {
+  const { x, y, width, height, payload } = props as {
+    x?: number; y?: number; width?: number; height?: number; payload?: CvdBucket
+  }
+  if (x == null || y == null || width == null || height == null || !payload) return <rect />
+
+  const pos = payload.cvdDelta >= 0
+  const fill = payload.isSpike
+    ? pos ? '#10b981' : '#ef4444'
+    : pos ? 'rgba(16,185,129,0.45)' : 'rgba(239,68,68,0.45)'
+
+  const r = 2
+  const ry = height >= 0 ? y : y + height
+  const rh = Math.abs(height)
+
+  return (
+    <rect x={x} y={ry} width={width} height={rh} fill={fill} rx={r} ry={r} />
+  )
+}
+
 const CvdChart = memo(function CvdChart({ barsData, xInterval }: { barsData: CvdBarsData; xInterval: number }) {
   const { bars } = barsData
-
-  // 预计算颜色数组避免 Cell render 内闭包
-  const colors = useMemo(() =>
-    bars.map((b) => {
-      const pos = b.cvdDelta >= 0
-      return b.isSpike
-        ? pos ? '#10b981' : '#ef4444'
-        : pos ? 'rgba(16,185,129,0.45)' : 'rgba(239,68,68,0.45)'
-    }),
-    [bars],
-  )
 
   return (
     <ResponsiveContainer width='100%' height='100%'>
@@ -127,11 +139,12 @@ const CvdChart = memo(function CvdChart({ barsData, xInterval }: { barsData: Cvd
         <ReferenceLine y={0} stroke='rgba(156,163,175,0.5)' strokeWidth={1} />
         <Tooltip content={<CvdTooltip />} />
 
-        <Bar dataKey='cvdDelta' radius={[2, 2, 0, 0]} maxBarSize={14} isAnimationActive={false}>
-          {bars.map((_, i) => (
-            <Cell key={i} fill={colors[i]} />
-          ))}
-        </Bar>
+        <Bar
+          dataKey='cvdDelta'
+          maxBarSize={14}
+          isAnimationActive={false}
+          shape={CvdBarShape}
+        />
       </BarChart>
     </ResponsiveContainer>
   )
