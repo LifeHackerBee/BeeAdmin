@@ -1,105 +1,107 @@
 /**
  * useCvdStream
  * ─────────────────────────────────────────────────────────────────
- * 连接后端 /ws/cvd/{coin}，实时接收累计 CVD 快照。
- * 前端在客户端将快照聚合成 1m / 5m / 15m 时间桶，
- * 每桶记录：CVD 增量、成交量、买/卖量、峰值 VpS、是否放量。
+ * 1. 启动时先从后端 GET /api/cvd/history/{coin} 拉取 Supabase 历史 1m 桶
+ *    （由 Celery Worker 后台写入，最多 3 天数据）
+ * 2. 再连接 /ws/cvd/{coin} WebSocket，将实时快照聚合追加到历史数据
  *
- * 对外暴露三组柱图数据，供 CvdPanel 渲染。
+ * 对外暴露三组柱图数据（1m/5m/15m）供 CvdPanel 渲染。
  */
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { hyperliquidApiGet, hyperliquidApiPost } from '@/lib/hyperliquid-api-client'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-/** 后端推送的原始快照（每 300ms 一次）*/
 interface RawSnapshot {
   coin:      string
   ts:        number
-  cvd:       number   // 累计 CVD（自连接起）
-  buy_vol:   number   // 累计主买量
-  sell_vol:  number   // 累计主卖量
-  vps:       number   // 当前 VpS（5s 窗口）
+  cvd:       number
+  buy_vol:   number
+  sell_vol:  number
+  vps:       number
   vps_ratio: number
 }
 
-/** 一个完整时间桶 */
-export interface CvdBucket {
-  ts:         number   // 桶开始时间 (unix ms)
-  timeLabel:  string   // "HH:MM"
-  cvdDelta:   number   // 本桶 CVD 净变化 (buy - sell)
-  volume:     number   // 本桶总成交量
-  buyVol:     number
-  sellVol:    number
-  maxVps:     number   // 桶内 VpS 峰值
-  isSpike:    boolean
-  spikeRatio: number   // volume / 均量
+interface HistoryRow {
+  ts:        number
+  cvd_delta: number
+  volume:    number
+  buy_vol:   number
+  sell_vol:  number
+  max_vps:   number
 }
 
-/** 某一周期的全部柱图数据 */
+export interface CvdBucket {
+  ts:         number
+  timeLabel:  string
+  cvdDelta:   number
+  volume:     number
+  buyVol:     number
+  sellVol:    number
+  maxVps:     number
+  isSpike:    boolean
+  spikeRatio: number
+}
+
 export interface CvdBarsData {
   bars:       CvdBucket[]
   avgVolume:  number
-  totalCvd:   number   // 所有桶的 cvdDelta 之和
+  totalCvd:   number
   spikeCount: number
-  slope:      number   // 最后 N 桶的 CVD 斜率（线性回归）
+  slope:      number
 }
 
 export type CvdInterval = '1m' | '5m' | '15m'
 
 export interface UseCvdStreamReturn {
-  data:       Record<CvdInterval, CvdBarsData>
-  status:     'disconnected' | 'connecting' | 'connected' | 'error'
-  error:      string | null
-  connect:    (coin: string) => void
-  disconnect: () => void
-  /** 当前未完成桶的实时 CVD 增量（live bar）*/
-  liveCvd:    number
-  liveVps:    number
+  data:         Record<CvdInterval, CvdBarsData>
+  status:       'disconnected' | 'loading' | 'connecting' | 'connected' | 'error'
+  error:        string | null
+  connect:      (coin: string) => void
+  disconnect:   () => void
+  liveCvd:      number
+  liveVps:      number
+  /** 监控开关状态 */
+  monitorEnabled:  boolean | null
+  toggleMonitor:   (enabled: boolean) => Promise<void>
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const BUCKET_MS: Record<CvdInterval, number> = {
-  '1m':  1  * 60 * 1000,
-  '5m':  5  * 60 * 1000,
-  '15m': 15 * 60 * 1000,
+  '1m':  60_000,
+  '5m':  300_000,
+  '15m': 900_000,
 }
-const MAX_1M_BUCKETS  = 60   // 1h 历史
+const MAX_1M_BUCKETS  = 4320   // 3 天历史
 const SPIKE_THRESHOLD = 2.0
-const SLOPE_WINDOW    = 10   // 用最后 N 桶算斜率
+const SLOPE_WINDOW    = 10
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function bucketStart(ts: number, intervalMs: number): number {
-  return Math.floor(ts / intervalMs) * intervalMs
-}
+function bucketStart(ts: number, ms: number) { return Math.floor(ts / ms) * ms }
 
 function toTimeLabel(ts: number): string {
-  const d  = new Date(ts)
-  const hh = d.getHours().toString().padStart(2, '0')
-  const mm = d.getMinutes().toString().padStart(2, '0')
-  return `${hh}:${mm}`
+  const d = new Date(ts)
+  return `${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`
 }
 
-/** 线性回归斜率 (y = cvdDelta 序列) */
 function calcSlope(bars: CvdBucket[], n: number): number {
   const pts = bars.slice(-n)
   if (pts.length < 2) return 0
   const len = pts.length
   let sx = 0, sy = 0, sxy = 0, sxx = 0
   for (let i = 0; i < len; i++) {
-    sx  += i;  sy  += pts[i].cvdDelta
-    sxy += i * pts[i].cvdDelta
-    sxx += i * i
+    sx += i; sy += pts[i].cvdDelta
+    sxy += i * pts[i].cvdDelta; sxx += i * i
   }
-  const denom = len * sxx - sx * sx
-  return denom === 0 ? 0 : (len * sxy - sx * sy) / denom
+  const d = len * sxx - sx * sx
+  return d === 0 ? 0 : (len * sxy - sx * sy) / d
 }
 
-/** 从 1m 桶聚合成 5m / 15m 桶 */
-function aggregate(buckets1m: CvdBucket[], intervalMs: number): CvdBucket[] {
+function aggregate(b1m: CvdBucket[], intervalMs: number): CvdBucket[] {
   const map = new Map<number, CvdBucket>()
-  for (const b of buckets1m) {
+  for (const b of b1m) {
     const key = bucketStart(b.ts, intervalMs)
     const cur = map.get(key)
     if (!cur) {
@@ -116,9 +118,8 @@ function aggregate(buckets1m: CvdBucket[], intervalMs: number): CvdBucket[] {
 }
 
 function buildBarsData(bars: CvdBucket[]): CvdBarsData {
-  const volumes = bars.map((b) => b.volume)
-  const avg     = volumes.length > 0 ? volumes.reduce((s, v) => s + v, 0) / volumes.length : 0
-  const tagged  = bars.map((b) => ({
+  const avg    = bars.length > 0 ? bars.reduce((s, b) => s + b.volume, 0) / bars.length : 0
+  const tagged = bars.map((b) => ({
     ...b,
     isSpike:    avg > 0 && b.volume >= avg * SPIKE_THRESHOLD,
     spikeRatio: avg > 0 ? Math.round((b.volume / avg) * 10) / 10 : 0,
@@ -132,7 +133,15 @@ function buildBarsData(bars: CvdBucket[]): CvdBarsData {
   }
 }
 
-// ─── WebSocket URL helpers ────────────────────────────────────────────────────
+function rebuildAll(b1m: CvdBucket[]): Record<CvdInterval, CvdBarsData> {
+  return {
+    '1m':  buildBarsData(b1m),
+    '5m':  buildBarsData(aggregate(b1m, BUCKET_MS['5m'])),
+    '15m': buildBarsData(aggregate(b1m, BUCKET_MS['15m'])),
+  }
+}
+
+// ─── URL helpers ─────────────────────────────────────────────────────────────
 
 function getWsBase(): string {
   const url = import.meta.env.VITE_HYPERLIQUID_TRADER_API_URL as string | undefined
@@ -145,157 +154,186 @@ const API_KEY = import.meta.env.VITE_HYPERLIQUID_TRADER_API_KEY as string | unde
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 const EMPTY_BARS: CvdBarsData = { bars: [], avgVolume: 0, totalCvd: 0, spikeCount: 0, slope: 0 }
+const EMPTY_DATA: Record<CvdInterval, CvdBarsData> = {
+  '1m': EMPTY_BARS, '5m': EMPTY_BARS, '15m': EMPTY_BARS,
+}
 
 export function useCvdStream(): UseCvdStreamReturn {
   const [status,  setStatus]  = useState<UseCvdStreamReturn['status']>('disconnected')
   const [error,   setError]   = useState<string | null>(null)
-  const [data,    setData]    = useState<Record<CvdInterval, CvdBarsData>>({
-    '1m': EMPTY_BARS, '5m': EMPTY_BARS, '15m': EMPTY_BARS,
-  })
+  const [data,    setData]    = useState<Record<CvdInterval, CvdBarsData>>(EMPTY_DATA)
   const [liveCvd, setLiveCvd] = useState(0)
   const [liveVps, setLiveVps] = useState(0)
+  const [monitorEnabled, setMonitorEnabled] = useState<boolean | null>(null)
 
-  // 内部可变状态（不需要触发 render 的数据）
-  const wsRef        = useRef<WebSocket | null>(null)
-  const coinRef      = useRef<string | null>(null)
-  const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  // 累计值锚点（每桶开始时记录）
-  const anchorRef = useRef<{ cvd: number; buyVol: number; sellVol: number } | null>(null)
-  // 当前桶的起始时间
+  const wsRef          = useRef<WebSocket | null>(null)
+  const coinRef        = useRef<string | null>(null)
+  const reconnectRef   = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const anchorRef      = useRef<{ cvd: number; buyVol: number; sellVol: number } | null>(null)
   const curBucketTsRef = useRef<number>(0)
-  // 当前桶内的峰值 VpS
-  const curMaxVpsRef = useRef<number>(0)
-  // 完整 1m 桶列表
-  const buckets1mRef = useRef<CvdBucket[]>([])
+  const curMaxVpsRef   = useRef<number>(0)
+  const buckets1mRef   = useRef<CvdBucket[]>([])
 
+  // ── 读取监控开关状态 ────────────────────────────────────────────────────────
+  const fetchMonitorStatus = useCallback(async (coin: string) => {
+    try {
+      const res = await hyperliquidApiGet<{ configs: { coin: string; enabled: boolean }[] }>(
+        '/api/cvd/monitor/status'
+      )
+      const cfg = res.configs.find((c) => c.coin === coin)
+      setMonitorEnabled(cfg?.enabled ?? true)
+    } catch {
+      setMonitorEnabled(true)
+    }
+  }, [])
+
+  const toggleMonitor = useCallback(async (enabled: boolean) => {
+    const coin = coinRef.current
+    if (!coin) return
+    try {
+      await hyperliquidApiPost('/api/cvd/monitor/toggle', { coin, enabled })
+      setMonitorEnabled(enabled)
+    } catch { /* ignore */ }
+  }, [])
+
+  // ── 从 Supabase 加载历史桶 ─────────────────────────────────────────────────
+  const loadHistory = useCallback(async (coin: string) => {
+    try {
+      const res = await hyperliquidApiGet<{ coin: string; rows: HistoryRow[] }>(
+        `/api/cvd/history/${coin}?limit=4320`
+      )
+      if (res.rows.length > 0) {
+        const historicBuckets: CvdBucket[] = res.rows.map((r) => ({
+          ts:         r.ts,
+          timeLabel:  toTimeLabel(r.ts),
+          cvdDelta:   r.cvd_delta,
+          volume:     r.volume,
+          buyVol:     r.buy_vol,
+          sellVol:    r.sell_vol,
+          maxVps:     r.max_vps,
+          isSpike:    false,
+          spikeRatio: 0,
+        }))
+        buckets1mRef.current = historicBuckets.slice(-MAX_1M_BUCKETS)
+        setData(rebuildAll(buckets1mRef.current))
+      }
+    } catch { /* 加载失败时忽略，继续用 WS 数据 */ }
+  }, [])
+
+  // ── WS 桶 flush ────────────────────────────────────────────────────────────
   const flushBucket = useCallback((snap: RawSnapshot) => {
-    const now    = snap.ts
     const anchor = anchorRef.current
     const bTs    = curBucketTsRef.current
     if (!anchor || bTs === 0) return
 
-    const cvdDelta  = snap.cvd      - anchor.cvd
-    const buyVol    = snap.buy_vol  - anchor.buyVol
-    const sellVol   = snap.sell_vol - anchor.sellVol
-    const volume    = buyVol + sellVol
-
-    const bucket: CvdBucket = {
-      ts:         bTs,
-      timeLabel:  toTimeLabel(bTs),
-      cvdDelta,
-      volume,
-      buyVol,
-      sellVol,
-      maxVps:     curMaxVpsRef.current,
-      isSpike:    false,   // 重新算（buildBarsData 会覆盖）
-      spikeRatio: 0,
-    }
+    const buyVol  = snap.buy_vol  - anchor.buyVol
+    const sellVol = snap.sell_vol - anchor.sellVol
 
     buckets1mRef.current = [
       ...buckets1mRef.current.slice(-(MAX_1M_BUCKETS - 1)),
-      bucket,
+      {
+        ts:         bTs,
+        timeLabel:  toTimeLabel(bTs),
+        cvdDelta:   snap.cvd - anchor.cvd,
+        volume:     buyVol + sellVol,
+        buyVol,
+        sellVol,
+        maxVps:     curMaxVpsRef.current,
+        isSpike:    false,
+        spikeRatio: 0,
+      },
     ]
 
-    // 重置下一桶锚点
-    anchorRef.current   = { cvd: snap.cvd, buyVol: snap.buy_vol, sellVol: snap.sell_vol }
-    curBucketTsRef.current = bucketStart(now, BUCKET_MS['1m'])
+    anchorRef.current      = { cvd: snap.cvd, buyVol: snap.buy_vol, sellVol: snap.sell_vol }
+    curBucketTsRef.current = bucketStart(snap.ts, BUCKET_MS['1m'])
     curMaxVpsRef.current   = snap.vps
 
-    // 聚合三个周期并更新 state
-    const b1m  = buckets1mRef.current
-    const b5m  = aggregate(b1m, BUCKET_MS['5m'])
-    const b15m = aggregate(b1m, BUCKET_MS['15m'])
-    setData({
-      '1m':  buildBarsData(b1m),
-      '5m':  buildBarsData(b5m),
-      '15m': buildBarsData(b15m),
-    })
+    setData(rebuildAll(buckets1mRef.current))
   }, [])
 
   const handleMessage = useCallback((snap: RawSnapshot) => {
-    const now    = snap.ts
-    const bStart = bucketStart(now, BUCKET_MS['1m'])
+    const bStart = bucketStart(snap.ts, BUCKET_MS['1m'])
 
-    // 初始化锚点（首次收到消息）
     if (!anchorRef.current) {
       anchorRef.current      = { cvd: snap.cvd, buyVol: snap.buy_vol, sellVol: snap.sell_vol }
       curBucketTsRef.current = bStart
       curMaxVpsRef.current   = snap.vps
     }
 
-    // 更新桶内峰值 VpS
     curMaxVpsRef.current = Math.max(curMaxVpsRef.current, snap.vps)
 
-    // 跨过了 1 分钟边界 → flush 旧桶
-    if (bStart > curBucketTsRef.current) {
-      flushBucket(snap)
-    }
+    if (bStart > curBucketTsRef.current) flushBucket(snap)
 
-    // 实时 live bar（当前桶增量）
     if (anchorRef.current) {
       setLiveCvd(snap.cvd - anchorRef.current.cvd)
       setLiveVps(snap.vps)
     }
   }, [flushBucket])
 
+  // ── disconnect ─────────────────────────────────────────────────────────────
   const disconnect = useCallback(() => {
     if (reconnectRef.current) clearTimeout(reconnectRef.current)
-    if (wsRef.current) {
-      wsRef.current.onclose = null
-      wsRef.current.close()
-      wsRef.current = null
-    }
-    coinRef.current = null
-    anchorRef.current = null
+    if (wsRef.current) { wsRef.current.onclose = null; wsRef.current.close(); wsRef.current = null }
+    coinRef.current        = null
+    anchorRef.current      = null
     curBucketTsRef.current = 0
     buckets1mRef.current   = []
     setStatus('disconnected')
-    setData({ '1m': EMPTY_BARS, '5m': EMPTY_BARS, '15m': EMPTY_BARS })
-    setLiveCvd(0)
-    setLiveVps(0)
+    setData(EMPTY_DATA)
+    setLiveCvd(0); setLiveVps(0)
+    setMonitorEnabled(null)
   }, [])
 
+  // ── connect ────────────────────────────────────────────────────────────────
   const connect = useCallback((coin: string) => {
     if (wsRef.current && coinRef.current === coin && wsRef.current.readyState === WebSocket.OPEN) return
     if (wsRef.current) { wsRef.current.onclose = null; wsRef.current.close() }
     if (reconnectRef.current) clearTimeout(reconnectRef.current)
 
-    // 切换币种时重置聚合状态
-    anchorRef.current      = null
-    curBucketTsRef.current = 0
-    buckets1mRef.current   = []
+    // 切换币种时重置
+    if (coinRef.current !== coin) {
+      anchorRef.current      = null
+      curBucketTsRef.current = 0
+      buckets1mRef.current   = []
+      setData(EMPTY_DATA)
+    }
 
     coinRef.current = coin
-    setStatus('connecting')
+    setStatus('loading')
     setError(null)
 
-    const url = API_KEY
-      ? `${WS_BASE}/ws/cvd/${coin}?api_key=${API_KEY}`
-      : `${WS_BASE}/ws/cvd/${coin}`
+    // 1. 先拉历史 + 读监控开关，再连 WS
+    Promise.all([loadHistory(coin), fetchMonitorStatus(coin)]).finally(() => {
+      if (coinRef.current !== coin) return  // 已切换 coin，放弃
 
-    const ws = new WebSocket(url)
-    wsRef.current = ws
+      setStatus('connecting')
+      const url = API_KEY
+        ? `${WS_BASE}/ws/cvd/${coin}?api_key=${API_KEY}`
+        : `${WS_BASE}/ws/cvd/${coin}`
 
-    ws.onopen    = () => { setStatus('connected'); setError(null) }
-    ws.onerror   = () => { setError('WebSocket 连接错误'); setStatus('error') }
-    ws.onmessage = (evt) => {
-      try { handleMessage(JSON.parse(evt.data as string) as RawSnapshot) } catch { /* ignore */ }
-    }
-    ws.onclose = (evt) => {
-      wsRef.current = null
-      if (evt.code === 4001) { setError('API Key 无效'); setStatus('error'); return }
-      if (coinRef.current) {
-        setStatus('connecting')
-        reconnectRef.current = setTimeout(() => { if (coinRef.current) connect(coinRef.current) }, 3000)
+      const ws = new WebSocket(url)
+      wsRef.current = ws
+
+      ws.onopen    = () => { setStatus('connected'); setError(null) }
+      ws.onerror   = () => { setError('WebSocket 连接错误'); setStatus('error') }
+      ws.onmessage = (evt) => {
+        try { handleMessage(JSON.parse(evt.data as string) as RawSnapshot) } catch { /* ignore */ }
       }
-    }
-  }, [handleMessage]) // eslint-disable-line react-hooks/exhaustive-deps
+      ws.onclose = (evt) => {
+        wsRef.current = null
+        if (evt.code === 4001) { setError('API Key 无效'); setStatus('error'); return }
+        if (coinRef.current) {
+          setStatus('connecting')
+          reconnectRef.current = setTimeout(() => { if (coinRef.current) connect(coinRef.current) }, 3000)
+        }
+      }
+    })
+  }, [handleMessage, loadHistory, fetchMonitorStatus]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => () => {
     if (reconnectRef.current) clearTimeout(reconnectRef.current)
     if (wsRef.current) { wsRef.current.onclose = null; wsRef.current.close() }
   }, [])
 
-  return { data, status, error, connect, disconnect, liveCvd, liveVps }
+  return { data, status, error, connect, disconnect, liveCvd, liveVps, monitorEnabled, toggleMonitor }
 }

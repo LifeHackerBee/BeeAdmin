@@ -15,6 +15,7 @@ import {
 } from 'recharts'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Switch } from '@/components/ui/switch'
 import {
   Zap, TrendingUp, TrendingDown, Minus,
   Wifi, WifiOff, Loader2,
@@ -79,9 +80,10 @@ function Stat({ label, value, accent }: { label: string; value: string; accent?:
 // ─── Status indicator ─────────────────────────────────────────────────────────
 
 function StatusDot({ status }: { status: string }) {
-  if (status === 'connected')  return <span className='inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse' />
-  if (status === 'connecting') return <Loader2 className='h-3 w-3 animate-spin text-yellow-500' />
-  if (status === 'error')      return <WifiOff className='h-3 w-3 text-red-500' />
+  if (status === 'connected')   return <span className='inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse' />
+  if (status === 'connecting')  return <Loader2 className='h-3 w-3 animate-spin text-yellow-500' />
+  if (status === 'loading')     return <Loader2 className='h-3 w-3 animate-spin text-blue-400' />
+  if (status === 'error')       return <WifiOff className='h-3 w-3 text-red-500' />
   return <Wifi className='h-3 w-3 text-muted-foreground/40' />
 }
 
@@ -93,8 +95,15 @@ interface CvdPanelProps {
 }
 
 export function CvdPanel({ coin, active }: CvdPanelProps) {
-  const { data, status, error, connect, disconnect, liveCvd, liveVps } = useCvdStream()
+  const { data, status, error, connect, disconnect, liveCvd, liveVps, monitorEnabled, toggleMonitor } = useCvdStream()
   const [interval, setInterval] = useState<CvdInterval>('1m')
+  const [toggling, setToggling] = useState(false)
+
+  const handleToggleMonitor = async (enabled: boolean) => {
+    setToggling(true)
+    await toggleMonitor(enabled).catch(() => {})
+    setToggling(false)
+  }
 
   useEffect(() => {
     if (active) connect(coin)
@@ -118,11 +127,24 @@ export function CvdPanel({ coin, active }: CvdPanelProps) {
     <Card className='flex flex-col'>
       <CardHeader className='pb-2 flex-shrink-0'>
         <CardTitle className='text-sm flex items-center justify-between flex-wrap gap-2'>
-          {/* 左：标题 + 状态 */}
+          {/* 左：标题 + 状态 + 监控开关 */}
           <div className='flex items-center gap-2'>
             <StatusDot status={status} />
             <span>{coin} 实时 CVD 趋势</span>
             {error && <span className='text-[10px] text-red-500'>{error}</span>}
+            {monitorEnabled !== null && (
+              <div className='flex items-center gap-1.5 ml-1'>
+                <Switch
+                  checked={monitorEnabled}
+                  onCheckedChange={handleToggleMonitor}
+                  disabled={toggling}
+                  className='scale-75 origin-left'
+                />
+                <span className={`text-[10px] ${monitorEnabled ? 'text-emerald-500' : 'text-muted-foreground'}`}>
+                  {toggling ? '...' : monitorEnabled ? '后台监控中' : '监控已关闭'}
+                </span>
+              </div>
+            )}
           </div>
 
           {/* 右：Stats + 周期切换 */}
