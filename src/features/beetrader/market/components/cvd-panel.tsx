@@ -7,7 +7,7 @@
  *   - 顶部 stats：总 CVD、斜率、放量次数
  *   - 三个周期 Tab 切换
  */
-import { useState, useEffect } from 'react'
+import { useState, useEffect, memo, useMemo } from 'react'
 import {
   BarChart, Bar, Cell,
   XAxis, YAxis, ReferenceLine,
@@ -20,7 +20,7 @@ import {
   Zap, TrendingUp, TrendingDown, Minus,
   Wifi, WifiOff, Loader2,
 } from 'lucide-react'
-import { useCvdStream, type CvdBucket, type CvdInterval } from '../hooks/use-cvd-stream'
+import { useCvdStream, type CvdBucket, type CvdBarsData, type CvdInterval } from '../hooks/use-cvd-stream'
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -68,14 +68,14 @@ function CvdTooltip({ active, payload }: { active?: boolean; payload?: { payload
 
 // ─── Stat badge ───────────────────────────────────────────────────────────────
 
-function Stat({ label, value, accent }: { label: string; value: string; accent?: string }) {
+const Stat = memo(function Stat({ label, value, accent }: { label: string; value: string; accent?: string }) {
   return (
     <span className='flex flex-col items-center leading-tight'>
       <span className='text-[9px] text-muted-foreground'>{label}</span>
       <span className={`text-[11px] font-mono font-semibold ${accent ?? 'text-foreground'}`}>{value}</span>
     </span>
   )
-}
+})
 
 // ─── Status indicator ─────────────────────────────────────────────────────────
 
@@ -86,6 +86,56 @@ function StatusDot({ status }: { status: string }) {
   if (status === 'error')       return <WifiOff className='h-3 w-3 text-red-500' />
   return <Wifi className='h-3 w-3 text-muted-foreground/40' />
 }
+
+// ─── Chart (memoized) ─────────────────────────────────────────────────────────
+
+const CvdChart = memo(function CvdChart({ barsData, xInterval }: { barsData: CvdBarsData; xInterval: number }) {
+  const { bars } = barsData
+
+  // 预计算颜色数组避免 Cell render 内闭包
+  const colors = useMemo(() =>
+    bars.map((b) => {
+      const pos = b.cvdDelta >= 0
+      return b.isSpike
+        ? pos ? '#10b981' : '#ef4444'
+        : pos ? 'rgba(16,185,129,0.45)' : 'rgba(239,68,68,0.45)'
+    }),
+    [bars],
+  )
+
+  return (
+    <ResponsiveContainer width='100%' height='100%'>
+      <BarChart
+        data={bars}
+        margin={{ top: 4, right: 8, bottom: 0, left: 40 }}
+        barCategoryGap='3%'
+      >
+        <XAxis
+          dataKey='timeLabel'
+          tick={{ fontSize: 9, fill: '#9ca3af' }}
+          axisLine={false}
+          tickLine={false}
+          interval={xInterval}
+        />
+        <YAxis
+          tick={{ fontSize: 9, fill: '#9ca3af' }}
+          axisLine={false}
+          tickLine={false}
+          tickFormatter={(v) => fmtNum(v, 1)}
+          width={40}
+        />
+        <ReferenceLine y={0} stroke='rgba(156,163,175,0.5)' strokeWidth={1} />
+        <Tooltip content={<CvdTooltip />} />
+
+        <Bar dataKey='cvdDelta' radius={[2, 2, 0, 0]} maxBarSize={14} isAnimationActive={false}>
+          {bars.map((_, i) => (
+            <Cell key={i} fill={colors[i]} />
+          ))}
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
+  )
+})
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
@@ -120,7 +170,6 @@ export function CvdPanel({ coin, active }: CvdPanelProps) {
   const totalCvdDir = totalCvd > 0 ? 'long' : totalCvd < 0 ? 'short' : 'neutral'
   const slopeDir    = slope > 0.001 ? 'up' : slope < -0.001 ? 'down' : 'flat'
 
-  // X 轴只显示部分标签避免拥挤
   const xInterval = interval === '1m' ? 9 : interval === '5m' ? 5 : 2
 
   return (
@@ -151,23 +200,19 @@ export function CvdPanel({ coin, active }: CvdPanelProps) {
           <div className='flex items-center gap-4'>
             {bars.length > 0 && (
               <div className='flex items-center gap-4 mr-1'>
-                {/* 总 CVD */}
                 <Stat
                   label='累计CVD'
                   value={(totalCvd >= 0 ? '+' : '') + fmtNum(totalCvd)}
                   accent={totalCvdDir === 'long' ? 'text-emerald-500' : totalCvdDir === 'short' ? 'text-red-500' : undefined}
                 />
-                {/* 斜率 */}
                 <Stat
                   label='斜率'
                   value={`${slopeDir === 'up' ? '↗' : slopeDir === 'down' ? '↘' : '→'} ${Math.abs(slope).toFixed(2)}`}
                   accent={slopeDir === 'up' ? 'text-emerald-500' : slopeDir === 'down' ? 'text-red-500' : undefined}
                 />
-                {/* 放量次数 */}
                 {spikeCount > 0 && (
                   <Stat label='异常次数' value={`${spikeCount} 次`} accent='text-amber-500' />
                 )}
-                {/* 实时 live bar */}
                 {status === 'connected' && (
                   <Stat
                     label='当前桶'
@@ -175,7 +220,6 @@ export function CvdPanel({ coin, active }: CvdPanelProps) {
                     accent={liveCvd > 0 ? 'text-emerald-500' : liveCvd < 0 ? 'text-red-500' : undefined}
                   />
                 )}
-                {/* 放量提示 */}
                 {liveVps > 0 && liveVps >= avgVolume / 60 * 2 && (
                   <span className='flex items-center gap-0.5 text-[10px] text-amber-500 font-semibold'>
                     <Zap className='h-3 w-3' />
@@ -220,47 +264,7 @@ export function CvdPanel({ coin, active }: CvdPanelProps) {
             }
           </div>
         ) : (
-          <ResponsiveContainer width='100%' height='100%'>
-            <BarChart
-              data={bars}
-              margin={{ top: 4, right: 8, bottom: 0, left: 40 }}
-              barCategoryGap='3%'
-            >
-              <XAxis
-                dataKey='timeLabel'
-                tick={{ fontSize: 9, fill: '#9ca3af' }}
-                axisLine={false}
-                tickLine={false}
-                interval={xInterval}
-              />
-              <YAxis
-                tick={{ fontSize: 9, fill: '#9ca3af' }}
-                axisLine={false}
-                tickLine={false}
-                tickFormatter={(v) => fmtNum(v, 1)}
-                width={40}
-              />
-              {/* CVD=0 基准线 */}
-              <ReferenceLine y={0} stroke='rgba(156,163,175,0.5)' strokeWidth={1} />
-              <Tooltip content={<CvdTooltip />} />
-
-              <Bar dataKey='cvdDelta' radius={[2, 2, 0, 0]} maxBarSize={14}>
-                {bars.map((b, i) => {
-                  const pos = b.cvdDelta >= 0
-                  return (
-                    <Cell
-                      key={i}
-                      fill={
-                        b.isSpike
-                          ? pos ? '#10b981' : '#ef4444'                          // 放量：亮色
-                          : pos ? 'rgba(16,185,129,0.45)' : 'rgba(239,68,68,0.45)' // 正常：半透明
-                      }
-                    />
-                  )
-                })}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+          <CvdChart barsData={barsData} xInterval={xInterval} />
         )}
       </CardContent>
 
@@ -285,7 +289,6 @@ export function CvdPanel({ coin, active }: CvdPanelProps) {
           </span>
         </div>
 
-        {/* 综合偏向 */}
         {bars.length > 0 && (
           <Badge
             variant={totalCvdDir === 'long' ? 'default' : totalCvdDir === 'short' ? 'destructive' : 'secondary'}

@@ -6,6 +6,11 @@
  * 2. 再连接 /ws/cvd/{coin} WebSocket，将实时快照聚合追加到历史数据
  *
  * 对外暴露三组柱图数据（1m/5m/15m）供 CvdPanel 渲染。
+ *
+ * 性能优化：
+ *  - live 指标用 ref 保存，通过 1s 节流定时器批量 flush 到 state
+ *  - 图表只展示最近 N 条 bar（1m:60, 5m:60, 15m:48）
+ *  - rebuildAll 在 bucket flush 时才触发（~1次/分钟）
  */
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { hyperliquidApiGet, hyperliquidApiPost } from '@/lib/hyperliquid-api-client'
@@ -61,7 +66,6 @@ export interface UseCvdStreamReturn {
   disconnect:   () => void
   liveCvd:      number
   liveVps:      number
-  /** 监控开关状态 */
   monitorEnabled:  boolean | null
   toggleMonitor:   (enabled: boolean) => Promise<void>
 }
@@ -73,9 +77,19 @@ const BUCKET_MS: Record<CvdInterval, number> = {
   '5m':  300_000,
   '15m': 900_000,
 }
-const MAX_1M_BUCKETS  = 4320   // 3 天历史
+const MAX_1M_BUCKETS  = 4320
 const SPIKE_THRESHOLD = 2.0
 const SLOPE_WINDOW    = 10
+
+/** 图表最多显示的 bar 数量 */
+const DISPLAY_LIMIT: Record<CvdInterval, number> = {
+  '1m':  60,   // 1 小时
+  '5m':  60,   // 5 小时
+  '15m': 48,   // 12 小时
+}
+
+/** live 指标刷新节流间隔 (ms) */
+const LIVE_THROTTLE_MS = 1000
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -117,9 +131,11 @@ function aggregate(b1m: CvdBucket[], intervalMs: number): CvdBucket[] {
   return Array.from(map.values()).sort((a, b) => a.ts - b.ts)
 }
 
-function buildBarsData(bars: CvdBucket[]): CvdBarsData {
+function buildBarsData(bars: CvdBucket[], displayLimit: number): CvdBarsData {
+  // 统计用全量，显示只取最后 N 条
   const avg    = bars.length > 0 ? bars.reduce((s, b) => s + b.volume, 0) / bars.length : 0
-  const tagged = bars.map((b) => ({
+  const display = bars.slice(-displayLimit)
+  const tagged = display.map((b) => ({
     ...b,
     isSpike:    avg > 0 && b.volume >= avg * SPIKE_THRESHOLD,
     spikeRatio: avg > 0 ? Math.round((b.volume / avg) * 10) / 10 : 0,
@@ -129,15 +145,15 @@ function buildBarsData(bars: CvdBucket[]): CvdBarsData {
     avgVolume:  avg,
     totalCvd:   bars.reduce((s, b) => s + b.cvdDelta, 0),
     spikeCount: tagged.filter((b) => b.isSpike).length,
-    slope:      calcSlope(bars, SLOPE_WINDOW),
+    slope:      calcSlope(display, SLOPE_WINDOW),
   }
 }
 
 function rebuildAll(b1m: CvdBucket[]): Record<CvdInterval, CvdBarsData> {
   return {
-    '1m':  buildBarsData(b1m),
-    '5m':  buildBarsData(aggregate(b1m, BUCKET_MS['5m'])),
-    '15m': buildBarsData(aggregate(b1m, BUCKET_MS['15m'])),
+    '1m':  buildBarsData(b1m, DISPLAY_LIMIT['1m']),
+    '5m':  buildBarsData(aggregate(b1m, BUCKET_MS['5m']), DISPLAY_LIMIT['5m']),
+    '15m': buildBarsData(aggregate(b1m, BUCKET_MS['15m']), DISPLAY_LIMIT['15m']),
   }
 }
 
@@ -173,6 +189,30 @@ export function useCvdStream(): UseCvdStreamReturn {
   const curBucketTsRef = useRef<number>(0)
   const curMaxVpsRef   = useRef<number>(0)
   const buckets1mRef   = useRef<CvdBucket[]>([])
+
+  // ── live 指标节流 ──────────────────────────────────────────────────────────
+  const liveCvdRef     = useRef(0)
+  const liveVpsRef     = useRef(0)
+  const liveTimerRef   = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const liveDirtyRef   = useRef(false)
+
+  const flushLive = useCallback(() => {
+    if (liveDirtyRef.current) {
+      setLiveCvd(liveCvdRef.current)
+      setLiveVps(liveVpsRef.current)
+      liveDirtyRef.current = false
+    }
+    liveTimerRef.current = null
+  }, [])
+
+  const updateLive = useCallback((cvd: number, vps: number) => {
+    liveCvdRef.current = cvd
+    liveVpsRef.current = vps
+    liveDirtyRef.current = true
+    if (!liveTimerRef.current) {
+      liveTimerRef.current = setTimeout(flushLive, LIVE_THROTTLE_MS)
+    }
+  }, [flushLive])
 
   // ── 读取监控开关状态 ────────────────────────────────────────────────────────
   const fetchMonitorStatus = useCallback(async (coin: string) => {
@@ -264,20 +304,22 @@ export function useCvdStream(): UseCvdStreamReturn {
 
     if (bStart > curBucketTsRef.current) flushBucket(snap)
 
+    // 用节流更新 live 指标，避免每 300ms 触发重渲染
     if (anchorRef.current) {
-      setLiveCvd(snap.cvd - anchorRef.current.cvd)
-      setLiveVps(snap.vps)
+      updateLive(snap.cvd - anchorRef.current.cvd, snap.vps)
     }
-  }, [flushBucket])
+  }, [flushBucket, updateLive])
 
   // ── disconnect ─────────────────────────────────────────────────────────────
   const disconnect = useCallback(() => {
     if (reconnectRef.current) clearTimeout(reconnectRef.current)
+    if (liveTimerRef.current) clearTimeout(liveTimerRef.current)
     if (wsRef.current) { wsRef.current.onclose = null; wsRef.current.close(); wsRef.current = null }
     coinRef.current        = null
     anchorRef.current      = null
     curBucketTsRef.current = 0
     buckets1mRef.current   = []
+    liveDirtyRef.current   = false
     setStatus('disconnected')
     setData(EMPTY_DATA)
     setLiveCvd(0); setLiveVps(0)
@@ -290,7 +332,6 @@ export function useCvdStream(): UseCvdStreamReturn {
     if (wsRef.current) { wsRef.current.onclose = null; wsRef.current.close() }
     if (reconnectRef.current) clearTimeout(reconnectRef.current)
 
-    // 切换币种时重置
     if (coinRef.current !== coin) {
       anchorRef.current      = null
       curBucketTsRef.current = 0
@@ -302,9 +343,8 @@ export function useCvdStream(): UseCvdStreamReturn {
     setStatus('loading')
     setError(null)
 
-    // 1. 先拉历史 + 读监控开关，再连 WS
     Promise.all([loadHistory(coin), fetchMonitorStatus(coin)]).finally(() => {
-      if (coinRef.current !== coin) return  // 已切换 coin，放弃
+      if (coinRef.current !== coin) return
 
       setStatus('connecting')
       const url = API_KEY
@@ -332,6 +372,7 @@ export function useCvdStream(): UseCvdStreamReturn {
 
   useEffect(() => () => {
     if (reconnectRef.current) clearTimeout(reconnectRef.current)
+    if (liveTimerRef.current) clearTimeout(liveTimerRef.current)
     if (wsRef.current) { wsRef.current.onclose = null; wsRef.current.close() }
   }, [])
 
