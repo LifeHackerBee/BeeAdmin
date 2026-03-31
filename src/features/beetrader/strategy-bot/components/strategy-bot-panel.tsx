@@ -200,20 +200,13 @@ function CreateBotDialog({
   const isLive = mode === 'live'
   const [coin, setCoin] = useState('')
   const [interval, setInterval] = useState(120)
-  const [autoTrade, setAutoTrade] = useState(true)
   const [balance, setBalance] = useState(isLive ? 50 : 20000)
   const [maxOrderUsd, setMaxOrderUsd] = useState(50)
   const [minRr, setMinRr] = useState(1.5)
   const [creating, setCreating] = useState(false)
-  const strategyPrompts = useStrategyPrompts()
   const agentPrompts = useAgentPrompts(open)
-  const [selectedStrategyId, setSelectedStrategyId] = useState<string>('_default')
   const [selectedAgentId, setSelectedAgentId] = useState<string>('_default')
-  const [showPromptPreview, setShowPromptPreview] = useState(false)
 
-  const selectedPrompt = selectedStrategyId === '_default'
-    ? null
-    : strategyPrompts.prompts.find((p) => p.id === Number(selectedStrategyId)) ?? null
   const selectedAgent = selectedAgentId === '_default'
     ? agentPrompts.defaultPrompt
     : agentPrompts.prompts.find((p) => p.id === Number(selectedAgentId)) ?? null
@@ -225,21 +218,14 @@ function CreateBotDialog({
       await onCreate({
         coin: coin.trim(),
         analyze_interval_seconds: interval,
-        auto_trade: autoTrade,
+        auto_trade: true,
         account_balance: balance,
         mode,
         min_rr_ratio: minRr,
         ...(isLive ? { max_order_usd: maxOrderUsd } : {}),
-        ...(selectedPrompt ? {
-          custom_system_prompt: selectedPrompt.system_prompt,
-          ...(selectedPrompt.user_prompt_template ? { custom_user_prompt: selectedPrompt.user_prompt_template } : {}),
-        } : {}),
-        // Agent prompt 作为 custom_user_prompt 的一部分传递（或存储为独立字段）
-        // 当前架构: Agent prompt 存在 agent_prompts 表，机器人通过默认 Agent 执行
       })
       setCoin('')
       setBalance(isLive ? 50 : 20000)
-      setSelectedStrategyId('_default')
       onOpenChange(false)
     } catch {
       // error handled by hook
@@ -258,50 +244,6 @@ function CreateBotDialog({
           </DialogTitle>
         </DialogHeader>
         <div className='space-y-3 py-2'>
-          {/* 策略选择 — 放在最前面 */}
-          <div className='space-y-1'>
-            <Label>分析策略</Label>
-            <Select value={selectedStrategyId} onValueChange={setSelectedStrategyId}>
-              <SelectTrigger className='h-9 text-xs'>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value='_default'>
-                  <span className='text-xs'>内置默认 (大镖客策略)</span>
-                </SelectItem>
-                {strategyPrompts.prompts.map((p) => (
-                  <SelectItem key={p.id} value={p.id.toString()}>
-                    <span className='text-xs flex items-center gap-1'>
-                      {p.is_default && <Star className='h-3 w-3 text-yellow-500 fill-yellow-500' />}
-                      {p.name}
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <div className='flex items-center justify-between'>
-              <p className='text-[10px] text-muted-foreground'>
-                {selectedPrompt
-                  ? selectedPrompt.description || `使用「${selectedPrompt.name}」策略`
-                  : '多周期技术分析 + 量价共振'}
-              </p>
-              {selectedPrompt && (
-                <button
-                  type='button'
-                  className='text-[10px] text-blue-500 hover:underline'
-                  onClick={() => setShowPromptPreview(!showPromptPreview)}
-                >
-                  {showPromptPreview ? '收起' : '预览 Prompt'}
-                </button>
-              )}
-            </div>
-            {showPromptPreview && selectedPrompt && (
-              <pre className='text-[10px] font-mono text-muted-foreground bg-muted/50 rounded p-2 max-h-32 overflow-y-auto whitespace-pre-wrap'>
-                {selectedPrompt.system_prompt}
-              </pre>
-            )}
-          </div>
-
           {/* 交易执行 Agent 选择 */}
           <div className='space-y-1'>
             <Label>交易执行 Agent</Label>
@@ -311,7 +253,7 @@ function CreateBotDialog({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value='_default'>
-                  <span className='text-xs'>默认 Agent</span>
+                  <span className='text-xs'>内置 Agent（默认规则）</span>
                 </SelectItem>
                 {agentPrompts.prompts.map((p) => (
                   <SelectItem key={p.id} value={p.id.toString()}>
@@ -326,7 +268,7 @@ function CreateBotDialog({
             <p className='text-[10px] text-muted-foreground'>
               {selectedAgent
                 ? selectedAgent.description || `使用「${selectedAgent.name}」Agent`
-                : '默认交易执行规则'}
+                : '使用系统内置的交易执行规则'}
             </p>
           </div>
 
@@ -398,12 +340,6 @@ function CreateBotDialog({
             <p className='text-[10px] text-muted-foreground'>
               {minRr > 0 ? `盈亏比 < ${minRr}:1 时自动调整止盈或拒绝开仓` : '关闭盈亏比检查'}
             </p>
-          </div>
-          <div className='flex items-center gap-2'>
-            <Switch id='auto-trade' checked={autoTrade} onCheckedChange={setAutoTrade} />
-            <Label htmlFor='auto-trade' className='cursor-pointer'>
-              AI 信号触发时自动交易
-            </Label>
           </div>
           {isLive && (
             <Alert>

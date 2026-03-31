@@ -7,11 +7,11 @@
  *   - 顶部 stats：总 CVD、斜率、放量次数
  *   - 三个周期 Tab 切换
  */
-import { useState, useEffect, memo } from 'react'
+import { useState, useEffect, useRef, memo } from 'react'
 import {
   BarChart, Bar,
   XAxis, YAxis, ReferenceLine,
-  ResponsiveContainer, Tooltip,
+  Tooltip,
 } from 'recharts'
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyBarProps = any
@@ -89,9 +89,44 @@ function StatusDot({ status }: { status: string }) {
   return <Wifi className='h-3 w-3 text-muted-foreground/40' />
 }
 
+// ─── useContainerSize — 一次性测量 + 窗口 resize 防抖 ─────────────────────────
+
+function useContainerSize(ref: React.RefObject<HTMLDivElement | null>) {
+  const [size, setSize] = useState({ width: 0, height: 0 })
+
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+
+    const measure = () => {
+      const { width, height } = el.getBoundingClientRect()
+      setSize((prev) =>
+        prev.width === Math.round(width) && prev.height === Math.round(height)
+          ? prev
+          : { width: Math.round(width), height: Math.round(height) },
+      )
+    }
+
+    measure()
+
+    // 只监听窗口 resize，不用 ResizeObserver 连续测量
+    let timer: ReturnType<typeof setTimeout> | null = null
+    const onResize = () => {
+      if (timer) clearTimeout(timer)
+      timer = setTimeout(measure, 200)
+    }
+    window.addEventListener('resize', onResize)
+    return () => {
+      window.removeEventListener('resize', onResize)
+      if (timer) clearTimeout(timer)
+    }
+  }, [ref])
+
+  return size
+}
+
 // ─── Chart (memoized) ─────────────────────────────────────────────────────────
 
-/** 自定义 Bar shape — 直接读 payload 决定颜色，避免 Cell 组件导致的 hover 全量重渲染 */
 function CvdBarShape(props: AnyBarProps) {
   const { x, y, width, height, payload } = props as {
     x?: number; y?: number; width?: number; height?: number; payload?: CvdBucket
@@ -112,41 +147,52 @@ function CvdBarShape(props: AnyBarProps) {
   )
 }
 
-const CvdChart = memo(function CvdChart({ barsData, xInterval }: { barsData: CvdBarsData; xInterval: number }) {
+const CvdChart = memo(function CvdChart({
+  barsData, xInterval, width, height,
+}: {
+  barsData: CvdBarsData; xInterval: number; width: number; height: number
+}) {
   const { bars } = barsData
 
-  return (
-    <ResponsiveContainer width='100%' height='100%'>
-      <BarChart
-        data={bars}
-        margin={{ top: 4, right: 8, bottom: 0, left: 40 }}
-        barCategoryGap='3%'
-      >
-        <XAxis
-          dataKey='timeLabel'
-          tick={{ fontSize: 9, fill: '#9ca3af' }}
-          axisLine={false}
-          tickLine={false}
-          interval={xInterval}
-        />
-        <YAxis
-          tick={{ fontSize: 9, fill: '#9ca3af' }}
-          axisLine={false}
-          tickLine={false}
-          tickFormatter={(v) => fmtNum(v, 1)}
-          width={40}
-        />
-        <ReferenceLine y={0} stroke='rgba(156,163,175,0.5)' strokeWidth={1} />
-        <Tooltip content={<CvdTooltip />} />
+  if (width <= 0 || height <= 0) return null
 
-        <Bar
-          dataKey='cvdDelta'
-          maxBarSize={14}
-          isAnimationActive={false}
-          shape={CvdBarShape}
-        />
-      </BarChart>
-    </ResponsiveContainer>
+  return (
+    <BarChart
+      width={width}
+      height={height}
+      data={bars}
+      margin={{ top: 4, right: 8, bottom: 0, left: 40 }}
+      barCategoryGap='3%'
+      throttleDelay={80}
+    >
+      <XAxis
+        dataKey='timeLabel'
+        tick={{ fontSize: 9, fill: '#9ca3af' }}
+        axisLine={false}
+        tickLine={false}
+        interval={xInterval}
+      />
+      <YAxis
+        tick={{ fontSize: 9, fill: '#9ca3af' }}
+        axisLine={false}
+        tickLine={false}
+        tickFormatter={(v) => fmtNum(v, 1)}
+        width={40}
+      />
+      <ReferenceLine y={0} stroke='rgba(156,163,175,0.5)' strokeWidth={1} />
+      <Tooltip
+        content={<CvdTooltip />}
+        isAnimationActive={false}
+        allowEscapeViewBox={{ x: true, y: true }}
+      />
+
+      <Bar
+        dataKey='cvdDelta'
+        maxBarSize={14}
+        isAnimationActive={false}
+        shape={CvdBarShape}
+      />
+    </BarChart>
   )
 })
 
@@ -161,6 +207,8 @@ export function CvdPanel({ coin, active }: CvdPanelProps) {
   const { data, status, error, connect, disconnect, liveCvd, liveVps, monitorEnabled, toggleMonitor } = useCvdStream()
   const [interval, setInterval] = useState<CvdInterval>('1m')
   const [toggling, setToggling] = useState(false)
+  const chartContainerRef = useRef<HTMLDivElement>(null)
+  const { width: chartW, height: chartH } = useContainerSize(chartContainerRef)
 
   const handleToggleMonitor = async (enabled: boolean) => {
     setToggling(true)
@@ -262,7 +310,7 @@ export function CvdPanel({ coin, active }: CvdPanelProps) {
         </CardTitle>
       </CardHeader>
 
-      <CardContent className='p-2 pt-0' style={{ height: 200 }}>
+      <CardContent ref={chartContainerRef} className='p-2 pt-0' style={{ height: 200 }}>
         {status === 'error' ? (
           <div className='flex items-center justify-center h-full text-destructive text-sm'>
             {error ?? 'WebSocket 连接失败'}
@@ -277,7 +325,7 @@ export function CvdPanel({ coin, active }: CvdPanelProps) {
             }
           </div>
         ) : (
-          <CvdChart barsData={barsData} xInterval={xInterval} />
+          <CvdChart barsData={barsData} xInterval={xInterval} width={chartW} height={chartH} />
         )}
       </CardContent>
 

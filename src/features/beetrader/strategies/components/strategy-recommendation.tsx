@@ -61,24 +61,38 @@ export function StrategyRecommendation({ data }: Props) {
 
   const summary = buildResonanceSummary(data.resonance_details, data.resonance_score)
 
-  // 统计多空中性数量（原始计数）
+  // 统计多空中性数量
   const bullCount = data.resonance_details.filter((d) => d.signal === 'bullish' || d.signal === 'confirmed').length
   const bearCount = data.resonance_details.filter((d) => d.signal === 'bearish' || d.signal === 'warning').length
   const total = data.resonance_details.length
   const neutralCount = total - bullCount - bearCount
 
-  // 加权统计（高周期权重更大：1h=1, 4h=2, 1d=3, 1w=4）
+  // 加权统计
   const bullishW = data.resonance_details
     .filter((d) => d.signal === 'bullish' || d.signal === 'confirmed')
     .reduce((s, d) => s + Math.abs(d.weight), 0)
   const bearishW = data.resonance_details
     .filter((d) => d.signal === 'bearish' || d.signal === 'warning')
     .reduce((s, d) => s + Math.abs(d.weight), 0)
-  const totalW = bullishW + bearishW
 
-  // 进度条用加权比例（中性权重为0，不占比例条）
-  const bullPct = totalW > 0 ? (bullishW / totalW) * 100 : 0
-  const bearPct = totalW > 0 ? (bearishW / totalW) * 100 : 0
+  // 三段式进度条：多/中性/空 按数量比例
+  const bullPct = total > 0 ? (bullCount / total) * 100 : 0
+  const neutralPct = total > 0 ? (neutralCount / total) * 100 : 0
+  const bearPct = total > 0 ? (bearCount / total) * 100 : 0
+
+  // 净权重和总权重（用于展示计算过程）
+  const netW = Math.abs(bullishW - bearishW)
+  const allWeight = data.resonance_details.reduce((s, d) => {
+    // 中性指标也有隐含权重（根据周期），但 weight=0
+    const indicator = d.indicator
+    if (d.weight !== 0) return s + Math.abs(d.weight)
+    // 中性项的隐含权重
+    if (indicator.includes('1d')) return s + 3
+    if (indicator.includes('4h')) return s + 2
+    if (indicator.includes('1h')) return s + 1
+    if (indicator.includes('1w')) return s + 4
+    return s + 3 // 多空分界线等无周期后缀的默认 3
+  }, 0)
 
   // 按指标类别分组
   const grouped = data.resonance_details.reduce<Record<string, ResonanceDetail[]>>((acc, d) => {
@@ -98,48 +112,95 @@ export function StrategyRecommendation({ data }: Props) {
         </div>
       </CardHeader>
       <CardContent className='space-y-4'>
-        {/* ── 共振趋势总览 ── */}
+        {/* ── 共振评分总览 ── */}
         <div className='rounded-lg border p-3 space-y-3'>
+          {/* 第一行：评分 + 评级 */}
           <div className='flex items-center justify-between'>
             <div className='flex items-center gap-2'>
               <CircleDot className='h-4 w-4 text-purple-500' />
               <span className='text-sm font-medium'>共振评分</span>
+              <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${
+                data.resonance_score >= 8 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                  : data.resonance_score >= 6 ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                    : data.resonance_score >= 4 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+                      : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+              }`}>
+                {data.resonance_score >= 8 ? '强共振' : data.resonance_score >= 6 ? '较好' : data.resonance_score >= 4 ? '分歧' : '弱共振'}
+              </span>
             </div>
             <span className='text-2xl font-bold tabular-nums'>
               {data.resonance_score}<span className='text-sm font-normal text-muted-foreground'>/10</span>
             </span>
           </div>
 
-          {/* 多空比例条 — 按加权比例（中性权重为0不占条） */}
-          <div className='space-y-1.5'>
-            <div className='flex h-2.5 rounded-full overflow-hidden'>
-              {bullPct > 0 && (
-                <div className='bg-green-500 transition-all' style={{ width: `${bullPct}%` }} />
-              )}
-              {bearPct > 0 && (
-                <div className='bg-red-500 transition-all' style={{ width: `${bearPct}%` }} />
-              )}
+          {/* 第二行：计算过程 */}
+          <div className='rounded-md bg-muted/40 px-3 py-2 space-y-1.5'>
+            <div className='flex items-center gap-2 text-xs'>
+              <span className='text-muted-foreground'>计算:</span>
+              <span className='font-mono'>
+                |<span className='text-green-600 dark:text-green-400'>{bullishW}</span>
+                {' - '}
+                <span className='text-red-600 dark:text-red-400'>{bearishW}</span>|
+                {' / '}
+                {allWeight}
+                {' x 10 = '}
+                <span className='font-semibold'>{(netW / allWeight * 10).toFixed(1)}</span>
+              </span>
+              <span className='text-muted-foreground'>
+                {' -> '}{data.resonance_score}
+              </span>
             </div>
-            <div className='flex items-center gap-3 text-[11px]'>
-              <span className='flex items-center gap-1'>
-                <span className='inline-block w-2 h-2 rounded-full bg-green-500' />
-                <span className='text-green-600 dark:text-green-400 font-medium'>看多 {bullCount}</span>
-                <span className='text-muted-foreground'>(权重 {bullishW})</span>
+            <div className='flex items-center gap-3 text-[10px] text-muted-foreground'>
+              <span>
+                <span className='text-green-600 dark:text-green-400 font-medium'>多方权重 {bullishW}</span>
+                {' = '}
+                {data.resonance_details
+                  .filter((d) => d.signal === 'bullish' || d.signal === 'confirmed')
+                  .filter((d) => d.weight > 0)
+                  .map((d) => `${indicatorCategory(d.indicator)}(${d.weight})`)
+                  .join(' + ') || '0'}
               </span>
-              <span className='flex items-center gap-1'>
-                <span className='inline-block w-2 h-2 rounded-full bg-yellow-400 dark:bg-yellow-600' />
-                <span className='text-yellow-600 dark:text-yellow-400 font-medium'>中性 {neutralCount}</span>
-              </span>
-              <span className='flex items-center gap-1'>
-                <span className='inline-block w-2 h-2 rounded-full bg-red-500' />
-                <span className='text-red-600 dark:text-red-400 font-medium'>看空 {bearCount}</span>
-                <span className='text-muted-foreground'>(权重 {bearishW})</span>
-              </span>
-              <span className='text-muted-foreground ml-auto'>共 {total} 项</span>
             </div>
-            <p className='text-[10px] text-muted-foreground'>进度条按加权比例显示，高周期信号权重更大（日线×3、4H×2、1H×1）</p>
+            <div className='flex items-center gap-3 text-[10px] text-muted-foreground'>
+              <span>
+                <span className='text-red-600 dark:text-red-400 font-medium'>空方权重 {bearishW}</span>
+                {' = '}
+                {data.resonance_details
+                  .filter((d) => d.signal === 'bearish' || d.signal === 'warning')
+                  .filter((d) => d.weight !== 0)
+                  .map((d) => `${indicatorCategory(d.indicator)}(${Math.abs(d.weight)})`)
+                  .join(' + ') || '0'}
+              </span>
+            </div>
           </div>
 
+          {/* 第三行：三段式比例条 */}
+          <div className='space-y-1.5'>
+            <div className='flex h-2 rounded-full overflow-hidden'>
+              {bullPct > 0 && <div className='bg-green-500' style={{ width: `${bullPct}%` }} />}
+              {neutralPct > 0 && <div className='bg-yellow-400 dark:bg-yellow-600' style={{ width: `${neutralPct}%` }} />}
+              {bearPct > 0 && <div className='bg-red-500' style={{ width: `${bearPct}%` }} />}
+            </div>
+            <div className='flex items-center justify-between text-[11px]'>
+              <div className='flex items-center gap-3'>
+                <span className='flex items-center gap-1'>
+                  <span className='inline-block w-2 h-2 rounded-full bg-green-500' />
+                  <span className='text-green-600 dark:text-green-400 font-medium'>看多 {bullCount}</span>
+                </span>
+                <span className='flex items-center gap-1'>
+                  <span className='inline-block w-2 h-2 rounded-full bg-yellow-400 dark:bg-yellow-600' />
+                  <span className='text-yellow-600 dark:text-yellow-400 font-medium'>中性 {neutralCount}</span>
+                </span>
+                <span className='flex items-center gap-1'>
+                  <span className='inline-block w-2 h-2 rounded-full bg-red-500' />
+                  <span className='text-red-600 dark:text-red-400 font-medium'>看空 {bearCount}</span>
+                </span>
+              </div>
+              <span className='text-muted-foreground'>{total} 项指标</span>
+            </div>
+          </div>
+
+          {/* 第四行：文字总结 */}
           <p className='text-xs text-muted-foreground'>{summary}</p>
         </div>
 
