@@ -49,20 +49,28 @@ JSON 结构：
       "S2_Far": { "price": 0.0, "reason": "简述共振理由" }
     }
   },
-  "tactical_execution": {
-    "action": "回踩做多 | 反弹做空 | 区间高抛低吸 | 观望",
-    "entry_zone": {
-      "strategy": "说明依托哪道防线入场",
-      "price_range": "具体数值区间"
+  "trading_plan": {
+    "mode": "高位做空 | 低位做多 | 多空双吃 | 观望",
+    "primary": "long | short | none",
+    "long_plan": {
+      "enabled": true,
+      "entry_zone": "价格区间",
+      "entry_strategy": "入场逻辑",
+      "stop_loss": 0.0,
+      "stop_loss_trigger": "止损条件",
+      "take_profit_1": 0.0,
+      "take_profit_2": 0.0
     },
-    "stop_loss": {
-      "trigger_condition": "明确止损条件",
-      "price": 0.0
+    "short_plan": {
+      "enabled": true,
+      "entry_zone": "价格区间",
+      "entry_strategy": "入场逻辑",
+      "stop_loss": 0.0,
+      "stop_loss_trigger": "止损条件",
+      "take_profit_1": 0.0,
+      "take_profit_2": 0.0
     },
-    "take_profit": {
-      "target_1_price": 0.0,
-      "target_2_price": 0.0
-    }
+    "invalidation": "失效条件"
   }
 }`
 
@@ -97,21 +105,30 @@ export interface AiStrategyResult {
       S2_Far: AiLevelDetail
     }
   }
-  tactical_execution: {
-    action: string
-    entry_zone: {
-      strategy: string
-      price_range: string
-    }
-    stop_loss: {
-      trigger_condition: string
-      price: number
-    }
-    take_profit: {
-      target_1_price: number
-      target_2_price: number
-    }
+  trading_plan?: {
+    mode: string
+    primary: string
+    long_plan: AiTradingPlan
+    short_plan: AiTradingPlan
+    invalidation: string
   }
+  // 旧格式兼容
+  tactical_execution?: {
+    action: string
+    entry_zone: { strategy: string; price_range: string }
+    stop_loss: { trigger_condition: string; price: number }
+    take_profit: { target_1_price: number; target_2_price: number }
+  }
+}
+
+export interface AiTradingPlan {
+  enabled: boolean
+  entry_zone: string
+  entry_strategy: string
+  stop_loss: number
+  stop_loss_trigger: string
+  take_profit_1: number
+  take_profit_2: number
 }
 
 // 兼容旧接口

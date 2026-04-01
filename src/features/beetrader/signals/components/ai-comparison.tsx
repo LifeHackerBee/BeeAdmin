@@ -7,7 +7,7 @@ import {
   FileText, ChevronDown, ChevronUp,
   TrendingUp, TrendingDown, Minus, AlertTriangle,
 } from 'lucide-react'
-import type { AiStrategyOutput, AiStrategyResult } from '../../strategies/hooks/use-ai-strategy'
+import type { AiStrategyOutput, AiStrategyResult, AiTradingPlan } from '../../strategies/hooks/use-ai-strategy'
 
 function fmtPrice(v: number): string {
   if (v >= 10_000) return `$${v.toLocaleString('en-US', { maximumFractionDigits: 0 })}`
@@ -15,7 +15,7 @@ function fmtPrice(v: number): string {
   return `$${v.toFixed(4)}`
 }
 
-// ── AI Signal JSON 渲染视图 (非大镖客格式的 ai_signal) ──
+// ── AI Signal JSON 渲染视图 ──
 
 function SignalJsonView({ content }: { content: string }) {
   let signal: Record<string, unknown>
@@ -29,20 +29,19 @@ function SignalJsonView({ content }: { content: string }) {
     )
   }
 
-  // 检测 _raw 中的大镖客结构化格式 → 用 StructuredView 渲染
+  // 检测 _raw 中的结构化格式
   const raw = signal._raw as Record<string, unknown> | undefined
-  if (raw?.macro_context && raw?.tactical_execution) {
+  if (raw?.macro_context && (raw?.trading_plan || raw?.tactical_execution)) {
     return <StructuredView data={raw as unknown as AiStrategyResult} />
   }
 
-  // 检测顶层就是大镖客格式
-  if (signal.macro_context && signal.tactical_execution) {
+  // 检测顶层就是结构化格式
+  if (signal.macro_context && (signal.trading_plan || signal.tactical_execution)) {
     return <StructuredView data={signal as unknown as AiStrategyResult} />
   }
 
-  // 旧格式 JSON 信号渲染
+  // 简单格式
   const direction: string = String(signal.direction ?? '')
-  const confidence: number | null = typeof signal.confidence === 'number' ? signal.confidence : null
   const entryPrice: number | null = typeof signal.entry_price === 'number' ? signal.entry_price : null
   const takeProfit: number | null = typeof signal.take_profit === 'number' ? signal.take_profit : null
   const stopLoss: number | null = typeof signal.stop_loss === 'number' ? signal.stop_loss : null
@@ -56,94 +55,42 @@ function SignalJsonView({ content }: { content: string }) {
   const DirIcon = direction === 'long' ? TrendingUp
     : direction === 'short' ? TrendingDown : Minus
 
-  // 从 _raw 补充战术信息
-  const rawTactical = raw?.tactical_execution as Record<string, unknown> | undefined
-  const rawAction: string = rawTactical?.action ? String(rawTactical.action) : ''
-  const rawEntry = rawTactical?.entry_zone as Record<string, string> | undefined
-  const rawSL = rawTactical?.stop_loss as Record<string, string> | undefined
-  const rawTP = rawTactical?.take_profit as Record<string, number> | undefined
-
   return (
     <div className='space-y-3'>
-      {/* 信号方向 + 置信度 */}
       <div className='flex items-center gap-3'>
         <Badge className={`text-sm px-3 py-1 gap-1.5 ${dirColor}`}>
           <DirIcon className='h-4 w-4' />
-          {rawAction || direction || 'wait'}
+          {direction || 'wait'}
         </Badge>
-        {confidence !== null && (
-          <div className='text-center'>
-            <span className='text-2xl font-bold'>{confidence}</span>
-            <span className='text-xs text-muted-foreground'>/10</span>
-          </div>
-        )}
-        {direction && rawAction && direction !== rawAction && direction !== '' ? (
-          <Badge variant='outline' className='text-[10px]'>
-            归一化: {direction}
-          </Badge>
-        ) : null}
       </div>
 
-      {/* 价格信息 */}
       <div className='rounded-lg border p-3'>
         <div className='flex items-center gap-1.5 mb-2'>
           <Target className='h-4 w-4 text-blue-500' />
           <span className='text-xs font-medium text-muted-foreground'>价位信息</span>
         </div>
-        <div className='grid grid-cols-2 sm:grid-cols-4 gap-3'>
-          {entryPrice !== null ? (
+        <div className='grid grid-cols-3 gap-3'>
+          {entryPrice !== null && (
             <div>
               <span className='text-[10px] text-muted-foreground'>入场价</span>
               <p className='font-mono font-bold text-sm'>{fmtPrice(entryPrice)}</p>
             </div>
-          ) : null}
-          {takeProfit !== null ? (
+          )}
+          {takeProfit !== null && (
             <div>
-              <span className='text-[10px] text-green-500'>止盈 T1</span>
+              <span className='text-[10px] text-green-500'>止盈</span>
               <p className='font-mono font-bold text-sm text-green-600'>{fmtPrice(takeProfit)}</p>
             </div>
-          ) : null}
-          {rawTP?.target_2_price ? (
-            <div>
-              <span className='text-[10px] text-green-500'>止盈 T2</span>
-              <p className='font-mono font-bold text-sm text-green-600'>{fmtPrice(rawTP.target_2_price)}</p>
-            </div>
-          ) : null}
-          {stopLoss !== null ? (
+          )}
+          {stopLoss !== null && (
             <div>
               <span className='text-[10px] text-red-500'>止损</span>
               <p className='font-mono font-bold text-sm text-red-600'>{fmtPrice(stopLoss)}</p>
             </div>
-          ) : null}
+          )}
         </div>
-        {rawEntry?.price_range && (
-          <p className='text-[10px] text-muted-foreground mt-2 font-mono'>入场区间: {rawEntry.price_range}</p>
-        )}
       </div>
 
-      {/* 入场策略 */}
-      {rawEntry?.strategy && (
-        <div className='rounded-lg border p-3'>
-          <div className='flex items-center gap-1.5 mb-1'>
-            <Swords className='h-4 w-4 text-orange-500' />
-            <span className='text-xs font-medium text-muted-foreground'>入场策略</span>
-          </div>
-          <p className='text-xs leading-relaxed'>{rawEntry.strategy}</p>
-        </div>
-      )}
-
-      {/* 止损条件 */}
-      {rawSL?.trigger_condition && (
-        <div className='rounded-lg border border-red-500/20 bg-red-500/5 p-3'>
-          <div className='flex items-center gap-1.5 mb-1'>
-            <AlertTriangle className='h-4 w-4 text-red-500' />
-            <span className='text-xs font-medium text-red-500'>止损条件</span>
-          </div>
-          <p className='text-xs leading-relaxed'>{rawSL.trigger_condition}</p>
-        </div>
-      )}
-
-      {/* 分析理由 */}
       {reason && (
         <div className='rounded-lg border p-3'>
           <div className='flex items-center gap-1.5 mb-1'>
@@ -157,12 +104,70 @@ function SignalJsonView({ content }: { content: string }) {
   )
 }
 
+// ── 单个方向计划卡片 ──
+
+function PlanCard({ plan, direction }: { plan: AiTradingPlan; direction: 'long' | 'short' }) {
+  if (!plan.enabled) return null
+
+  const isLong = direction === 'long'
+  const color = isLong ? 'green' : 'red'
+
+  return (
+    <div className={`rounded-lg border border-${color}-500/20 bg-${color}-500/5 p-3 space-y-2`}>
+      <div className='flex items-center justify-between'>
+        <div className='flex items-center gap-1.5'>
+          {isLong ? <TrendingUp className='h-4 w-4 text-green-500' /> : <TrendingDown className='h-4 w-4 text-red-500' />}
+          <span className={`text-xs font-semibold text-${color}-600 dark:text-${color}-400`}>
+            {isLong ? '做多计划' : '做空计划'}
+          </span>
+        </div>
+        <Badge variant='outline' className='text-[10px] font-mono'>
+          区间 {plan.entry_zone}
+        </Badge>
+      </div>
+
+      <p className='text-xs text-muted-foreground leading-relaxed'>{plan.entry_strategy}</p>
+
+      <div className='grid grid-cols-3 gap-2 text-xs'>
+        <div className='rounded bg-muted/50 p-1.5'>
+          <div className='text-red-500 text-[10px]'>止损</div>
+          <div className='font-mono font-semibold text-red-600 dark:text-red-400'>
+            {plan.stop_loss ? fmtPrice(plan.stop_loss) : '-'}
+          </div>
+        </div>
+        <div className='rounded bg-muted/50 p-1.5'>
+          <div className='text-green-500 text-[10px]'>止盈 T1</div>
+          <div className='font-mono font-semibold text-green-600 dark:text-green-400'>
+            {plan.take_profit_1 ? fmtPrice(plan.take_profit_1) : '-'}
+          </div>
+        </div>
+        <div className='rounded bg-muted/50 p-1.5'>
+          <div className='text-green-500 text-[10px]'>止盈 T2</div>
+          <div className='font-mono font-semibold text-green-600 dark:text-green-400'>
+            {plan.take_profit_2 ? fmtPrice(plan.take_profit_2) : '-'}
+          </div>
+        </div>
+      </div>
+
+      {plan.stop_loss_trigger && (
+        <div className='flex items-start gap-1 text-[10px] text-red-500'>
+          <AlertTriangle className='h-3 w-3 mt-0.5 shrink-0' />
+          <span>{plan.stop_loss_trigger}</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── 结构化视图 ──
 
 function StructuredView({ data }: { data: AiStrategyResult }) {
   const mc = data.macro_context
   const is = data.intraday_sentiment
   const lr = data.levels_radar
+
+  // 支持新旧格式
+  const tp = data.trading_plan
   const te = data.tactical_execution
 
   const dirColor = mc.direction.includes('上涨') || mc.direction.includes('反弹')
@@ -171,31 +176,36 @@ function StructuredView({ data }: { data: AiStrategyResult }) {
       ? 'text-red-600 dark:text-red-400'
       : 'text-yellow-600 dark:text-yellow-400'
 
-  const actionColor = te.action.includes('做多') ? 'bg-green-600 text-white'
-    : te.action.includes('做空') ? 'bg-red-600 text-white'
-      : te.action.includes('高抛低吸') ? 'bg-yellow-600 text-white'
-        : 'bg-slate-500 text-white'
-
   const momentumIcon = is.momentum_rating.includes('Bull') ? TrendingUp
     : is.momentum_rating.includes('Bear') ? TrendingDown : Minus
-
   const MomentumIcon = momentumIcon
+
+  // 判断 mode 颜色
+  const modeColor = tp
+    ? tp.mode.includes('做多') ? 'bg-green-600 text-white'
+      : tp.mode.includes('做空') ? 'bg-red-600 text-white'
+        : tp.mode.includes('双吃') ? 'bg-purple-600 text-white'
+          : 'bg-slate-500 text-white'
+    : te
+      ? te.action.includes('做多') ? 'bg-green-600 text-white'
+        : te.action.includes('做空') ? 'bg-red-600 text-white'
+          : 'bg-slate-500 text-white'
+      : 'bg-slate-500 text-white'
+
+  const modeLabel = tp?.mode ?? te?.action ?? '观望'
 
   return (
     <div className='space-y-3'>
       {/* Row 1: 大局观 + 日内情绪 */}
       <div className='grid grid-cols-1 md:grid-cols-2 gap-3'>
-        {/* 战略大局观 */}
         <div className='rounded-lg border p-3 space-y-2'>
           <div className='flex items-center gap-1.5'>
             <Globe className='h-4 w-4 text-blue-500' />
             <span className='text-xs font-medium text-muted-foreground'>战略大局观</span>
           </div>
-          <div className='flex items-center gap-2'>
-            <Badge variant='outline' className={`text-sm font-semibold ${dirColor}`}>
-              {mc.direction}
-            </Badge>
-          </div>
+          <Badge variant='outline' className={`text-sm font-semibold ${dirColor}`}>
+            {mc.direction}
+          </Badge>
           <div className='text-xs space-y-1'>
             <div className='flex items-center gap-2'>
               <span className='text-muted-foreground'>核心关键位</span>
@@ -205,7 +215,6 @@ function StructuredView({ data }: { data: AiStrategyResult }) {
           </div>
         </div>
 
-        {/* 日内情绪面 */}
         <div className='rounded-lg border p-3 space-y-2'>
           <div className='flex items-center gap-1.5'>
             <Flame className='h-4 w-4 text-orange-500' />
@@ -269,38 +278,60 @@ function StructuredView({ data }: { data: AiStrategyResult }) {
         </div>
       </div>
 
-      {/* Row 3: 策略动作 */}
-      <div className='rounded-lg border p-3 space-y-2'>
+      {/* Row 3: 交易计划 */}
+      <div className='rounded-lg border p-3 space-y-3'>
         <div className='flex items-center justify-between'>
           <div className='flex items-center gap-1.5'>
             <Swords className='h-4 w-4 text-green-500' />
-            <span className='text-xs font-medium text-muted-foreground'>策略动作</span>
+            <span className='text-xs font-medium text-muted-foreground'>交易计划</span>
           </div>
-          <Badge className={`text-sm px-3 py-0.5 ${actionColor}`}>
-            {te.action}
-          </Badge>
+          <div className='flex items-center gap-2'>
+            {tp?.primary && tp.primary !== 'none' && (
+              <Badge variant='outline' className='text-[10px]'>
+                优先 {tp.primary === 'long' ? '做多' : '做空'}
+              </Badge>
+            )}
+            <Badge className={`text-sm px-3 py-0.5 ${modeColor}`}>
+              {modeLabel}
+            </Badge>
+          </div>
         </div>
 
-        <div className='grid grid-cols-2 md:grid-cols-4 gap-2 text-xs'>
-          <div className='rounded bg-muted/50 p-2'>
-            <div className='text-muted-foreground mb-0.5'>入场区间</div>
-            <div className='font-mono font-semibold text-blue-600 dark:text-blue-400'>{te.entry_zone.price_range}</div>
-            <div className='text-[10px] text-muted-foreground mt-0.5'>{te.entry_zone.strategy}</div>
+        {tp ? (
+          <>
+            <div className='grid grid-cols-1 md:grid-cols-2 gap-3'>
+              <PlanCard plan={tp.long_plan} direction='long' />
+              <PlanCard plan={tp.short_plan} direction='short' />
+            </div>
+            {tp.invalidation && (
+              <div className='flex items-start gap-1.5 text-xs text-yellow-600 dark:text-yellow-400'>
+                <AlertTriangle className='h-3.5 w-3.5 mt-0.5 shrink-0' />
+                <span>{tp.invalidation}</span>
+              </div>
+            )}
+          </>
+        ) : te ? (
+          /* 旧格式兼容 */
+          <div className='grid grid-cols-2 md:grid-cols-4 gap-2 text-xs'>
+            <div className='rounded bg-muted/50 p-2'>
+              <div className='text-muted-foreground mb-0.5'>入场区间</div>
+              <div className='font-mono font-semibold text-blue-600 dark:text-blue-400'>{te.entry_zone.price_range}</div>
+              <div className='text-[10px] text-muted-foreground mt-0.5'>{te.entry_zone.strategy}</div>
+            </div>
+            <div className='rounded bg-muted/50 p-2'>
+              <div className='text-red-500 mb-0.5'>止损</div>
+              <div className='font-mono font-semibold text-red-600 dark:text-red-400'>{fmtPrice(te.stop_loss.price)}</div>
+            </div>
+            <div className='rounded bg-muted/50 p-2'>
+              <div className='text-green-500 mb-0.5'>止盈 T1</div>
+              <div className='font-mono font-semibold text-green-600 dark:text-green-400'>{fmtPrice(te.take_profit.target_1_price)}</div>
+            </div>
+            <div className='rounded bg-muted/50 p-2'>
+              <div className='text-green-500 mb-0.5'>止盈 T2</div>
+              <div className='font-mono font-semibold text-green-600 dark:text-green-400'>{fmtPrice(te.take_profit.target_2_price)}</div>
+            </div>
           </div>
-          <div className='rounded bg-muted/50 p-2'>
-            <div className='text-red-500 mb-0.5'>止损</div>
-            <div className='font-mono font-semibold text-red-600 dark:text-red-400'>{fmtPrice(te.stop_loss.price)}</div>
-            <div className='text-[10px] text-muted-foreground mt-0.5'>{te.stop_loss.trigger_condition}</div>
-          </div>
-          <div className='rounded bg-muted/50 p-2'>
-            <div className='text-green-500 mb-0.5'>止盈 T1</div>
-            <div className='font-mono font-semibold text-green-600 dark:text-green-400'>{fmtPrice(te.take_profit.target_1_price)}</div>
-          </div>
-          <div className='rounded bg-muted/50 p-2'>
-            <div className='text-green-500 mb-0.5'>止盈 T2</div>
-            <div className='font-mono font-semibold text-green-600 dark:text-green-400'>{fmtPrice(te.take_profit.target_2_price)}</div>
-          </div>
-        </div>
+        ) : null}
       </div>
     </div>
   )
@@ -351,23 +382,19 @@ export function AiStrategyPanel({
       <CardContent>
         {result ? (
           <div className='space-y-3'>
-            {/* 结构化视图 */}
             {result.structured ? (
               <StructuredView data={result.structured} />
             ) : result.content ? (
               <SignalJsonView content={result.content} />
             ) : null}
 
-            {/* Raw Text 展开 */}
             {showRaw && (
-              <>
-                <div className='border-t pt-3'>
-                  <p className='text-[10px] text-muted-foreground mb-2'>LLM 原始输出</p>
-                  <pre className='text-xs whitespace-pre-wrap text-muted-foreground bg-muted/50 rounded p-3 max-h-96 overflow-y-auto font-mono'>
-                    {result.content}
-                  </pre>
-                </div>
-              </>
+              <div className='border-t pt-3'>
+                <p className='text-[10px] text-muted-foreground mb-2'>LLM 原始输出</p>
+                <pre className='text-xs whitespace-pre-wrap text-muted-foreground bg-muted/50 rounded p-3 max-h-96 overflow-y-auto font-mono'>
+                  {result.content}
+                </pre>
+              </div>
             )}
           </div>
         ) : (

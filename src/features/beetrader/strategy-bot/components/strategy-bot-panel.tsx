@@ -75,6 +75,9 @@ import {
   Save,
   MoreVertical,
   Copy,
+  ChevronDown,
+  ChevronRight,
+  Loader2,
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -799,6 +802,7 @@ function JobRow({
         pageSize={botLogs.pageSize}
         onPageChange={botLogs.goPage}
         loading={botLogs.loading}
+        fetchSignalContext={botLogs.fetchSignalContext}
       />
     </>
   )
@@ -819,6 +823,7 @@ function TradeLogsDialog({
   pageSize,
   onPageChange,
   loading,
+  fetchSignalContext,
 }: {
   open: boolean
   onOpenChange: (v: boolean) => void
@@ -832,6 +837,7 @@ function TradeLogsDialog({
   pageSize: number
   onPageChange: (tab: 'all' | 'trade', page: number) => void
   loading: boolean
+  fetchSignalContext: (beforeAt: string) => Promise<import('../hooks/use-bot-logs').BotLog | null>
 }) {
   const [tab, setTab] = useState<'trade' | 'all'>('trade')
   const displayLogs = tab === 'trade' ? tradeLogs : logs
@@ -868,7 +874,7 @@ function TradeLogsDialog({
               <div className='divide-y rounded-md border'>
                 {displayLogs.map((log) =>
                   tab === 'trade' ? (
-                    <TradeLogRow key={log.id} log={log} />
+                    <TradeLogRow key={log.id} log={log} fetchSignalContext={fetchSignalContext} />
                   ) : (
                     <BotLogRow key={log.id} log={log} />
                   ),
@@ -942,7 +948,10 @@ const TRADE_STAGE_CONFIG: Record<string, { label: string; color: string; bg: str
   settle: { label: '结算', color: 'text-amber-600', bg: 'bg-amber-50 dark:bg-amber-950/30' },
 }
 
-function TradeLogRow({ log }: { log: BotLog }) {
+function TradeLogRow({ log, fetchSignalContext }: {
+  log: BotLog
+  fetchSignalContext: (beforeAt: string) => Promise<BotLog | null>
+}) {
   const cfg = TRADE_STAGE_CONFIG[log.stage] ?? { label: '交易', color: 'text-blue-600', bg: 'bg-blue-50 dark:bg-blue-950/30' }
   const detail = log.detail as Record<string, unknown>
 
@@ -962,72 +971,143 @@ function TradeLogRow({ log }: { log: BotLog }) {
     month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
   })
 
+  // 展开显示 AI 分析
+  const [expanded, setExpanded] = useState(false)
+  const [signalLog, setSignalLog] = useState<BotLog | null>(null)
+  const [signalLoading, setSignalLoading] = useState(false)
+  const [signalFetched, setSignalFetched] = useState(false)
+
+  const handleToggle = async () => {
+    if (!expanded && !signalFetched) {
+      setSignalLoading(true)
+      const result = await fetchSignalContext(log.created_at)
+      setSignalLog(result)
+      setSignalFetched(true)
+      setSignalLoading(false)
+    }
+    setExpanded(!expanded)
+  }
+
+  const signalReason = signalLog?.detail?.reason as string | undefined
+  const signalDirection = signalLog?.detail?.direction as string | undefined
+  const signalConfidence = signalLog?.detail?.confidence as number | undefined
+
   return (
-    <div className={`px-4 py-2.5 ${cfg.bg} hover:bg-muted/30 transition-colors`}>
-      <div className='flex items-start gap-3'>
-        {/* 时间 + 标签 */}
-        <div className='shrink-0 w-[100px]'>
-          <span className={`text-xs font-medium ${cfg.color}`}>{cfg.label}</span>
-          <div className='text-[10px] text-muted-foreground tabular-nums'>{time}</div>
-        </div>
+    <div className={`${cfg.bg} hover:bg-muted/30 transition-colors`}>
+      <div className='px-4 py-2.5 cursor-pointer' onClick={handleToggle}>
+        <div className='flex items-start gap-3'>
+          {/* 时间 + 标签 */}
+          <div className='shrink-0 w-[100px]'>
+            <span className={`text-xs font-medium ${cfg.color}`}>{cfg.label}</span>
+            <div className='text-[10px] text-muted-foreground tabular-nums'>{time}</div>
+          </div>
 
-        {/* 内容 */}
-        <div className='flex-1 min-w-0'>
-          {log.stage === 'trade_open' && direction && (
-            <div className='space-y-0.5'>
+          {/* 内容 */}
+          <div className='flex-1 min-w-0'>
+            {log.stage === 'trade_open' && direction && (
+              <div className='space-y-0.5'>
+                <div className='flex items-center gap-2 text-xs'>
+                  <Badge variant='outline' className='text-[10px] px-1.5 py-0'>{log.coin}</Badge>
+                  <span className={direction === 'long' ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>
+                    {direction === 'long' ? '做多' : '做空'}
+                  </span>
+                  {amount != null && <span className='font-mono'>${amount.toFixed(0)}</span>}
+                  {entryPrice != null && <span className='text-muted-foreground'>@ {fmtPrice(entryPrice)}</span>}
+                </div>
+                {tp != null && sl != null && (
+                  <div className='text-[10px] font-mono text-muted-foreground'>
+                    TP {fmtPrice(tp)} / SL {fmtPrice(sl)}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {(log.stage === 'trade_add' || log.stage === 'trade_reduce') && (
+              <div className='space-y-0.5'>
+                <div className='flex items-center gap-2 text-xs'>
+                  <Badge variant='outline' className='text-[10px] px-1.5 py-0'>{log.coin}</Badge>
+                  <span className='text-xs'>{log.message}</span>
+                </div>
+                {(reduceAmount != null || newAmount != null || currentPrice != null) && (
+                  <div className='text-[10px] font-mono text-muted-foreground'>
+                    {reduceAmount != null && <span>{log.stage === 'trade_add' ? '+' : '-'}${reduceAmount.toFixed(0)}</span>}
+                    {newAmount != null && <span> → 仓位 ${newAmount.toFixed(0)}</span>}
+                    {currentPrice != null && <span> @ {fmtPrice(currentPrice)}</span>}
+                    {pnl != null && (
+                      <span className={`ml-1 ${pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                        ({pnl >= 0 ? '+' : ''}${pnl.toFixed(2)})
+                      </span>
+                    )}
+                    {scaleCount != null && <span className='ml-1'>第{scaleCount}次</span>}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {(log.stage === 'trade_close' || log.stage === 'settle') && (
               <div className='flex items-center gap-2 text-xs'>
                 <Badge variant='outline' className='text-[10px] px-1.5 py-0'>{log.coin}</Badge>
-                <span className={direction === 'long' ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>
-                  {direction === 'long' ? '做多' : '做空'}
-                </span>
-                {amount != null && <span className='font-mono'>${amount.toFixed(0)}</span>}
-                {entryPrice != null && <span className='text-muted-foreground'>@ {fmtPrice(entryPrice)}</span>}
+                <span>{log.message}</span>
               </div>
-              {tp != null && sl != null && (
-                <div className='text-[10px] font-mono text-muted-foreground'>
-                  TP {fmtPrice(tp)} / SL {fmtPrice(sl)}
-                </div>
-              )}
-            </div>
-          )}
+            )}
 
-          {(log.stage === 'trade_add' || log.stage === 'trade_reduce') && (
-            <div className='space-y-0.5'>
+            {!['trade_open', 'trade_add', 'trade_reduce', 'trade_close', 'settle'].includes(log.stage) && (
               <div className='flex items-center gap-2 text-xs'>
                 <Badge variant='outline' className='text-[10px] px-1.5 py-0'>{log.coin}</Badge>
-                <span className='text-xs'>{log.message}</span>
+                <span>{log.message}</span>
               </div>
-              {(reduceAmount != null || newAmount != null || currentPrice != null) && (
-                <div className='text-[10px] font-mono text-muted-foreground'>
-                  {reduceAmount != null && <span>{log.stage === 'trade_add' ? '+' : '-'}${reduceAmount.toFixed(0)}</span>}
-                  {newAmount != null && <span> → 仓位 ${newAmount.toFixed(0)}</span>}
-                  {currentPrice != null && <span> @ {fmtPrice(currentPrice)}</span>}
-                  {pnl != null && (
-                    <span className={`ml-1 ${pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                      ({pnl >= 0 ? '+' : ''}${pnl.toFixed(2)})
-                    </span>
-                  )}
-                  {scaleCount != null && <span className='ml-1'>第{scaleCount}次</span>}
-                </div>
-              )}
-            </div>
-          )}
+            )}
+          </div>
 
-          {(log.stage === 'trade_close' || log.stage === 'settle') && (
-            <div className='flex items-center gap-2 text-xs'>
-              <Badge variant='outline' className='text-[10px] px-1.5 py-0'>{log.coin}</Badge>
-              <span>{log.message}</span>
-            </div>
-          )}
-
-          {!['trade_open', 'trade_add', 'trade_reduce', 'trade_close', 'settle'].includes(log.stage) && (
-            <div className='flex items-center gap-2 text-xs'>
-              <Badge variant='outline' className='text-[10px] px-1.5 py-0'>{log.coin}</Badge>
-              <span>{log.message}</span>
-            </div>
-          )}
+          {/* 展开箭头 */}
+          <div className='shrink-0 mt-0.5'>
+            {expanded
+              ? <ChevronDown className='h-3.5 w-3.5 text-muted-foreground' />
+              : <ChevronRight className='h-3.5 w-3.5 text-muted-foreground' />}
+          </div>
         </div>
       </div>
+
+      {/* AI 分析详情 */}
+      {expanded && (
+        <div className='px-4 pb-3 pt-0'>
+          <div className='ml-[112px] rounded-md border bg-background/60 p-3'>
+            {signalLoading ? (
+              <div className='flex items-center gap-2 text-xs text-muted-foreground'>
+                <Loader2 className='h-3 w-3 animate-spin' />
+                加载 AI 分析...
+              </div>
+            ) : signalReason ? (
+              <div className='space-y-1.5'>
+                <div className='flex items-center gap-2'>
+                  <Brain className='h-3.5 w-3.5 text-violet-500' />
+                  <span className='text-[11px] font-medium text-violet-600 dark:text-violet-400'>AI 决策分析</span>
+                  {signalDirection && signalDirection !== 'wait' && (
+                    <Badge variant='outline' className='text-[10px] px-1.5 py-0'>
+                      {signalDirection === 'long' ? '做多' : signalDirection === 'short' ? '做空' : signalDirection}
+                    </Badge>
+                  )}
+                  {signalConfidence != null && (
+                    <span className='text-[10px] text-muted-foreground'>置信度 {signalConfidence}/10</span>
+                  )}
+                </div>
+                <p className='text-[11px] leading-relaxed text-muted-foreground whitespace-pre-wrap'>
+                  {signalReason}
+                </p>
+                {signalLog && (
+                  <div className='text-[10px] text-muted-foreground/60 tabular-nums'>
+                    {new Date(signalLog.created_at).toLocaleString('zh-CN', {
+                      month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit',
+                    })}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className='text-[11px] text-muted-foreground'>未找到相关 AI 分析记录</div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

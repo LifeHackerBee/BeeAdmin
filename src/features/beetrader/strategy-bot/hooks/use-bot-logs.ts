@@ -76,10 +76,28 @@ export function useBotLogs() {
     fetchPage(currentJobId, tab, page)
   }, [fetchPage, currentJobId])
 
+  /** 获取某条交易日志之前最近的 ai_signal 日志（用于展示 AI 决策分析） */
+  const fetchSignalContext = useCallback(async (beforeAt: string): Promise<BotLog | null> => {
+    try {
+      const params = new URLSearchParams({
+        limit: '1',
+        offset: '0',
+        level: 'signal',
+        stage: 'ai_signal',
+        before_at: beforeAt,
+      })
+      if (currentJobId != null) params.set('job_id', String(currentJobId))
+      const res = await hyperliquidApiGet<LogsResponse>(`/api/strategy_bot/jobs/logs?${params.toString()}`)
+      return res.logs?.[0] ?? null
+    } catch {
+      return null
+    }
+  }, [currentJobId])
+
   return {
     logs, tradeLogs, loading,
     allTotal, allPage, tradeTotal, tradePage,
     pageSize: PAGE_SIZE,
-    refetch, goPage,
+    refetch, goPage, fetchSignalContext,
   }
 }

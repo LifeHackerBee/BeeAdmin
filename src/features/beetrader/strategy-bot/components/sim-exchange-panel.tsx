@@ -153,14 +153,14 @@ export function SimExchangePanel() {
               <Table>
                 <TableHeader>
                   <TableRow className='bg-muted/30'>
-                    <TableHead className='text-[10px] h-7'>Coin</TableHead>
-                    <TableHead className='text-[10px] h-7'>Size</TableHead>
-                    <TableHead className='text-[10px] h-7'>Position Value</TableHead>
-                    <TableHead className='text-[10px] h-7'>Entry Price</TableHead>
-                    <TableHead className='text-[10px] h-7'>Mark Price</TableHead>
-                    <TableHead className='text-[10px] h-7'>PNL (ROE %)</TableHead>
+                    <TableHead className='text-[10px] h-7'>币种</TableHead>
+                    <TableHead className='text-[10px] h-7'>杠杆</TableHead>
+                    <TableHead className='text-[10px] h-7'>仓位</TableHead>
+                    <TableHead className='text-[10px] h-7'>入场价</TableHead>
+                    <TableHead className='text-[10px] h-7'>标记价</TableHead>
+                    <TableHead className='text-[10px] h-7'>PNL (ROE%)</TableHead>
                     <TableHead className='text-[10px] h-7'>TP/SL</TableHead>
-                    <TableHead className='text-[10px] h-7 text-right'>Close</TableHead>
+                    <TableHead className='text-[10px] h-7 text-right'>平仓</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -170,7 +170,7 @@ export function SimExchangePanel() {
                       onUpdateTpSl={(tp, sl) => sim.updateTpSl(pos.id, tp, sl)} />
                   )) : (
                     <TableRow>
-                      <TableCell colSpan={8} className='text-center text-xs text-muted-foreground py-6'>空仓</TableCell>
+                      <TableCell colSpan={9} className='text-center text-xs text-muted-foreground py-6'>空仓</TableCell>
                     </TableRow>
                   )}
                 </TableBody>
@@ -362,21 +362,26 @@ function PositionTableRow({ pos, onClose, onUpdateTpSl }: {
       <TableRow>
         <TableCell>
           <span className={`text-xs font-bold ${isLong ? 'text-green-600' : 'text-red-600'}`}>
-            {pos.coin} <span className='font-normal text-[10px]'>{pos.leverage ?? 1}x</span>
+            {pos.coin}
+          </span>
+        </TableCell>
+        <TableCell>
+          <span className='text-xs font-mono font-semibold text-yellow-600 dark:text-yellow-400'>
+            {pos.leverage ?? 1}x
           </span>
         </TableCell>
         <TableCell className='text-xs font-mono'>
           <span className={isLong ? 'text-green-600' : 'text-red-600'}>
-            {isLong ? '' : '-'}${pos.size_usd.toFixed(0)}
+            {isLong ? 'Long' : 'Short'} ${pos.size_usd.toFixed(0)}
           </span>
         </TableCell>
-        <TableCell className='text-xs font-mono'>${pos.size_usd.toFixed(2)} USDC</TableCell>
         <TableCell className='text-xs font-mono'>{fmtPrice(pos.entry_price)}</TableCell>
         <TableCell className='text-xs font-mono'>{fmtPrice(pos.current_price)}</TableCell>
         <TableCell>
-          <span className={`text-xs font-mono ${pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-            {pnl >= 0 ? '+' : ''}${pnl.toFixed(2)} ({pnlPct >= 0 ? '+' : ''}{pnlPct.toFixed(1)}%)
-          </span>
+          <div className={`text-xs font-mono ${pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+            <div>{pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}</div>
+            <div className='text-[10px]'>ROE {pnlPct >= 0 ? '+' : ''}{pnlPct.toFixed(2)}%</div>
+          </div>
         </TableCell>
         <TableCell>
           <button
