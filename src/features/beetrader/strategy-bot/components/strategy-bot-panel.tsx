@@ -1132,6 +1132,9 @@ function BotSettingsDialog({
   const [tpPct, setTpPct] = useState(job.tp_pct != null && job.tp_pct > 0 ? String(job.tp_pct) : '')
   const [slPct, setSlPct] = useState(job.sl_pct != null && job.sl_pct > 0 ? String(job.sl_pct) : '')
   const [minRrRatio, setMinRrRatio] = useState(String(job.min_rr_ratio ?? 1.5))
+  const [cooldown, setCooldown] = useState(String(job.trade_cooldown_seconds ?? 1800))
+  const [minResonance, setMinResonance] = useState(String(job.min_resonance_to_open ?? 3))
+  const [priceRefresh, setPriceRefresh] = useState(String(job.price_refresh_threshold ?? 5.0))
   const [disableTimeout, setDisableTimeout] = useState(job.disable_timeout ?? false)
   const [saving, setSaving] = useState(false)
   const [defaults, setDefaults] = useState<DefaultPrompts | null>(null)
@@ -1168,6 +1171,9 @@ function BotSettingsDialog({
         tp_pct: tp > 0 ? tp : 0,
         sl_pct: sl > 0 ? sl : 0,
         min_rr_ratio: rr >= 0 ? rr : 1.5,
+        trade_cooldown_seconds: parseInt(cooldown) || 1800,
+        min_resonance_to_open: parseInt(minResonance) || 3,
+        price_refresh_threshold: parseFloat(priceRefresh) || 5.0,
         disable_timeout: disableTimeout,
       })
     } catch {
@@ -1533,6 +1539,53 @@ function BotSettingsDialog({
                         ? '持仓将一直保持直到触发止盈/止损或手动平仓，不会因超时自动平仓'
                         : '持仓会在 AI 信号指定的有效时间后自动平仓（默认最长 24 小时）'}
                     </p>
+                  </div>
+
+                  {/* 防频繁交易控制 */}
+                  <div className='space-y-3 pt-2 border-t'>
+                    <p className='text-xs font-medium'>交易频率控制</p>
+                    <div className='space-y-1'>
+                      <Label className='text-xs'>平仓冷却 (秒)</Label>
+                      <Input
+                        type='number'
+                        value={cooldown}
+                        onChange={(e) => setCooldown(e.target.value)}
+                        className='h-8 text-xs'
+                        placeholder='1800'
+                      />
+                      <p className='text-[10px] text-muted-foreground'>
+                        平仓后等待 {parseInt(cooldown) >= 60 ? `${Math.round(parseInt(cooldown) / 60)} 分钟` : `${cooldown} 秒`}才能再次开仓，防止快速反复开平
+                      </p>
+                    </div>
+                    <div className='space-y-1'>
+                      <Label className='text-xs'>最低共振分数 (0-10)</Label>
+                      <Input
+                        type='number'
+                        min={0}
+                        max={10}
+                        value={minResonance}
+                        onChange={(e) => setMinResonance(e.target.value)}
+                        className='h-8 text-xs'
+                        placeholder='3'
+                      />
+                      <p className='text-[10px] text-muted-foreground'>
+                        共振分数低于 {minResonance} 时不开新仓，防止弱信号交易
+                      </p>
+                    </div>
+                    <div className='space-y-1'>
+                      <Label className='text-xs'>策略刷新阈值 (%)</Label>
+                      <Input
+                        type='number'
+                        step='0.5'
+                        value={priceRefresh}
+                        onChange={(e) => setPriceRefresh(e.target.value)}
+                        className='h-8 text-xs'
+                        placeholder='5.0'
+                      />
+                      <p className='text-[10px] text-muted-foreground'>
+                        价格变动超过 {priceRefresh}% 才重新分析策略，值越大信号越稳定
+                      </p>
+                    </div>
                   </div>
                 </>
               )

@@ -11,7 +11,7 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
-import { Search, Clock, TrendingUp, TrendingDown, Minus, Eye } from 'lucide-react'
+import { Search, Clock, TrendingUp, TrendingDown, Minus, Eye, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react'
 import { hyperliquidApiGet } from '@/lib/hyperliquid-api-client'
 
 // ── Types ──
@@ -75,6 +75,13 @@ interface HistoryRecord {
   created_at: string
 }
 
+interface HistoryResponse {
+  success: boolean
+  total?: number
+  count: number
+  records: HistoryRecord[]
+}
+
 // ── Signal badge helpers ──
 
 const SIGNAL_COLORS: Record<string, string> = {
@@ -99,6 +106,8 @@ const RESONANCE_SIGNAL_COLORS: Record<string, string> = {
   neutral: 'text-muted-foreground', confirmed: 'text-blue-500', warning: 'text-yellow-500',
 }
 
+const PAGE_SIZE = 20
+
 // ── Main Component ──
 
 export function AnalysisHistoryTab() {
@@ -110,45 +119,66 @@ export function AnalysisHistoryTab() {
   const [detailRecord, setDetailRecord] = useState<HistoryRecord | null>(null)
   const [initialized, setInitialized] = useState(false)
 
-  // 默认加载最近 15 条
-  const loadRecent = useCallback(async (targetCoin?: string) => {
+  // 分页状态
+  const [page, setPage] = useState(1)
+  const [total, setTotal] = useState(0)
+  // 记住当前搜索模式，翻页时复用
+  const [searchMode, setSearchMode] = useState<'recent' | 'date'>('recent')
+  const [searchDate, setSearchDate] = useState('')
+
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+
+  const fetchPage = useCallback(async (targetPage: number, mode: 'recent' | 'date', targetCoin?: string, targetDate?: string) => {
     setLoading(true)
     setSearched(true)
     try {
-      const params = new URLSearchParams({ limit: '15', coin: (targetCoin || coin).toUpperCase() })
-      const res = await hyperliquidApiGet<{ success: boolean; records: HistoryRecord[] }>(`/api/beetrader_strategy/history?${params.toString()}`)
+      const offset = (targetPage - 1) * PAGE_SIZE
+      const params = new URLSearchParams({
+        limit: String(PAGE_SIZE),
+        offset: String(offset),
+        coin: (targetCoin || coin).toUpperCase(),
+      })
+
+      if (mode === 'date' && targetDate) {
+        const startBJ = `${targetDate}T00:00:00+08:00`
+        const endDate = new Date(new Date(targetDate).getTime() + 86400000)
+        const endBJ = `${endDate.toISOString().split('T')[0]}T00:00:00+08:00`
+        params.set('start_time', startBJ)
+        params.set('end_time', endBJ)
+      }
+
+      const res = await hyperliquidApiGet<HistoryResponse>(`/api/beetrader_strategy/history?${params.toString()}`)
       setRecords(res.records || [])
-    } catch { setRecords([]) } finally { setLoading(false) }
+      setTotal(res.total ?? res.count ?? 0)
+      setPage(targetPage)
+      setSearchMode(mode)
+      if (mode === 'date' && targetDate) setSearchDate(targetDate)
+    } catch {
+      setRecords([])
+      setTotal(0)
+    } finally {
+      setLoading(false)
+    }
   }, [coin])
 
   // 首次自动加载
   if (!initialized) {
     setInitialized(true)
-    loadRecent()
+    fetchPage(1, 'recent')
   }
 
-  const handleSearch = useCallback(async () => {
-    setLoading(true)
-    setSearched(true)
-    try {
-      const startBJ = `${date}T08:00:00+08:00`
-      const endDate = new Date(new Date(date).getTime() + 86400000)
-      const endBJ = `${endDate.toISOString().split('T')[0]}T08:00:00+08:00`
-      const params = new URLSearchParams({ limit: '50', coin: coin.toUpperCase(), start_time: startBJ, end_time: endBJ })
-      const res = await hyperliquidApiGet<{ success: boolean; records: HistoryRecord[] }>(`/api/beetrader_strategy/history?${params.toString()}`)
-      setRecords(res.records || [])
-    } catch { setRecords([]) } finally { setLoading(false) }
-  }, [coin, date])
+  const handleSearch = useCallback(() => {
+    fetchPage(1, 'date', coin, date)
+  }, [fetchPage, coin, date])
 
-  const handleLoadAll = useCallback(async () => {
-    setLoading(true)
-    setSearched(true)
-    try {
-      const params = new URLSearchParams({ limit: '50', coin: coin.toUpperCase() })
-      const res = await hyperliquidApiGet<{ success: boolean; records: HistoryRecord[] }>(`/api/beetrader_strategy/history?${params.toString()}`)
-      setRecords(res.records || [])
-    } catch { setRecords([]) } finally { setLoading(false) }
-  }, [coin])
+  const handleLoadRecent = useCallback(() => {
+    fetchPage(1, 'recent', coin)
+  }, [fetchPage, coin])
+
+  const goToPage = useCallback((p: number) => {
+    if (p < 1 || p > totalPages || p === page) return
+    fetchPage(p, searchMode, coin, searchDate)
+  }, [fetchPage, searchMode, coin, searchDate, page, totalPages])
 
   return (
     <div className='space-y-3'>
@@ -170,13 +200,13 @@ export function AnalysisHistoryTab() {
                 <Button size='sm' className='h-8 text-xs gap-1' onClick={handleSearch} disabled={loading}>
                   <Search className='h-3.5 w-3.5' /> 按日期搜索
                 </Button>
-                <Button variant='outline' size='sm' className='h-8 text-xs' onClick={handleLoadAll} disabled={loading}>
-                  最近 50 条
+                <Button variant='outline' size='sm' className='h-8 text-xs' onClick={handleLoadRecent} disabled={loading}>
+                  最近记录
                 </Button>
               </div>
             </div>
             {searched && (
-              <Badge variant='secondary' className='text-[10px] px-1.5 py-0 h-5 ml-auto'>{records.length} 条</Badge>
+              <Badge variant='secondary' className='text-[10px] px-1.5 py-0 h-5 ml-auto'>共 {total} 条</Badge>
             )}
           </div>
         </CardContent>
@@ -282,6 +312,44 @@ export function AnalysisHistoryTab() {
               </TableBody>
             </Table>
           </div>
+
+          {/* 分页控件 */}
+          {totalPages > 1 && (
+            <div className='flex items-center justify-between border-t px-4 py-2'>
+              <span className='text-xs text-muted-foreground'>
+                第 {(page - 1) * PAGE_SIZE + 1}-{Math.min(page * PAGE_SIZE, total)} 条，共 {total} 条
+              </span>
+              <div className='flex items-center gap-1'>
+                <Button variant='outline' size='sm' className='h-7 w-7 p-0' disabled={page <= 1} onClick={() => goToPage(1)}>
+                  <ChevronsLeft className='h-3.5 w-3.5' />
+                </Button>
+                <Button variant='outline' size='sm' className='h-7 w-7 p-0' disabled={page <= 1} onClick={() => goToPage(page - 1)}>
+                  <ChevronLeft className='h-3.5 w-3.5' />
+                </Button>
+                {generatePageNumbers(page, totalPages).map((p, i) =>
+                  p === '...' ? (
+                    <span key={`dot-${i}`} className='px-1 text-xs text-muted-foreground'>...</span>
+                  ) : (
+                    <Button
+                      key={p}
+                      variant={p === page ? 'default' : 'outline'}
+                      size='sm'
+                      className='h-7 min-w-7 px-2 text-xs'
+                      onClick={() => goToPage(p as number)}
+                    >
+                      {p}
+                    </Button>
+                  )
+                )}
+                <Button variant='outline' size='sm' className='h-7 w-7 p-0' disabled={page >= totalPages} onClick={() => goToPage(page + 1)}>
+                  <ChevronRight className='h-3.5 w-3.5' />
+                </Button>
+                <Button variant='outline' size='sm' className='h-7 w-7 p-0' disabled={page >= totalPages} onClick={() => goToPage(totalPages)}>
+                  <ChevronsRight className='h-3.5 w-3.5' />
+                </Button>
+              </div>
+            </div>
+          )}
         </Card>
       )}
 
@@ -295,6 +363,22 @@ export function AnalysisHistoryTab() {
       )}
     </div>
   )
+}
+
+/** 生成页码数组，中间省略 */
+function generatePageNumbers(current: number, total: number): (number | '...')[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1)
+
+  const pages: (number | '...')[] = [1]
+  if (current > 3) pages.push('...')
+
+  const start = Math.max(2, current - 1)
+  const end = Math.min(total - 1, current + 1)
+  for (let i = start; i <= end; i++) pages.push(i)
+
+  if (current < total - 2) pages.push('...')
+  pages.push(total)
+  return pages
 }
 
 // ── 策略详情弹窗 — 一页展示所有数据 ──

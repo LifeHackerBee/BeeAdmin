@@ -5,11 +5,14 @@ import { AlertTriangle, Shield, TrendingUp, TrendingDown, Minus, CircleDot } fro
 import type { Strategy, ResonanceDetail } from '../types'
 
 const BIAS_CONFIG: Record<string, { variant: 'default' | 'destructive' | 'outline' | 'secondary'; label: string; emoji: string }> = {
-  '强势看多': { variant: 'default', label: '强势看多', emoji: '🟢' },
+  '多头': { variant: 'default', label: '多头', emoji: '🟢' },
   '震荡偏多': { variant: 'default', label: '震荡偏多', emoji: '🟡' },
   '观望': { variant: 'secondary', label: '观望', emoji: '⚪' },
   '震荡偏空': { variant: 'destructive', label: '震荡偏空', emoji: '🟡' },
-  '强势看空': { variant: 'destructive', label: '强势看空', emoji: '🔴' },
+  '空头': { variant: 'destructive', label: '空头', emoji: '🔴' },
+  // 兼容旧数据
+  '强势看多': { variant: 'default', label: '多头', emoji: '🟢' },
+  '强势看空': { variant: 'destructive', label: '空头', emoji: '🔴' },
 }
 
 // 权重 → 周期标签 (1h=1, 4h=2, 1d=3, 1w=4)
@@ -80,20 +83,6 @@ export function StrategyRecommendation({ data }: Props) {
   const neutralPct = total > 0 ? (neutralCount / total) * 100 : 0
   const bearPct = total > 0 ? (bearCount / total) * 100 : 0
 
-  // 净权重和总权重（用于展示计算过程）
-  const netW = Math.abs(bullishW - bearishW)
-  const allWeight = data.resonance_details.reduce((s, d) => {
-    // 中性指标也有隐含权重（根据周期），但 weight=0
-    const indicator = d.indicator
-    if (d.weight !== 0) return s + Math.abs(d.weight)
-    // 中性项的隐含权重
-    if (indicator.includes('1d')) return s + 3
-    if (indicator.includes('4h')) return s + 2
-    if (indicator.includes('1h')) return s + 1
-    if (indicator.includes('1w')) return s + 4
-    return s + 3 // 多空分界线等无周期后缀的默认 3
-  }, 0)
-
   // 按指标类别分组
   const grouped = data.resonance_details.reduce<Record<string, ResonanceDetail[]>>((acc, d) => {
     const cat = indicatorCategory(d.indicator)
@@ -119,14 +108,21 @@ export function StrategyRecommendation({ data }: Props) {
             <div className='flex items-center gap-2'>
               <CircleDot className='h-4 w-4 text-purple-500' />
               <span className='text-sm font-medium'>共振评分</span>
-              <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${
-                data.resonance_score >= 8 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                  : data.resonance_score >= 6 ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-                    : data.resonance_score >= 4 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
-                      : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-              }`}>
-                {data.resonance_score >= 8 ? '强共振' : data.resonance_score >= 6 ? '较好' : data.resonance_score >= 4 ? '分歧' : '弱共振'}
-              </span>
+              {(() => {
+                const isBull = bullishW >= bearishW
+                const strong = data.resonance_score >= 7
+                const label = strong
+                  ? (isBull ? '多头' : '空头')
+                  : (isBull ? '震荡偏多' : '震荡偏空')
+                const cls = isBull
+                  ? (strong
+                      ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                      : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400')
+                  : (strong
+                      ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                      : 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400')
+                return <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${cls}`}>{label}</span>
+              })()}
             </div>
             <span className='text-2xl font-bold tabular-nums'>
               {data.resonance_score}<span className='text-sm font-normal text-muted-foreground'>/10</span>
@@ -138,13 +134,17 @@ export function StrategyRecommendation({ data }: Props) {
             <div className='flex items-center gap-2 text-xs'>
               <span className='text-muted-foreground'>计算:</span>
               <span className='font-mono'>
-                |<span className='text-green-600 dark:text-green-400'>{bullishW}</span>
-                {' - '}
-                <span className='text-red-600 dark:text-red-400'>{bearishW}</span>|
-                {' / '}
-                {allWeight}
-                {' x 10 = '}
-                <span className='font-semibold'>{(netW / allWeight * 10).toFixed(1)}</span>
+                <span className='text-green-600 dark:text-green-400'>{bullishW}</span>
+                {' / ('}
+                <span className='text-green-600 dark:text-green-400'>{bullishW}</span>
+                {' + '}
+                <span className='text-red-600 dark:text-red-400'>{bearishW}</span>
+                {') x 10 = '}
+                <span className='font-semibold'>
+                  {bullishW + bearishW > 0
+                    ? (Math.max(bullishW, bearishW) / (bullishW + bearishW) * 10).toFixed(1)
+                    : '0'}
+                </span>
               </span>
               <span className='text-muted-foreground'>
                 {' -> '}{data.resonance_score}

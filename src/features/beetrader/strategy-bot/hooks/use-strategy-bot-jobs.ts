@@ -40,6 +40,9 @@ export interface StrategyBotJob {
   max_order_usd: number
   min_rr_ratio: number
   disable_timeout: boolean
+  trade_cooldown_seconds: number
+  min_resonance_to_open: number
+  price_refresh_threshold: number
   scale_in_count: number
   scale_out_count: number
   created_at: string
@@ -58,6 +61,9 @@ export interface UpdateBotJobData {
   max_order_usd?: number
   min_rr_ratio?: number
   disable_timeout?: boolean
+  trade_cooldown_seconds?: number
+  min_resonance_to_open?: number
+  price_refresh_threshold?: number
 }
 
 export interface CreateBotJobData {
