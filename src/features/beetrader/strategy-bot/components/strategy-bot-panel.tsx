@@ -6,6 +6,7 @@ import { useAgentPrompts } from '../hooks/use-agent-prompts'
 import { StrategyConfigDialog } from './strategy-config-dialog'
 import { AgentConfigDialog } from './agent-config-dialog'
 import { AgentTestDialog } from './agent-test-dialog'
+import { CVDScalperDialog } from './cvd-scalper-dialog'
 import { BotConfigOverview } from './bot-config-overview'
 import { SimExchangePanel } from './sim-exchange-panel'
 import { useSimExchange } from '../hooks/use-sim-exchange'
@@ -499,6 +500,7 @@ export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
   const [strategyConfigOpen, setStrategyConfigOpen] = useState(false)
   const [agentConfigOpen, setAgentConfigOpen] = useState(false)
   const [agentTestOpen, setAgentTestOpen] = useState(false)
+  const [cvdScalperOpen, setCvdScalperOpen] = useState(false)
 
   // 策略模板: 概览卡片需要显示配置状态，所以默认加载
   const [promptsNeeded, setPromptsNeeded] = useState(true)
@@ -558,7 +560,7 @@ export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
             </div>
             <div className='flex items-center gap-2'>
               <BotConfigOverview strategyPrompts={strategyPrompts.prompts} agentPrompts={agentPrompts.prompts} runningJobs={runningCount}
-                onOpenStrategyConfig={() => setStrategyConfigOpen(true)} onOpenAgentConfig={() => setAgentConfigOpen(true)} onOpenAgentTest={() => setAgentTestOpen(true)} />
+                onOpenStrategyConfig={() => setStrategyConfigOpen(true)} onOpenAgentConfig={() => setAgentConfigOpen(true)} onOpenAgentTest={() => setAgentTestOpen(true)} onOpenCVDScalper={() => setCvdScalperOpen(true)} />
               <Button size='sm' onClick={() => { setPromptsNeeded(true); setDialogOpen(true) }} variant={isLive ? 'destructive' : 'default'}>
                 <Plus className='h-3.5 w-3.5 mr-1' /> 添加机器人
               </Button>
@@ -580,7 +582,7 @@ export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
             </div>
             <div className='flex items-center gap-2'>
               <BotConfigOverview strategyPrompts={strategyPrompts.prompts} agentPrompts={agentPrompts.prompts} runningJobs={runningCount}
-                onOpenStrategyConfig={() => setStrategyConfigOpen(true)} onOpenAgentConfig={() => setAgentConfigOpen(true)} onOpenAgentTest={() => setAgentTestOpen(true)} />
+                onOpenStrategyConfig={() => setStrategyConfigOpen(true)} onOpenAgentConfig={() => setAgentConfigOpen(true)} onOpenAgentTest={() => setAgentTestOpen(true)} onOpenCVDScalper={() => setCvdScalperOpen(true)} />
               <Button variant='outline' size='sm' className='h-8 text-xs' onClick={handleRefresh} disabled={refreshing}>
                 <RefreshCw className={`h-3.5 w-3.5 mr-1 ${refreshing ? 'animate-spin' : ''}`} /> 刷新
               </Button>
@@ -661,6 +663,11 @@ export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
         onOpenChange={setAgentTestOpen}
         prompts={agentPrompts.prompts}
         defaultCoin={jobs[0]?.coin ?? 'BTC'}
+      />
+      <CVDScalperDialog
+        open={cvdScalperOpen}
+        onOpenChange={setCvdScalperOpen}
+        mode={mode}
       />
     </div>
   )

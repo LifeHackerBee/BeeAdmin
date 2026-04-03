@@ -1,6 +1,6 @@
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Brain, Bot, FlaskConical, CheckCircle, Clock } from 'lucide-react'
+import { Brain, Bot, FlaskConical, Zap, CheckCircle, Clock } from 'lucide-react'
 import type { StrategyPrompt } from '../../signals/hooks/use-strategy-prompts'
 import type { AgentPrompt } from '../hooks/use-agent-prompts'
 import { AGENT_TOOLS } from './agent-config-dialog'
@@ -13,11 +13,12 @@ interface Props {
   onOpenStrategyConfig: () => void
   onOpenAgentConfig: () => void
   onOpenAgentTest: () => void
+  onOpenCVDScalper?: () => void
 }
 
 export function BotConfigOverview({
   strategyPrompts, agentPrompts, runningJobs,
-  onOpenStrategyConfig, onOpenAgentConfig, onOpenAgentTest,
+  onOpenStrategyConfig, onOpenAgentConfig, onOpenAgentTest, onOpenCVDScalper,
 }: Props) {
   const defaultStrategy = strategyPrompts.find((p) => p.is_default)
   const defaultAgent = agentPrompts.find((p) => p.is_default)
@@ -65,6 +66,13 @@ export function BotConfigOverview({
           </Badge>
         )}
       </Button>
+
+      {onOpenCVDScalper && (
+        <Button variant='outline' size='sm' className='h-8 text-xs gap-1.5' onClick={onOpenCVDScalper}>
+          <Zap className='h-3.5 w-3.5 text-yellow-500' />
+          CVD Scalper
+        </Button>
+      )}
     </div>
   )
 }
