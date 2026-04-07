@@ -7,6 +7,7 @@ import { StrategyConfigDialog } from './strategy-config-dialog'
 import { AgentConfigDialog } from './agent-config-dialog'
 import { AgentTestDialog } from './agent-test-dialog'
 import { CVDScalperDialog } from './cvd-scalper-dialog'
+import { CVDScalperSection } from './cvd-scalper-section'
 import { BotConfigOverview } from './bot-config-overview'
 import { SimExchangePanel } from './sim-exchange-panel'
 import { useSimExchange } from '../hooks/use-sim-exchange'
@@ -544,6 +545,9 @@ export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
           <AlertDescription>{error.message}</AlertDescription>
         </Alert>
       )}
+
+      {/* ── CVD Scalper Agent ── */}
+      <CVDScalperSection mode={mode} onOpenConfig={() => setCvdScalperOpen(true)} />
 
       {/* ── 策略管理 ── */}
       {loading ? (
