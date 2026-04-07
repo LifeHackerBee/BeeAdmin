@@ -24,7 +24,9 @@ interface ScalperConfig {
   enabled: boolean
   spike_multiplier: number
   lookback_minutes: number
-  hold_seconds: number
+  tp_pct: number
+  sl_pct: number
+  max_hold_seconds: number
   order_usd: number
   cvd_confirm_ratio: number
   has_position: boolean
@@ -57,7 +59,9 @@ export function CVDScalperDialog({ open, onOpenChange, mode }: {
   // 新建表单
   const [newCoin, setNewCoin] = useState('BTC')
   const [newSpike, setNewSpike] = useState('5')
-  const [newHold, setNewHold] = useState('90')
+  const [newTpPct, setNewTpPct] = useState('1.0')
+  const [newSlPct, setNewSlPct] = useState('1.0')
+  const [newMaxHold, setNewMaxHold] = useState('3600')
   const [newUsd, setNewUsd] = useState('50')
   const [newCvdRatio, setNewCvdRatio] = useState('0.4')
   const [newLookback, setNewLookback] = useState('30')
@@ -91,9 +95,11 @@ export function CVDScalperDialog({ open, onOpenChange, mode }: {
         mode,
         spike_multiplier: parseFloat(newSpike) || 5,
         lookback_minutes: parseInt(newLookback) || 30,
-        hold_seconds: parseInt(newHold) || 90,
+        tp_pct: parseFloat(newTpPct) || 1.0,
+        sl_pct: parseFloat(newSlPct) || 1.0,
+        max_hold_seconds: parseInt(newMaxHold) || 3600,
         order_usd: parseFloat(newUsd) || 50,
-        cvd_confirm_ratio: parseFloat(newCvdRatio) || 0.6,
+        cvd_confirm_ratio: parseFloat(newCvdRatio) || 0.4,
       })
       toast.success(`${newCoin} CVD Scalper 已创建`)
       fetchConfigs()
@@ -165,7 +171,7 @@ export function CVDScalperDialog({ open, onOpenChange, mode }: {
             <Card>
               <CardContent className='pt-4 space-y-3'>
                 <p className='text-xs font-medium'>添加追单币种</p>
-                <div className='grid grid-cols-3 gap-2'>
+                <div className='grid grid-cols-4 gap-2'>
                   <div className='space-y-1'>
                     <Label className='text-[10px]'>币种</Label>
                     <Input value={newCoin} onChange={e => setNewCoin(e.target.value.toUpperCase())} className='h-7 text-xs' placeholder='BTC' />
@@ -175,8 +181,16 @@ export function CVDScalperDialog({ open, onOpenChange, mode }: {
                     <Input value={newSpike} onChange={e => setNewSpike(e.target.value)} className='h-7 text-xs' placeholder='5' type='number' />
                   </div>
                   <div className='space-y-1'>
-                    <Label className='text-[10px]'>持仓秒数</Label>
-                    <Input value={newHold} onChange={e => setNewHold(e.target.value)} className='h-7 text-xs' placeholder='90' type='number' />
+                    <Label className='text-[10px]'>止盈 %</Label>
+                    <Input value={newTpPct} onChange={e => setNewTpPct(e.target.value)} className='h-7 text-xs' placeholder='1.0' type='number' step='0.1' />
+                  </div>
+                  <div className='space-y-1'>
+                    <Label className='text-[10px]'>止损 %</Label>
+                    <Input value={newSlPct} onChange={e => setNewSlPct(e.target.value)} className='h-7 text-xs' placeholder='1.0' type='number' step='0.1' />
+                  </div>
+                  <div className='space-y-1'>
+                    <Label className='text-[10px]'>最长持仓 (秒)</Label>
+                    <Input value={newMaxHold} onChange={e => setNewMaxHold(e.target.value)} className='h-7 text-xs' placeholder='3600' type='number' />
                   </div>
                   <div className='space-y-1'>
                     <Label className='text-[10px]'>下单金额 ($)</Label>
@@ -184,7 +198,7 @@ export function CVDScalperDialog({ open, onOpenChange, mode }: {
                   </div>
                   <div className='space-y-1'>
                     <Label className='text-[10px]'>CVD 确认比</Label>
-                    <Input value={newCvdRatio} onChange={e => setNewCvdRatio(e.target.value)} className='h-7 text-xs' placeholder='0.6' type='number' step='0.1' />
+                    <Input value={newCvdRatio} onChange={e => setNewCvdRatio(e.target.value)} className='h-7 text-xs' placeholder='0.4' type='number' step='0.1' />
                   </div>
                   <div className='space-y-1'>
                     <Label className='text-[10px]'>回看分钟</Label>
@@ -247,11 +261,33 @@ export function CVDScalperDialog({ open, onOpenChange, mode }: {
                           <span className='text-muted-foreground'>x</span>
                         </div>
                         <div className='flex items-center justify-between'>
-                          <span className='text-muted-foreground'>持仓</span>
+                          <span className='text-muted-foreground text-green-600'>止盈</span>
                           <Input
                             className='h-5 w-14 text-[10px] text-right px-1'
-                            defaultValue={cfg.hold_seconds}
-                            onBlur={e => handleUpdate(cfg.id, 'hold_seconds', e.target.value)}
+                            defaultValue={cfg.tp_pct}
+                            onBlur={e => handleUpdate(cfg.id, 'tp_pct', e.target.value)}
+                            type='number'
+                            step='0.1'
+                          />
+                          <span className='text-muted-foreground'>%</span>
+                        </div>
+                        <div className='flex items-center justify-between'>
+                          <span className='text-muted-foreground text-red-600'>止损</span>
+                          <Input
+                            className='h-5 w-14 text-[10px] text-right px-1'
+                            defaultValue={cfg.sl_pct}
+                            onBlur={e => handleUpdate(cfg.id, 'sl_pct', e.target.value)}
+                            type='number'
+                            step='0.1'
+                          />
+                          <span className='text-muted-foreground'>%</span>
+                        </div>
+                        <div className='flex items-center justify-between'>
+                          <span className='text-muted-foreground'>最长持仓</span>
+                          <Input
+                            className='h-5 w-14 text-[10px] text-right px-1'
+                            defaultValue={cfg.max_hold_seconds}
+                            onBlur={e => handleUpdate(cfg.id, 'max_hold_seconds', e.target.value)}
                             type='number'
                           />
                           <span className='text-muted-foreground'>s</span>
@@ -265,6 +301,16 @@ export function CVDScalperDialog({ open, onOpenChange, mode }: {
                             type='number'
                           />
                           <span className='text-muted-foreground'>$</span>
+                        </div>
+                        <div className='flex items-center justify-between'>
+                          <span className='text-muted-foreground'>CVD比</span>
+                          <Input
+                            className='h-5 w-14 text-[10px] text-right px-1'
+                            defaultValue={cfg.cvd_confirm_ratio}
+                            onBlur={e => handleUpdate(cfg.id, 'cvd_confirm_ratio', e.target.value)}
+                            type='number'
+                            step='0.05'
+                          />
                         </div>
                       </div>
 
@@ -282,8 +328,8 @@ export function CVDScalperDialog({ open, onOpenChange, mode }: {
             )}
 
             <p className='text-[10px] text-muted-foreground leading-relaxed'>
-              策略逻辑: 每 5 秒扫描 CVD 1m 桶数据，当最新分钟的 volume 超过均值 N 倍且
-              CVD 方向确认 (买卖占比 &gt;= 阈值) 时市价追单，持仓固定时间后自动平仓。
+              策略逻辑: 每 5 秒扫描 CVD 1m 桶，当最新分钟 volume 超过均值 N 倍且 CVD 方向确认时市价追单。
+              持仓后每 5 秒检查盈亏: 达到止盈 % 或止损 % 立即平仓，超过最长持仓时间兜底平仓。
               需要先在 CVD Monitor 中启用对应币种的监控。
             </p>
           </div>

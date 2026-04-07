@@ -15,7 +15,9 @@ interface ScalperConfig {
   mode: string
   enabled: boolean
   spike_multiplier: number
-  hold_seconds: number
+  tp_pct: number
+  sl_pct: number
+  max_hold_seconds: number
   order_usd: number
   has_position: boolean
   last_direction: string | null
@@ -147,7 +149,7 @@ export function CVDScalperSection({ mode, onOpenConfig }: {
                     <Switch checked={cfg.enabled} onCheckedChange={v => handleToggle(cfg.id, v)} className='scale-75' />
                     <Badge variant='outline' className='text-[10px] px-1 py-0 h-4'>{cfg.coin}</Badge>
                     <span className='text-[10px] text-muted-foreground font-mono truncate'>
-                      {cfg.spike_multiplier}x · {cfg.hold_seconds}s · ${cfg.order_usd}
+                      {cfg.spike_multiplier}x · TP+{cfg.tp_pct}%/SL-{cfg.sl_pct}% · ${cfg.order_usd}
                     </span>
                     {cfg.has_position && (
                       <Badge className={`text-[10px] px-1 py-0 h-4 ${cfg.last_direction === 'long' ? 'bg-green-500' : 'bg-red-500'}`}>
