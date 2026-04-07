@@ -59,7 +59,7 @@ export function CVDScalperDialog({ open, onOpenChange, mode }: {
   const [newSpike, setNewSpike] = useState('5')
   const [newHold, setNewHold] = useState('90')
   const [newUsd, setNewUsd] = useState('50')
-  const [newCvdRatio, setNewCvdRatio] = useState('0.6')
+  const [newCvdRatio, setNewCvdRatio] = useState('0.4')
   const [newLookback, setNewLookback] = useState('30')
   const [creating, setCreating] = useState(false)
 
