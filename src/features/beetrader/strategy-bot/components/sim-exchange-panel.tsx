@@ -188,25 +188,44 @@ export function SimExchangePanel() {
                     <TableHead className='text-[10px] h-7'>Side</TableHead>
                     <TableHead className='text-[10px] h-7'>Price</TableHead>
                     <TableHead className='text-[10px] h-7'>Size</TableHead>
+                    <TableHead className='text-[10px] h-7'>用途</TableHead>
                     <TableHead className='text-[10px] h-7'>Time</TableHead>
                     <TableHead className='text-[10px] h-7 text-right'>Cancel</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {sim.orders.map((order) => (
-                    <TableRow key={order.id}>
-                      <TableCell className='text-xs font-medium'>{order.coin}</TableCell>
-                      <TableCell><span className={`text-xs ${order.side === 'buy' ? 'text-green-500' : 'text-red-500'}`}>{order.side.toUpperCase()}</span></TableCell>
-                      <TableCell className='text-xs font-mono'>{fmtPrice(order.price)}</TableCell>
-                      <TableCell className='text-xs font-mono'>${order.size_usd.toFixed(0)}</TableCell>
-                      <TableCell className='text-[10px] text-muted-foreground'>
-                        {new Date(order.created_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
-                      </TableCell>
-                      <TableCell className='text-right'>
-                        <Button variant='ghost' size='sm' className='h-6 text-[10px] px-2 text-red-500' onClick={() => sim.cancelOrder(order.id)}>Cancel</Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {sim.orders.map((order) => {
+                    const purposeLabel = order.purpose === 'scale_in'
+                      ? '加仓挂单'
+                      : order.purpose === 'scale_out'
+                      ? '减仓挂单'
+                      : order.order_type === 'limit'
+                      ? '限价单'
+                      : '-'
+                    const purposeColor = order.purpose === 'scale_in'
+                      ? 'text-cyan-500'
+                      : order.purpose === 'scale_out'
+                      ? 'text-purple-500'
+                      : 'text-muted-foreground'
+                    return (
+                      <TableRow key={order.id}>
+                        <TableCell className='text-xs font-medium'>{order.coin}</TableCell>
+                        <TableCell><span className={`text-xs ${order.side === 'buy' ? 'text-green-500' : 'text-red-500'}`}>{order.side.toUpperCase()}</span></TableCell>
+                        <TableCell className='text-xs font-mono'>{fmtPrice(order.price)}</TableCell>
+                        <TableCell className='text-xs font-mono'>${order.size_usd.toFixed(0)}</TableCell>
+                        <TableCell className={`text-[10px] ${purposeColor}`}>
+                          {purposeLabel}
+                          {order.bot_job_id && <span className='ml-1 opacity-60'>#{order.bot_job_id}</span>}
+                        </TableCell>
+                        <TableCell className='text-[10px] text-muted-foreground'>
+                          {new Date(order.created_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                        </TableCell>
+                        <TableCell className='text-right'>
+                          <Button variant='ghost' size='sm' className='h-6 text-[10px] px-2 text-red-500' onClick={() => sim.cancelOrder(order.id)}>Cancel</Button>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
                 </TableBody>
               </Table>
             </div>

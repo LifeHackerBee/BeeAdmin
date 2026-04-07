@@ -42,6 +42,9 @@ export interface SimOrder {
   leverage: number
   status: string
   order_type: string
+  purpose?: string | null
+  parent_position_id?: number | null
+  bot_job_id?: number | null
   created_at: string
 }
 
