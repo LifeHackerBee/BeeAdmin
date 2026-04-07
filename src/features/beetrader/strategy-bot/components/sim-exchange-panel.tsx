@@ -137,11 +137,9 @@ export function SimExchangePanel() {
             <TabsTrigger value='positions' className='text-xs h-7 px-3'>
               持仓 ({sim.positions.length})
             </TabsTrigger>
-            {sim.orders.length > 0 && (
-              <TabsTrigger value='orders' className='text-xs h-7 px-3'>
-                挂单 ({sim.orders.length})
-              </TabsTrigger>
-            )}
+            <TabsTrigger value='orders' className='text-xs h-7 px-3'>
+              挂单 ({sim.orders.length})
+            </TabsTrigger>
             <TabsTrigger value='fills' className='text-xs h-7 px-3'>
               成交历史
             </TabsTrigger>
@@ -194,7 +192,7 @@ export function SimExchangePanel() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {sim.orders.map((order) => {
+                  {sim.orders.length > 0 ? sim.orders.map((order) => {
                     const purposeLabel = order.purpose === 'scale_in'
                       ? '加仓挂单'
                       : order.purpose === 'scale_out'
@@ -225,7 +223,11 @@ export function SimExchangePanel() {
                         </TableCell>
                       </TableRow>
                     )
-                  })}
+                  }) : (
+                    <TableRow>
+                      <TableCell colSpan={7} className='text-center text-xs text-muted-foreground py-6'>暂无挂单</TableCell>
+                    </TableRow>
+                  )}
                 </TableBody>
               </Table>
             </div>
