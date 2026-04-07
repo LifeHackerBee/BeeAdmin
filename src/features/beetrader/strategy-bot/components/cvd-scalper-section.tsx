@@ -3,7 +3,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
-import { Zap, RefreshCw, Square, TrendingUp, TrendingDown, Activity } from 'lucide-react'
+import { Zap, RefreshCw, Square, TrendingUp, TrendingDown, Activity, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   hyperliquidApiGet, hyperliquidApiPost, hyperliquidApiPatch,
@@ -36,27 +36,49 @@ interface ScalperTrade {
 
 const API = '/api/cvd_scalper'
 
+const SECTION_PAGE_SIZE = 20
+
+interface ScalperStats {
+  total_closes: number
+  wins: number
+  losses: number
+  win_rate: number
+  total_pnl: number
+  avg_roi_pct: number
+}
+
 export function CVDScalperSection({ mode, onOpenConfig }: {
   mode: 'paper' | 'live'
   onOpenConfig: () => void
 }) {
   const [configs, setConfigs] = useState<ScalperConfig[]>([])
   const [recentTrades, setRecentTrades] = useState<ScalperTrade[]>([])
+  const [tradeTotal, setTradeTotal] = useState(0)
+  const [stats, setStats] = useState<ScalperStats | null>(null)
+  const [page, setPage] = useState(1)
   const [refreshing, setRefreshing] = useState(false)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const fetchData = useCallback(async () => {
     try {
-      const [c, t] = await Promise.all([
+      const offset = (page - 1) * SECTION_PAGE_SIZE
+      const [c, t, s] = await Promise.all([
         hyperliquidApiGet<{ configs: ScalperConfig[] }>(`${API}/configs`),
-        hyperliquidApiGet<{ trades: ScalperTrade[] }>(`${API}/trades?limit=20`),
+        hyperliquidApiGet<{ trades: ScalperTrade[]; total?: number }>(
+          `${API}/trades?limit=${SECTION_PAGE_SIZE}&offset=${offset}&exclude_actions=hold,skip`
+        ),
+        hyperliquidApiGet<ScalperStats>(`${API}/stats`),
       ])
       setConfigs((c.configs || []).filter(x => x.mode === mode))
       setRecentTrades(t.trades || [])
+      setTradeTotal(t.total || 0)
+      setStats(s)
     } catch {
       // ignore
     }
-  }, [mode])
+  }, [mode, page])
+
+  const totalPages = Math.max(1, Math.ceil(tradeTotal / SECTION_PAGE_SIZE))
 
   useEffect(() => {
     fetchData()
@@ -90,18 +112,6 @@ export function CVDScalperSection({ mode, onOpenConfig }: {
   const enabledCount = configs.filter(c => c.enabled).length
   const positionCount = configs.filter(c => c.has_position).length
 
-  // 统计最近交易: 仅 close 类型
-  const closeTrades = recentTrades.filter(t => t.action === 'close')
-  const closeWins = closeTrades.filter(t => {
-    const pnl = (t.detail as { pnl?: number })?.pnl
-    return typeof pnl === 'number' && pnl > 0
-  }).length
-  const closeLosses = closeTrades.length - closeWins
-  const totalPnl = closeTrades.reduce((sum, t) => {
-    const pnl = (t.detail as { pnl?: number })?.pnl
-    return sum + (typeof pnl === 'number' ? pnl : 0)
-  }, 0)
-
   return (
     <Card>
       <div className='flex items-center justify-between px-4 pt-3 pb-2 border-b'>
@@ -117,12 +127,14 @@ export function CVDScalperSection({ mode, onOpenConfig }: {
           )}
         </div>
         <div className='flex items-center gap-2'>
-          {closeTrades.length > 0 && (
+          {stats && stats.total_closes > 0 && (
             <span className='text-[10px] text-muted-foreground font-mono'>
-              {closeTrades.length} 单 · 胜 {closeWins}/负 {closeLosses} ·
-              <span className={totalPnl >= 0 ? 'text-green-500 ml-1' : 'text-red-500 ml-1'}>
-                {totalPnl >= 0 ? '+' : ''}${totalPnl.toFixed(2)}
+              {stats.total_closes} 单 · 胜 <span className='text-green-600'>{stats.wins}</span>/负 <span className='text-red-600'>{stats.losses}</span>
+              <span className='ml-1'>({stats.win_rate}%)</span> ·
+              <span className={stats.total_pnl >= 0 ? 'text-green-500 ml-1' : 'text-red-500 ml-1'}>
+                {stats.total_pnl >= 0 ? '+' : ''}${stats.total_pnl.toFixed(2)}
               </span>
+              <span className='ml-1 opacity-70'>(均 ROI {stats.avg_roi_pct >= 0 ? '+' : ''}{stats.avg_roi_pct.toFixed(3)}%)</span>
             </span>
           )}
           <Button variant='outline' size='sm' className='h-8 text-xs' onClick={handleRefresh} disabled={refreshing}>
@@ -169,21 +181,37 @@ export function CVDScalperSection({ mode, onOpenConfig }: {
               ))}
             </div>
 
-            {/* 最近交易记录 */}
-            {recentTrades.length > 0 && (
+            {/* 交易记录 (分页 20 条/页) */}
+            {tradeTotal > 0 && (
               <div className='border-t pt-2 space-y-1'>
-                <div className='flex items-center gap-1 text-[10px] text-muted-foreground'>
-                  <Activity className='h-3 w-3' />
-                  最近 {recentTrades.length} 条记录
+                <div className='flex items-center justify-between text-[10px] text-muted-foreground'>
+                  <span className='flex items-center gap-1'>
+                    <Activity className='h-3 w-3' />
+                    交易记录 第 {page}/{totalPages} 页 (共 {tradeTotal} 条)
+                  </span>
+                  <div className='flex items-center gap-1'>
+                    <Button variant='outline' size='sm' className='h-5 w-5 p-0' disabled={page <= 1} onClick={() => setPage(1)}>
+                      <ChevronsLeft className='h-2.5 w-2.5' />
+                    </Button>
+                    <Button variant='outline' size='sm' className='h-5 w-5 p-0' disabled={page <= 1} onClick={() => setPage(page - 1)}>
+                      <ChevronLeft className='h-2.5 w-2.5' />
+                    </Button>
+                    <Button variant='outline' size='sm' className='h-5 w-5 p-0' disabled={page >= totalPages} onClick={() => setPage(page + 1)}>
+                      <ChevronRight className='h-2.5 w-2.5' />
+                    </Button>
+                    <Button variant='outline' size='sm' className='h-5 w-5 p-0' disabled={page >= totalPages} onClick={() => setPage(totalPages)}>
+                      <ChevronsRight className='h-2.5 w-2.5' />
+                    </Button>
+                  </div>
                 </div>
-                <div className='max-h-40 overflow-y-auto space-y-0.5'>
-                  {recentTrades.slice(0, 10).map(t => {
+                <div className='space-y-0.5'>
+                  {recentTrades.map(t => {
                     const pnl = (t.detail as { pnl?: number })?.pnl
                     const direction = (t.detail as { direction?: string })?.direction
                     return (
                       <div key={t.id} className='flex items-center gap-2 text-[10px] font-mono py-0.5 px-1 rounded hover:bg-muted/40'>
-                        <span className='text-muted-foreground w-12 flex-shrink-0'>
-                          {new Date(t.created_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'Asia/Shanghai' })}
+                        <span className='text-muted-foreground w-24 flex-shrink-0'>
+                          {new Date(t.created_at).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'Asia/Shanghai' })}
                         </span>
                         <Badge variant='outline' className='text-[9px] px-1 py-0 h-3.5 flex-shrink-0'>{t.coin}</Badge>
                         <Badge

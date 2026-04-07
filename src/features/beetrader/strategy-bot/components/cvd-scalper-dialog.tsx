@@ -11,7 +11,7 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
-import { Zap, Loader2, Trash2, Plus, Square, RefreshCw } from 'lucide-react'
+import { Zap, Loader2, Trash2, Plus, Square, RefreshCw, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   hyperliquidApiGet, hyperliquidApiPost, hyperliquidApiPatch, hyperliquidApiDelete,
@@ -74,18 +74,38 @@ export function CVDScalperDialog({ open, onOpenChange, mode }: {
     } catch { /* ignore */ }
   }, [mode])
 
+  const [tradeFilter, setTradeFilter] = useState<'all' | 'trades' | 'signals'>('trades')
+  const [tradeTotal, setTradeTotal] = useState(0)
+  const [tradePage, setTradePage] = useState(1)
+  const TRADES_PAGE_SIZE = 20
+
   const fetchTrades = useCallback(async () => {
     try {
-      const res = await hyperliquidApiGet<{ trades: ScalperTrade[] }>(`${API}/trades?limit=30`)
+      const offset = (tradePage - 1) * TRADES_PAGE_SIZE
+      let url = `${API}/trades?limit=${TRADES_PAGE_SIZE}&offset=${offset}`
+      if (tradeFilter === 'trades') {
+        url += '&action=open,close,error'
+      } else if (tradeFilter === 'signals') {
+        url += '&action=signal,skip'
+      }
+      const res = await hyperliquidApiGet<{ trades: ScalperTrade[]; total?: number }>(url)
       setTrades(res.trades || [])
+      setTradeTotal(res.total || 0)
     } catch { /* ignore */ }
-  }, [])
+  }, [tradeFilter, tradePage])
+
+  // 切换 filter 时重置到第 1 页
+  useEffect(() => {
+    setTradePage(1)
+  }, [tradeFilter])
 
   useEffect(() => {
     if (!open) return
     setLoading(true)
     Promise.all([fetchConfigs(), fetchTrades()]).finally(() => setLoading(false))
   }, [open, fetchConfigs, fetchTrades])
+
+  const tradeTotalPages = Math.max(1, Math.ceil(tradeTotal / TRADES_PAGE_SIZE))
 
   const handleCreate = async () => {
     setCreating(true)
@@ -336,7 +356,27 @@ export function CVDScalperDialog({ open, onOpenChange, mode }: {
         ) : (
           /* 交易日志 */
           <div className='space-y-2'>
-            <div className='flex justify-end'>
+            <div className='flex items-center justify-between'>
+              <div className='flex items-center gap-1'>
+                <Button
+                  variant={tradeFilter === 'trades' ? 'default' : 'outline'}
+                  size='sm' className='h-6 text-[10px] px-2'
+                  onClick={() => setTradeFilter('trades')}
+                >真实交易</Button>
+                <Button
+                  variant={tradeFilter === 'signals' ? 'default' : 'outline'}
+                  size='sm' className='h-6 text-[10px] px-2'
+                  onClick={() => setTradeFilter('signals')}
+                >信号/跳过</Button>
+                <Button
+                  variant={tradeFilter === 'all' ? 'default' : 'outline'}
+                  size='sm' className='h-6 text-[10px] px-2'
+                  onClick={() => setTradeFilter('all')}
+                >全部</Button>
+                <span className='text-[10px] text-muted-foreground ml-2'>
+                  共 {tradeTotal} 条 · 第 {tradePage}/{tradeTotalPages} 页
+                </span>
+              </div>
               <Button variant='ghost' size='sm' className='h-7 text-xs gap-1' onClick={fetchTrades}>
                 <RefreshCw className='h-3 w-3' /> 刷新
               </Button>
@@ -344,7 +384,7 @@ export function CVDScalperDialog({ open, onOpenChange, mode }: {
             {trades.length === 0 ? (
               <p className='text-center text-xs text-muted-foreground py-6'>暂无交易日志</p>
             ) : (
-              <div className='overflow-x-auto max-h-[50vh]'>
+              <div className='overflow-x-auto max-h-[55vh]'>
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -366,11 +406,35 @@ export function CVDScalperDialog({ open, onOpenChange, mode }: {
                             {t.action}
                           </Badge>
                         </TableCell>
-                        <TableCell className='py-1 max-w-xs truncate'>{t.message}</TableCell>
+                        <TableCell className='py-1 max-w-xs truncate' title={t.message}>{t.message}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
+              </div>
+            )}
+
+            {/* 分页控件 */}
+            {tradeTotal > 0 && tradeTotalPages > 1 && (
+              <div className='flex items-center justify-between border-t pt-2'>
+                <span className='text-[10px] text-muted-foreground'>
+                  第 {(tradePage - 1) * TRADES_PAGE_SIZE + 1}-{Math.min(tradePage * TRADES_PAGE_SIZE, tradeTotal)} 条，共 {tradeTotal} 条
+                </span>
+                <div className='flex items-center gap-1'>
+                  <Button variant='outline' size='sm' className='h-6 w-6 p-0' disabled={tradePage <= 1} onClick={() => setTradePage(1)}>
+                    <ChevronsLeft className='h-3 w-3' />
+                  </Button>
+                  <Button variant='outline' size='sm' className='h-6 w-6 p-0' disabled={tradePage <= 1} onClick={() => setTradePage(tradePage - 1)}>
+                    <ChevronLeft className='h-3 w-3' />
+                  </Button>
+                  <span className='text-[10px] px-2 tabular-nums'>{tradePage} / {tradeTotalPages}</span>
+                  <Button variant='outline' size='sm' className='h-6 w-6 p-0' disabled={tradePage >= tradeTotalPages} onClick={() => setTradePage(tradePage + 1)}>
+                    <ChevronRight className='h-3 w-3' />
+                  </Button>
+                  <Button variant='outline' size='sm' className='h-6 w-6 p-0' disabled={tradePage >= tradeTotalPages} onClick={() => setTradePage(tradeTotalPages)}>
+                    <ChevronsRight className='h-3 w-3' />
+                  </Button>
+                </div>
               </div>
             )}
           </div>

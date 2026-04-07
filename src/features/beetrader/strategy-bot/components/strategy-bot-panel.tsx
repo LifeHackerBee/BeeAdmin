@@ -564,7 +564,7 @@ export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
             </div>
             <div className='flex items-center gap-2'>
               <BotConfigOverview strategyPrompts={strategyPrompts.prompts} agentPrompts={agentPrompts.prompts} runningJobs={runningCount}
-                onOpenStrategyConfig={() => setStrategyConfigOpen(true)} onOpenAgentConfig={() => setAgentConfigOpen(true)} onOpenAgentTest={() => setAgentTestOpen(true)} onOpenCVDScalper={() => setCvdScalperOpen(true)} />
+                onOpenStrategyConfig={() => setStrategyConfigOpen(true)} onOpenAgentConfig={() => setAgentConfigOpen(true)} onOpenAgentTest={() => setAgentTestOpen(true)} />
               <Button size='sm' onClick={() => { setPromptsNeeded(true); setDialogOpen(true) }} variant={isLive ? 'destructive' : 'default'}>
                 <Plus className='h-3.5 w-3.5 mr-1' /> 添加机器人
               </Button>
@@ -586,7 +586,7 @@ export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
             </div>
             <div className='flex items-center gap-2'>
               <BotConfigOverview strategyPrompts={strategyPrompts.prompts} agentPrompts={agentPrompts.prompts} runningJobs={runningCount}
-                onOpenStrategyConfig={() => setStrategyConfigOpen(true)} onOpenAgentConfig={() => setAgentConfigOpen(true)} onOpenAgentTest={() => setAgentTestOpen(true)} onOpenCVDScalper={() => setCvdScalperOpen(true)} />
+                onOpenStrategyConfig={() => setStrategyConfigOpen(true)} onOpenAgentConfig={() => setAgentConfigOpen(true)} onOpenAgentTest={() => setAgentTestOpen(true)} />
               <Button variant='outline' size='sm' className='h-8 text-xs' onClick={handleRefresh} disabled={refreshing}>
                 <RefreshCw className={`h-3.5 w-3.5 mr-1 ${refreshing ? 'animate-spin' : ''}`} /> 刷新
               </Button>
