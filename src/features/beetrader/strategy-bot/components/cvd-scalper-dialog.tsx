@@ -77,7 +77,7 @@ export function CVDScalperDialog({ open, onOpenChange, mode }: {
   const [tradeFilter, setTradeFilter] = useState<'all' | 'trades' | 'signals'>('trades')
   const [tradeTotal, setTradeTotal] = useState(0)
   const [tradePage, setTradePage] = useState(1)
-  const TRADES_PAGE_SIZE = 20
+  const TRADES_PAGE_SIZE = 10
 
   const fetchTrades = useCallback(async () => {
     try {

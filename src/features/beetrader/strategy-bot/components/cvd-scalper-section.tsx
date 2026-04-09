@@ -36,7 +36,7 @@ interface ScalperTrade {
 
 const API = '/api/cvd_scalper'
 
-const SECTION_PAGE_SIZE = 20
+const SECTION_PAGE_SIZE = 10
 
 interface ScalperStats {
   total_closes: number
@@ -65,7 +65,7 @@ export function CVDScalperSection({ mode, onOpenConfig }: {
       const [c, t, s] = await Promise.all([
         hyperliquidApiGet<{ configs: ScalperConfig[] }>(`${API}/configs`),
         hyperliquidApiGet<{ trades: ScalperTrade[]; total?: number }>(
-          `${API}/trades?limit=${SECTION_PAGE_SIZE}&offset=${offset}&exclude_actions=hold,skip`
+          `${API}/trades?limit=${SECTION_PAGE_SIZE}&offset=${offset}&action=open,close,signal,error`
         ),
         hyperliquidApiGet<ScalperStats>(`${API}/stats`),
       ])
