@@ -11,7 +11,7 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
-import { Zap, Loader2, Trash2, Plus, Square, RefreshCw, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react'
+import { Zap, Loader2, Trash2, Plus, Square, RefreshCw, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, RotateCcw } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   hyperliquidApiGet, hyperliquidApiPost, hyperliquidApiPatch, hyperliquidApiDelete,
@@ -29,6 +29,7 @@ interface ScalperConfig {
   max_hold_seconds: number
   order_usd: number
   cvd_confirm_ratio: number
+  reverse_signal: boolean
   has_position: boolean
   last_direction: string | null
   last_entry_price: number | null
@@ -153,6 +154,24 @@ export function CVDScalperDialog({ open, onOpenChange, mode }: {
       fetchTrades()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : '平仓失败')
+    }
+  }
+
+  const [clearing, setClearing] = useState(false)
+  const handleClearTrades = async (configId?: number) => {
+    if (!confirm(configId ? '确认清除该配置的所有日志？' : '确认清除全部 CVD Scalper 日志？')) return
+    setClearing(true)
+    try {
+      const url = configId ? `${API}/trades?config_id=${configId}` : `${API}/trades`
+      await hyperliquidApiDelete(url)
+      toast.success('日志已清除')
+      setTradeTotal(0)
+      setTrades([])
+      setTradePage(1)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '清除失败')
+    } finally {
+      setClearing(false)
     }
   }
 
@@ -332,6 +351,16 @@ export function CVDScalperDialog({ open, onOpenChange, mode }: {
                             step='0.05'
                           />
                         </div>
+                        <div className='flex items-center justify-between col-span-3'>
+                          <span className='text-muted-foreground'>逆势模式 (CVD向上→做空)</span>
+                          <Switch
+                            checked={cfg.reverse_signal}
+                            onCheckedChange={async v => {
+                              await hyperliquidApiPatch(`${API}/configs/${cfg.id}`, { reverse_signal: v })
+                              fetchConfigs()
+                            }}
+                          />
+                        </div>
                       </div>
 
                       {cfg.last_triggered_at && (
@@ -377,9 +406,14 @@ export function CVDScalperDialog({ open, onOpenChange, mode }: {
                   共 {tradeTotal} 条 · 第 {tradePage}/{tradeTotalPages} 页
                 </span>
               </div>
-              <Button variant='ghost' size='sm' className='h-7 text-xs gap-1' onClick={fetchTrades}>
-                <RefreshCw className='h-3 w-3' /> 刷新
-              </Button>
+              <div className='flex items-center gap-1'>
+                <Button variant='ghost' size='sm' className='h-7 text-xs gap-1' onClick={fetchTrades}>
+                  <RefreshCw className='h-3 w-3' /> 刷新
+                </Button>
+                <Button variant='ghost' size='sm' className='h-7 text-xs gap-1 text-red-500 hover:text-red-600' onClick={() => handleClearTrades()} disabled={clearing}>
+                  <RotateCcw className='h-3 w-3' /> 清除全部
+                </Button>
+              </div>
             </div>
             {trades.length === 0 ? (
               <p className='text-center text-xs text-muted-foreground py-6'>暂无交易日志</p>
