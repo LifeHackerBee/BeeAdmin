@@ -977,6 +977,12 @@ function TradeLogRow({ log, fetchSignalContext }: {
   const reduceAmount = detail?.reduce_amount as number | undefined
   const newAmount = detail?.new_amount as number | undefined
   const scaleCount = detail?.scale_in_count as number ?? detail?.scale_out_count as number | undefined
+  // S1/S2/R1/R2 关键位（开仓时记录）
+  const levels = detail?.levels as Record<string, { price?: number; reason?: string }> | undefined
+  const s1 = levels?.S1_Near?.price
+  const s2 = levels?.S2_Far?.price
+  const r1 = levels?.R1_Near?.price
+  const r2 = levels?.R2_Far?.price
 
   const time = new Date(log.created_at).toLocaleString('zh-CN', {
     month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
@@ -1028,6 +1034,14 @@ function TradeLogRow({ log, fetchSignalContext }: {
                 {tp != null && sl != null && (
                   <div className='text-[10px] font-mono text-muted-foreground'>
                     TP {fmtPrice(tp)} / SL {fmtPrice(sl)}
+                  </div>
+                )}
+                {(s1 || s2 || r1 || r2) && (
+                  <div className='text-[10px] font-mono mt-0.5 flex flex-wrap gap-x-2'>
+                    {s2 != null && s2 > 0 && <span className='text-green-700 dark:text-green-500'>S2=${s2.toLocaleString()}</span>}
+                    {s1 != null && s1 > 0 && <span className='text-green-600 dark:text-green-400'>S1=${s1.toLocaleString()}</span>}
+                    {r1 != null && r1 > 0 && <span className='text-red-600 dark:text-red-400'>R1=${r1.toLocaleString()}</span>}
+                    {r2 != null && r2 > 0 && <span className='text-red-700 dark:text-red-500'>R2=${r2.toLocaleString()}</span>}
                   </div>
                 )}
               </div>
@@ -1105,6 +1119,36 @@ function TradeLogRow({ log, fetchSignalContext }: {
                 <p className='text-[11px] leading-relaxed text-muted-foreground whitespace-pre-wrap'>
                   {signalReason}
                 </p>
+                {/* 关键位详情 (开仓记录) */}
+                {levels && (s1 || s2 || r1 || r2) && (
+                  <div className='mt-2 pt-2 border-t border-border/40 space-y-0.5'>
+                    <div className='text-[10px] font-medium text-muted-foreground'>关键位 (S/R Levels)</div>
+                    {r2 != null && r2 > 0 && (
+                      <div className='text-[10px] flex gap-2'>
+                        <span className='text-red-700 dark:text-red-500 font-mono shrink-0 w-20'>R2 ${r2.toLocaleString()}</span>
+                        <span className='text-muted-foreground/70 truncate' title={levels.R2_Far?.reason || ''}>{levels.R2_Far?.reason || '—'}</span>
+                      </div>
+                    )}
+                    {r1 != null && r1 > 0 && (
+                      <div className='text-[10px] flex gap-2'>
+                        <span className='text-red-600 dark:text-red-400 font-mono shrink-0 w-20'>R1 ${r1.toLocaleString()}</span>
+                        <span className='text-muted-foreground/70 truncate' title={levels.R1_Near?.reason || ''}>{levels.R1_Near?.reason || '—'}</span>
+                      </div>
+                    )}
+                    {s1 != null && s1 > 0 && (
+                      <div className='text-[10px] flex gap-2'>
+                        <span className='text-green-600 dark:text-green-400 font-mono shrink-0 w-20'>S1 ${s1.toLocaleString()}</span>
+                        <span className='text-muted-foreground/70 truncate' title={levels.S1_Near?.reason || ''}>{levels.S1_Near?.reason || '—'}</span>
+                      </div>
+                    )}
+                    {s2 != null && s2 > 0 && (
+                      <div className='text-[10px] flex gap-2'>
+                        <span className='text-green-700 dark:text-green-500 font-mono shrink-0 w-20'>S2 ${s2.toLocaleString()}</span>
+                        <span className='text-muted-foreground/70 truncate' title={levels.S2_Far?.reason || ''}>{levels.S2_Far?.reason || '—'}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
                 {signalLog && (
                   <div className='text-[10px] text-muted-foreground/60 tabular-nums'>
                     {new Date(signalLog.created_at).toLocaleString('zh-CN', {
