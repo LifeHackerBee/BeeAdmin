@@ -73,18 +73,18 @@ export function SimExchangePanel() {
             <Wallet className='h-4 w-4 text-purple-500' />
             模拟交易所
           </CardTitle>
-          <div className='flex items-center gap-1.5'>
-            <Button variant='outline' size='sm' className='h-7 text-xs gap-1' onClick={sim.refetch} disabled={sim.loading}>
+          <div className='flex items-center gap-1 flex-wrap justify-end'>
+            <Button variant='outline' size='sm' className='h-7 w-7 p-0' onClick={sim.refetch} disabled={sim.loading}>
               <RefreshCw className={`h-3 w-3 ${sim.loading ? 'animate-spin' : ''}`} />
             </Button>
-            <Button variant='outline' size='sm' className='h-7 text-xs gap-1' onClick={() => setOrderDialogOpen(true)}>
+            <Button variant='outline' size='sm' className='h-7 text-xs gap-1 px-2' onClick={() => setOrderDialogOpen(true)}>
               <Plus className='h-3 w-3' /> 下单
             </Button>
-            <Button variant='outline' size='sm' className='h-7 text-xs gap-1' onClick={() => { setNewBalance(String(account?.balance ?? 20000)); setBalanceDialogOpen(true) }}>
+            <Button variant='outline' size='sm' className='h-7 text-xs gap-1 px-2 hidden sm:flex' onClick={() => { setNewBalance(String(account?.balance ?? 20000)); setBalanceDialogOpen(true) }}>
               <Wallet className='h-3 w-3' /> 设置余额
             </Button>
-            <Button variant='ghost' size='sm' className='h-7 text-xs gap-1 text-red-500' onClick={sim.resetAccount}>
-              <RotateCcw className='h-3 w-3' /> 重置
+            <Button variant='ghost' size='sm' className='h-7 w-7 p-0 text-red-500' onClick={sim.resetAccount}>
+              <RotateCcw className='h-3 w-3' />
             </Button>
           </div>
         </div>
@@ -107,10 +107,10 @@ export function SimExchangePanel() {
 
         {/* 账户概览 — 突出显示 */}
         {account && (
-          <div className='grid grid-cols-4 gap-3'>
+          <div className='grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3'>
             <div className='rounded-lg border p-3 text-center'>
               <div className='text-[10px] text-muted-foreground mb-1'>余额</div>
-              <div className='text-lg font-bold font-mono'>${account.balance.toFixed(2)}</div>
+              <div className='text-base sm:text-lg font-bold font-mono'>${account.balance.toFixed(2)}</div>
             </div>
             <div className='rounded-lg border p-3 text-center'>
               <div className='text-[10px] text-muted-foreground mb-1'>净值</div>

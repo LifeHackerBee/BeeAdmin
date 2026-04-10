@@ -557,17 +557,21 @@ export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
         </div>
       ) : jobs.length === 0 ? (
         <Card>
-          <div className='flex items-center justify-between px-4 pt-3 pb-2 border-b'>
-            <div className='flex items-center gap-2'>
-              <Bot className='h-4 w-4 text-blue-500' />
-              <span className='text-sm font-medium'>策略管理</span>
+          <div className='px-4 pt-3 pb-2 border-b space-y-2'>
+            <div className='flex items-center justify-between gap-2'>
+              <div className='flex items-center gap-2'>
+                <Bot className='h-4 w-4 text-blue-500' />
+                <span className='text-sm font-medium'>策略管理</span>
+              </div>
+              <div className='flex items-center gap-1.5'>
+                <Button size='sm' className='h-7 text-xs' onClick={() => { setPromptsNeeded(true); setDialogOpen(true) }} variant={isLive ? 'destructive' : 'default'}>
+                  <Plus className='h-3.5 w-3.5 sm:mr-1' /><span className='hidden sm:inline'>添加机器人</span>
+                </Button>
+              </div>
             </div>
-            <div className='flex items-center gap-2'>
+            <div className='hidden sm:block'>
               <BotConfigOverview strategyPrompts={strategyPrompts.prompts} agentPrompts={agentPrompts.prompts} runningJobs={runningCount}
                 onOpenStrategyConfig={() => setStrategyConfigOpen(true)} onOpenAgentConfig={() => setAgentConfigOpen(true)} onOpenAgentTest={() => setAgentTestOpen(true)} />
-              <Button size='sm' onClick={() => { setPromptsNeeded(true); setDialogOpen(true) }} variant={isLive ? 'destructive' : 'default'}>
-                <Plus className='h-3.5 w-3.5 mr-1' /> 添加机器人
-              </Button>
             </div>
           </div>
           <CardContent className='py-8 text-center text-muted-foreground'>
@@ -578,21 +582,25 @@ export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
         </Card>
       ) : (
         <Card>
-          <div className='flex items-center justify-between px-4 pt-3 pb-2 border-b'>
-            <div className='flex items-center gap-2'>
-              <Bot className='h-4 w-4 text-blue-500' />
-              <span className='text-sm font-medium'>策略管理</span>
-              <Badge variant='outline' className='text-xs'>{jobs.length} 个</Badge>
+          <div className='px-4 pt-3 pb-2 border-b space-y-2'>
+            <div className='flex items-center justify-between gap-2'>
+              <div className='flex items-center gap-2'>
+                <Bot className='h-4 w-4 text-blue-500' />
+                <span className='text-sm font-medium'>策略管理</span>
+                <Badge variant='outline' className='text-xs'>{jobs.length} 个</Badge>
+              </div>
+              <div className='flex items-center gap-1.5'>
+                <Button variant='outline' size='sm' className='h-7 w-7 p-0' onClick={handleRefresh} disabled={refreshing}>
+                  <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+                </Button>
+                <Button size='sm' className='h-7 text-xs' onClick={() => { setPromptsNeeded(true); setDialogOpen(true) }} variant={isLive ? 'destructive' : 'default'}>
+                  <Plus className='h-3.5 w-3.5 sm:mr-1' /><span className='hidden sm:inline'>添加机器人</span>
+                </Button>
+              </div>
             </div>
-            <div className='flex items-center gap-2'>
+            <div className='hidden sm:block'>
               <BotConfigOverview strategyPrompts={strategyPrompts.prompts} agentPrompts={agentPrompts.prompts} runningJobs={runningCount}
                 onOpenStrategyConfig={() => setStrategyConfigOpen(true)} onOpenAgentConfig={() => setAgentConfigOpen(true)} onOpenAgentTest={() => setAgentTestOpen(true)} />
-              <Button variant='outline' size='sm' className='h-8 text-xs' onClick={handleRefresh} disabled={refreshing}>
-                <RefreshCw className={`h-3.5 w-3.5 mr-1 ${refreshing ? 'animate-spin' : ''}`} /> 刷新
-              </Button>
-              <Button size='sm' className='h-8 text-xs' onClick={() => { setPromptsNeeded(true); setDialogOpen(true) }} variant={isLive ? 'destructive' : 'default'}>
-                <Plus className='h-3.5 w-3.5 mr-1' /> 添加机器人
-              </Button>
             </div>
           </div>
           <div className='overflow-x-auto'>
@@ -601,10 +609,10 @@ export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
                 <TableRow>
                   <TableHead>币种</TableHead>
                   <TableHead>状态</TableHead>
-                  <TableHead>分析策略</TableHead>
+                  <TableHead className='hidden sm:table-cell'>分析策略</TableHead>
                   <TableHead>胜率</TableHead>
                   <TableHead>当前信号</TableHead>
-                  <TableHead className='w-20 text-center'>日志</TableHead>
+                  <TableHead className='w-16 text-center hidden sm:table-cell'>日志</TableHead>
                   <TableHead className='w-28 text-right'>操作</TableHead>
                 </TableRow>
               </TableHeader>
@@ -724,7 +732,7 @@ function JobRow({
         </TableCell>
 
         {/* 3. 分析策略 */}
-        <TableCell>
+        <TableCell className='hidden sm:table-cell'>
           <span className='text-xs text-muted-foreground'>{strategyLabel}</span>
         </TableCell>
 
@@ -751,7 +759,7 @@ function JobRow({
         </TableCell>
 
         {/* 5. 日志 */}
-        <TableCell className='text-center'>
+        <TableCell className='text-center hidden sm:table-cell'>
           <Button variant='ghost' size='sm' className='h-7 text-xs gap-1'
             onClick={() => { onFetchLogs(); setLogsDialogOpen(true) }}>
             <ScrollText className='h-3.5 w-3.5' />
@@ -762,6 +770,11 @@ function JobRow({
         {/* 操作 */}
         <TableCell className='text-right'>
           <div className='flex items-center justify-end gap-1'>
+            {/* 移动端日志入口 */}
+            <Button variant='ghost' size='icon' className='h-7 w-7 sm:hidden'
+              onClick={() => { onFetchLogs(); setLogsDialogOpen(true) }}>
+              <ScrollText className='h-3.5 w-3.5' />
+            </Button>
             {job.status === 'running' ? (
               <Button variant='ghost' size='icon' className='h-7 w-7' onClick={onPause}>
                 <Pause className='h-3.5 w-3.5' />

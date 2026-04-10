@@ -114,36 +114,39 @@ export function CVDScalperSection({ mode, onOpenConfig }: {
 
   return (
     <Card>
-      <div className='flex items-center justify-between px-4 pt-3 pb-2 border-b'>
-        <div className='flex items-center gap-2'>
-          <Zap className='h-4 w-4 text-yellow-500' />
-          <span className='text-sm font-medium'>CVD Scalper</span>
-          <Badge variant='outline' className='text-xs'>{configs.length} 个</Badge>
-          {enabledCount > 0 && (
-            <Badge className='text-[10px] bg-green-500'>{enabledCount} 监听中</Badge>
-          )}
-          {positionCount > 0 && (
-            <Badge className='text-[10px] bg-orange-500'>{positionCount} 持仓中</Badge>
-          )}
+      <div className='px-4 pt-3 pb-2 border-b space-y-1.5'>
+        <div className='flex items-center justify-between gap-2'>
+          <div className='flex items-center gap-2 min-w-0'>
+            <Zap className='h-4 w-4 text-yellow-500 flex-shrink-0' />
+            <span className='text-sm font-medium'>CVD Scalper</span>
+            <Badge variant='outline' className='text-xs'>{configs.length} 个</Badge>
+            {enabledCount > 0 && (
+              <Badge className='text-[10px] bg-green-500'>{enabledCount} 监听中</Badge>
+            )}
+            {positionCount > 0 && (
+              <Badge className='text-[10px] bg-orange-500'>{positionCount} 持仓中</Badge>
+            )}
+          </div>
+          <div className='flex items-center gap-1.5 flex-shrink-0'>
+            <Button variant='outline' size='sm' className='h-7 w-7 p-0 sm:h-8 sm:w-auto sm:px-3 sm:text-xs' onClick={handleRefresh} disabled={refreshing}>
+              <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+              <span className='hidden sm:inline ml-1'>刷新</span>
+            </Button>
+            <Button variant='outline' size='sm' className='h-7 text-xs px-2 sm:h-8 sm:px-3' onClick={onOpenConfig}>
+              配置
+            </Button>
+          </div>
         </div>
-        <div className='flex items-center gap-2'>
-          {stats && stats.total_closes > 0 && (
-            <span className='text-[10px] text-muted-foreground font-mono'>
-              {stats.total_closes} 单 · 胜 <span className='text-green-600'>{stats.wins}</span>/负 <span className='text-red-600'>{stats.losses}</span>
-              <span className='ml-1'>({stats.win_rate}%)</span> ·
-              <span className={stats.total_pnl >= 0 ? 'text-green-500 ml-1' : 'text-red-500 ml-1'}>
-                {stats.total_pnl >= 0 ? '+' : ''}${stats.total_pnl.toFixed(2)}
-              </span>
-              <span className='ml-1 opacity-70'>(均 ROI {stats.avg_roi_pct >= 0 ? '+' : ''}{stats.avg_roi_pct.toFixed(3)}%)</span>
+        {stats && stats.total_closes > 0 && (
+          <div className='text-[10px] text-muted-foreground font-mono flex flex-wrap gap-x-2 gap-y-0.5'>
+            <span>{stats.total_closes} 单</span>
+            <span>胜 <span className='text-green-600'>{stats.wins}</span>/负 <span className='text-red-600'>{stats.losses}</span> ({stats.win_rate}%)</span>
+            <span className={stats.total_pnl >= 0 ? 'text-green-500' : 'text-red-500'}>
+              {stats.total_pnl >= 0 ? '+' : ''}${stats.total_pnl.toFixed(2)}
             </span>
-          )}
-          <Button variant='outline' size='sm' className='h-8 text-xs' onClick={handleRefresh} disabled={refreshing}>
-            <RefreshCw className={`h-3.5 w-3.5 mr-1 ${refreshing ? 'animate-spin' : ''}`} /> 刷新
-          </Button>
-          <Button variant='outline' size='sm' className='h-8 text-xs' onClick={onOpenConfig}>
-            配置管理
-          </Button>
-        </div>
+            <span className='opacity-70'>均 ROI {stats.avg_roi_pct >= 0 ? '+' : ''}{stats.avg_roi_pct.toFixed(3)}%</span>
+          </div>
+        )}
       </div>
 
       <CardContent className='py-2 px-3 space-y-2'>
