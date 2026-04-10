@@ -199,9 +199,9 @@ export function useStrategyBotJobs(mode?: BotMode) {
   )
 
   const resetAccount = useCallback(
-    async (jobId: number) => {
+    async (jobId: number, clearLogs = false) => {
       try {
-        await hyperliquidApiPost(`${API_PREFIX}/${jobId}/reset-account`)
+        await hyperliquidApiPost(`${API_PREFIX}/${jobId}/reset-account?clear_logs=${clearLogs}`)
         await fetchJobs()
       } catch (e) {
         setError(e instanceof Error ? e : new Error(String(e)))

@@ -620,7 +620,7 @@ export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
                     onStart={() => startJob(job.id)}
                     onPause={() => pauseJob(job.id)}
                     onDelete={() => deleteJob(job.id)}
-                    onReset={() => resetAccount(job.id)}
+                    onReset={(clearLogs) => resetAccount(job.id, clearLogs)}
                     onSettings={() => { setPromptsNeeded(true); setSettingsJob(job) }}
                   />
                 ))}
@@ -690,7 +690,7 @@ function JobRow({
   onStart: () => void
   onPause: () => void
   onDelete: () => void
-  onReset: () => void
+  onReset: (clearLogs?: boolean) => void
   onSettings: () => void
 }) {
   const [logsDialogOpen, setLogsDialogOpen] = useState(false)
@@ -782,16 +782,34 @@ function JobRow({
               </Tooltip>
             </TooltipProvider>
             {canReset && (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button variant='ghost' size='icon' className='h-7 w-7' onClick={onReset}>
-                      <RotateCcw className='h-3.5 w-3.5' />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>重置账户余额和统计</TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+              <DropdownMenu>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant='ghost' size='icon' className='h-7 w-7'>
+                          <RotateCcw className='h-3.5 w-3.5' />
+                        </Button>
+                      </DropdownMenuTrigger>
+                    </TooltipTrigger>
+                    <TooltipContent>重置账户余额和统计</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+                <DropdownMenuContent align='end' className='text-xs'>
+                  <DropdownMenuItem className='text-xs' onClick={() => onReset(false)}>
+                    仅重置胜率统计
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className='text-xs text-red-500 focus:text-red-500'
+                    onClick={() => {
+                      if (confirm('确认清除所有执行日志和成交记录？此操作不可恢复。')) onReset(true)
+                    }}
+                  >
+                    重置统计 + 清除所有日志
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
             <Button variant='ghost' size='icon' className='h-7 w-7 text-destructive hover:text-destructive' onClick={onDelete}>
               <Trash2 className='h-3.5 w-3.5' />
