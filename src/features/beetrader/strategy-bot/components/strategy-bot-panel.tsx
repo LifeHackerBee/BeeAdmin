@@ -8,6 +8,7 @@ import { AgentConfigDialog } from './agent-config-dialog'
 import { AgentTestDialog } from './agent-test-dialog'
 import { CVDScalperDialog } from './cvd-scalper-dialog'
 import { CVDScalperSection } from './cvd-scalper-section'
+import { WinStatsDialog } from './win-stats-dialog'
 import { BotConfigOverview } from './bot-config-overview'
 import { SimExchangePanel } from './sim-exchange-panel'
 import { useSimExchange } from '../hooks/use-sim-exchange'
@@ -502,6 +503,7 @@ export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
   const [agentConfigOpen, setAgentConfigOpen] = useState(false)
   const [agentTestOpen, setAgentTestOpen] = useState(false)
   const [cvdScalperOpen, setCvdScalperOpen] = useState(false)
+  const [winStatsOpen, setWinStatsOpen] = useState(false)
 
   // 策略模板: 概览卡片需要显示配置状态，所以默认加载
   const [promptsNeeded, setPromptsNeeded] = useState(true)
@@ -630,6 +632,7 @@ export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
                     onDelete={() => deleteJob(job.id)}
                     onReset={(clearLogs) => resetAccount(job.id, clearLogs)}
                     onSettings={() => { setPromptsNeeded(true); setSettingsJob(job) }}
+                    onOpenWinStats={() => setWinStatsOpen(true)}
                   />
                 ))}
               </TableBody>
@@ -681,6 +684,11 @@ export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
         onOpenChange={setCvdScalperOpen}
         mode={mode}
       />
+      <WinStatsDialog
+        open={winStatsOpen}
+        onOpenChange={setWinStatsOpen}
+        fetchWinStats={simExchange.fetchWinStats}
+      />
     </div>
   )
 }
@@ -688,7 +696,7 @@ export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
 // ── Job 行 ──
 
 function JobRow({
-  job, simAccount, botLogs, onFetchLogs, promptTemplates, onStart, onPause, onDelete, onReset, onSettings,
+  job, simAccount, botLogs, onFetchLogs, promptTemplates, onStart, onPause, onDelete, onReset, onSettings, onOpenWinStats,
 }: {
   job: StrategyBotJob
   simAccount?: { total_trades: number; win_count: number; loss_count: number; total_pnl: number } | null
@@ -700,6 +708,7 @@ function JobRow({
   onDelete: () => void
   onReset: (clearLogs?: boolean) => void
   onSettings: () => void
+  onOpenWinStats: () => void
 }) {
   const [logsDialogOpen, setLogsDialogOpen] = useState(false)
   const canReset = job.status !== 'running' && !job.has_open_position && (job.total_trades ?? 0) > 0
@@ -736,10 +745,15 @@ function JobRow({
           <span className='text-xs text-muted-foreground'>{strategyLabel}</span>
         </TableCell>
 
-        {/* 4. 胜率 */}
+        {/* 4. 胜率（默认显示近 30 天，点击查看多窗口对比） */}
         <TableCell>
           {simAccount && simAccount.total_trades > 0 ? (
-            <div className='text-xs'>
+            <button
+              type='button'
+              onClick={onOpenWinStats}
+              className='text-xs text-left hover:bg-muted/60 rounded px-1 -mx-1 py-0.5 transition-colors'
+              title='点击查看 30 天 / 90 天 / 全部时间 胜率与盈亏比'
+            >
               <span className='font-mono font-medium'>
                 {(simAccount.win_count / simAccount.total_trades * 100).toFixed(0)}%
               </span>
@@ -747,9 +761,17 @@ function JobRow({
                 {simAccount.total_trades}笔
                 (<span className='text-green-500'>{simAccount.win_count}W</span>/<span className='text-red-500'>{simAccount.loss_count}L</span>)
               </span>
-            </div>
+              <span className='text-[10px] text-muted-foreground/70 ml-1'>· 近30天</span>
+            </button>
           ) : (
-            <span className='text-xs text-muted-foreground'>-</span>
+            <button
+              type='button'
+              onClick={onOpenWinStats}
+              className='text-xs text-muted-foreground hover:bg-muted/60 rounded px-1 -mx-1 py-0.5 transition-colors'
+              title='点击查看历史胜率'
+            >
+              -
+            </button>
           )}
         </TableCell>
 

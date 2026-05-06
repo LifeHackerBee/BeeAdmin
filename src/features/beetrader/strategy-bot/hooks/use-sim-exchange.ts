@@ -14,7 +14,24 @@ export interface SimAccount {
   loss_count: number
   taker_fee_rate: number
   maker_fee_rate: number
+  win_stats_window_days?: number | null
 }
+
+export interface WinWindowStat {
+  label: '30d' | '90d' | 'all'
+  days: number | null
+  total_trades: number
+  win_count: number
+  loss_count: number
+  win_rate: number
+  total_pnl: number
+  avg_win_pnl: number
+  avg_loss_pnl: number
+  profit_loss_ratio: number | null
+}
+
+// 胜率单元格默认窗口（30 天 = 1 个月）
+export const WIN_RATE_DEFAULT_WINDOW_DAYS = 30
 
 export interface SimPosition {
   id: number
@@ -76,7 +93,7 @@ export function useSimExchange(accountId: string = 'default') {
         success: boolean; account: SimAccount; positions: SimPosition[];
         tp_sl_events?: { triggered: string; reason: string; coin: string; pnl: number }[];
       }>(
-        `/api/sim_exchange/account?account_id=${accountId}`
+        `/api/sim_exchange/account?account_id=${accountId}&window_days=${WIN_RATE_DEFAULT_WINDOW_DAYS}`
       )
       if (res.success) {
         setAccount(res.account)
@@ -89,6 +106,13 @@ export function useSimExchange(accountId: string = 'default') {
       }
     } catch { /* */ }
   }, [accountId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const fetchWinStats = useCallback(async (): Promise<WinWindowStat[]> => {
+    const res = await hyperliquidApiGet<{ success: boolean; windows: WinWindowStat[] }>(
+      `/api/sim_exchange/win_stats?account_id=${accountId}`,
+    )
+    return res.success ? res.windows : []
+  }, [accountId])
 
   const fetchOrders = useCallback(async () => {
     try {
@@ -180,6 +204,7 @@ export function useSimExchange(accountId: string = 'default') {
 
   return {
     account, positions, orders, fills, loading, lastTpSlEvents,
-    refetch, marketOrder, closePosition, limitOrder, cancelOrder, setBalance, updateTpSl, resetAccount,
+    refetch, fetchWinStats,
+    marketOrder, closePosition, limitOrder, cancelOrder, setBalance, updateTpSl, resetAccount,
   }
 }
