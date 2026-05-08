@@ -1,50 +1,72 @@
-import { z } from 'zod'
-
-export type KolOutcome = 'win' | 'loss' | 'breakeven'
 export type KolDirection = 'long' | 'short'
 
-export type KolPerformanceRecord = {
+export type KolMvpRecord = {
   id: number
   user_id: string | null
   date: string
   kol_name: string
-  coin: string | null
+  org: string | null
   direction: KolDirection | null
-  entry_price: number | null
-  exit_price: number | null
-  outcome: KolOutcome
-  pnl_pct: number | null
-  note: string | null
+  assets: string[]
+  raw_line: string | null
+  source_batch: string | null
   created_at?: string
   updated_at?: string
 }
 
-export const kolEntrySchema = z.object({
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '日期格式 YYYY-MM-DD'),
-  kol_name: z.string().min(1, 'KOL 名称必填'),
-  coin: z.string().optional().nullable(),
-  direction: z.enum(['long', 'short']).optional().nullable(),
-  entry_price: z.number().nullable().optional(),
-  exit_price: z.number().nullable().optional(),
-  outcome: z.enum(['win', 'loss', 'breakeven']),
-  pnl_pct: z.number().nullable().optional(),
-  note: z.string().optional().nullable(),
-})
-
-export type KolEntryInput = z.infer<typeof kolEntrySchema>
-
-export type KolStats = {
+export type KolMvpInsert = {
+  date: string
   kol_name: string
-  total: number
-  win: number
-  loss: number
-  breakeven: number
-  win_rate: number
-  avg_pnl_pct: number | null
+  org: string | null
+  direction: KolDirection | null
+  assets: string[]
+  raw_line: string | null
+  source_batch: string | null
 }
 
-export type KolDailyPoint = {
-  date: string
-  win_rate: number
-  total: number
+export type ParsedLine = {
+  date: string | null
+  kol_name: string
+  org: string | null
+  direction: KolDirection | null
+  assets: string[]
+  raw_line: string
+}
+
+export type ParseSummary = {
+  totalLines: number
+  parsedLines: number
+  dates: string[]
+  uniqueKols: number
+  recordsByKol: Map<string, number>
+  records: ParsedLine[]
+}
+
+export type KolAnalysis = {
+  name: string
+  org: string | null
+  display: string
+  mvp: number
+  dateSet: Set<string>
+  attendance: number
+  recent: number
+  earlier: number
+  recentDensity: number
+  earlierDensity: number
+  trendDiff: number
+  long: number
+  short: number
+  bias: string
+  topAssets: { asset: string; count: number }[]
+  streak: number
+}
+
+export type AnalysisResult = {
+  totalDays: number
+  earliestDate: string | null
+  latestDate: string | null
+  recentCutoff: string | null
+  recentDays: number
+  earlierDays: number
+  results: KolAnalysis[]
 }

@@ -1,80 +1,105 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
-import type { KolEntryInput, KolPerformanceRecord } from '../types'
+import type { KolMvpInsert, KolMvpRecord } from '../types'
 
-const QUERY_KEY = 'kol-daily-performance'
+const QUERY_KEY = 'kol-mvp-log'
+const PAGE_SIZE = 1000
 
-export function useKolPerformance(params?: { from?: string; to?: string; kol?: string }) {
+export function useKolMvpLog(params?: { from?: string; to?: string }) {
   const queryClient = useQueryClient()
 
-  const list = useQuery<KolPerformanceRecord[]>({
+  const list = useQuery<KolMvpRecord[]>({
     queryKey: [QUERY_KEY, params],
     queryFn: async () => {
-      let q = supabase
-        .from('kol_daily_performance')
-        .select('*')
-        .order('date', { ascending: false })
-        .order('id', { ascending: false })
-
-      if (params?.from) q = q.gte('date', params.from)
-      if (params?.to) q = q.lte('date', params.to)
-      if (params?.kol) q = q.eq('kol_name', params.kol)
-
-      const { data, error } = await q
-      if (error) throw error
-      return data as KolPerformanceRecord[]
+      const all: KolMvpRecord[] = []
+      for (let from = 0; ; from += PAGE_SIZE) {
+        let q = supabase
+          .from('kol_mvp_log')
+          .select('*')
+          .order('date', { ascending: false })
+          .order('id', { ascending: false })
+          .range(from, from + PAGE_SIZE - 1)
+        if (params?.from) q = q.gte('date', params.from)
+        if (params?.to) q = q.lte('date', params.to)
+        const { data, error } = await q
+        if (error) throw error
+        const rows = (data ?? []) as KolMvpRecord[]
+        all.push(...rows)
+        if (rows.length < PAGE_SIZE) break
+      }
+      return all
     },
   })
 
-  const createOne = useMutation({
-    mutationFn: async (input: KolEntryInput) => {
-      const { data: sessionData } = await supabase.auth.getSession()
-      if (!sessionData.session?.user) throw new Error('未登录')
-
-      const { data, error } = await supabase
-        .from('kol_daily_performance')
-        .insert({ ...input, user_id: sessionData.session.user.id })
-        .select()
-        .single()
-      if (error) throw error
-      return data as KolPerformanceRecord
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: [QUERY_KEY] }),
-  })
-
-  const createMany = useMutation({
-    mutationFn: async (inputs: KolEntryInput[]) => {
-      if (!inputs.length) return []
+  const importMany = useMutation({
+    mutationFn: async (inputs: KolMvpInsert[]) => {
+      if (!inputs.length) return { inserted: 0 }
       const { data: sessionData } = await supabase.auth.getSession()
       if (!sessionData.session?.user) throw new Error('未登录')
       const uid = sessionData.session.user.id
 
-      const { data, error } = await supabase
-        .from('kol_daily_performance')
-        .insert(inputs.map((i) => ({ ...i, user_id: uid })))
-        .select()
-      if (error) throw error
-      return data as KolPerformanceRecord[]
+      const payload = inputs.map((i) => ({ ...i, user_id: uid }))
+      let inserted = 0
+      const CHUNK = 500
+      for (let i = 0; i < payload.length; i += CHUNK) {
+        const chunk = payload.slice(i, i + CHUNK)
+        const { data, error } = await supabase
+          .from('kol_mvp_log')
+          .upsert(chunk, {
+            onConflict: 'user_id,date,kol_name,line_hash',
+            ignoreDuplicates: true,
+          })
+          .select('id')
+        if (error) throw error
+        inserted += data?.length ?? 0
+      }
+      return { inserted }
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: [QUERY_KEY] }),
   })
 
   const removeOne = useMutation({
     mutationFn: async (id: number) => {
-      const { error } = await supabase.from('kol_daily_performance').delete().eq('id', id)
+      const { error } = await supabase.from('kol_mvp_log').delete().eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [QUERY_KEY] }),
+  })
+
+  const removeBatch = useMutation({
+    mutationFn: async (sourceBatch: string) => {
+      const { error } = await supabase
+        .from('kol_mvp_log')
+        .delete()
+        .eq('source_batch', sourceBatch)
+      if (error) throw error
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [QUERY_KEY] }),
+  })
+
+  const removeAll = useMutation({
+    mutationFn: async () => {
+      const { data: sessionData } = await supabase.auth.getSession()
+      if (!sessionData.session?.user) throw new Error('未登录')
+      const { error } = await supabase
+        .from('kol_mvp_log')
+        .delete()
+        .eq('user_id', sessionData.session.user.id)
       if (error) throw error
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: [QUERY_KEY] }),
   })
 
   return {
-    records: list.data || [],
+    records: list.data ?? [],
     isLoading: list.isLoading,
     error: list.error as Error | null,
     refetch: list.refetch,
-    createOne: createOne.mutateAsync,
-    createMany: createMany.mutateAsync,
+    importMany: importMany.mutateAsync,
     removeOne: removeOne.mutateAsync,
-    isMutating: createOne.isPending || createMany.isPending || removeOne.isPending,
+    removeBatch: removeBatch.mutateAsync,
+    removeAll: removeAll.mutateAsync,
+    isMutating:
+      importMany.isPending || removeOne.isPending || removeBatch.isPending || removeAll.isPending,
   }
 }
