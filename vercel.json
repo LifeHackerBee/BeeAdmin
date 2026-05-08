@@ -1,5 +1,6 @@
 {
   "rewrites": [
+    { "source": "/api/openai/:path*", "destination": "https://api.modelarts-maas.com/:path*" },
     { "source": "/api/:path*", "destination": "/api/:path*" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
