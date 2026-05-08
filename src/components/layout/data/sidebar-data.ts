@@ -106,6 +106,11 @@ export const sidebarData: SidebarData = {
               url: '/beetrader/strategy-bot',
               icon: Bot,
             },
+            {
+              title: 'KOL 战绩',
+              url: '/beetrader/kol-performance',
+              icon: Activity,
+            },
           ],
         },
       ],

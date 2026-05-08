@@ -27,6 +27,7 @@ export const BeeAdminModules = {
   BEETRADER_MACROSCOPIC: 'beetrader.macroscopic',
   BEETRADER_WHALE_WALLET: 'beetrader.whale-wallet-manage',
   BEETRADER_MONITOR_OBSERVATION: 'beetrader.monitor-observation',
+  BEETRADER_KOL_PERFORMANCE: 'beetrader.kol-performance',
   BEEAI: 'beeai',
   FINANCE: 'finance',
   FINANCE_EXPENSES: 'finance.expenses',
