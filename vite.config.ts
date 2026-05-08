@@ -23,4 +23,14 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  server: {
+    proxy: {
+      '/api/openai': {
+        target: 'https://api.modelarts-maas.com',
+        changeOrigin: true,
+        secure: true,
+        rewrite: (p) => p.replace(/^\/api\/openai/, ''),
+      },
+    },
+  },
 })

@@ -240,17 +240,21 @@ export function useAiStrategy() {
       setError(null)
 
       const apiKey = import.meta.env.VITE_OPENAI_API_KEY
-      const baseURL = import.meta.env.VITE_OPENAI_BASE_URL
+      const rawBaseURL = import.meta.env.VITE_OPENAI_BASE_URL
       const modelName = import.meta.env.VITE_OPENAI_MODEL || 'gpt-4o'
 
       if (!apiKey) {
         throw new Error('未配置 VITE_OPENAI_API_KEY 环境变量')
       }
 
+      const baseURL = rawBaseURL?.startsWith('/')
+        ? `${window.location.origin}${rawBaseURL}`
+        : rawBaseURL
+
       const model = new ChatOpenAI({
         apiKey,
         model: modelName,
-        configuration: { baseURL },
+        configuration: { baseURL, dangerouslyAllowBrowser: true },
         temperature: 0.3,
       })
 
