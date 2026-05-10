@@ -1239,6 +1239,7 @@ function BotSettingsDialog({
   const [userPrompt, setUserPrompt] = useState(job.custom_user_prompt ?? '')
   const [tpPct, setTpPct] = useState(job.tp_pct != null && job.tp_pct > 0 ? String(job.tp_pct) : '')
   const [slPct, setSlPct] = useState(job.sl_pct != null && job.sl_pct > 0 ? String(job.sl_pct) : '')
+  const [maxOrderUsd, setMaxOrderUsd] = useState(String(job.max_order_usd ?? 50))
   const [minRrRatio, setMinRrRatio] = useState(String(job.min_rr_ratio ?? 1.5))
   const [cooldown, setCooldown] = useState(String(job.trade_cooldown_seconds ?? 1800))
   const [minResonance, setMinResonance] = useState(String(job.min_resonance_to_open ?? 3))
@@ -1273,11 +1274,13 @@ function BotSettingsDialog({
       const tp = parseFloat(tpPct) || 0
       const sl = parseFloat(slPct) || 0
       const rr = parseFloat(minRrRatio)
+      const maxOrder = parseFloat(maxOrderUsd) || 50
       await onSave({
         custom_system_prompt: systemPrompt.trim() || null,
         custom_user_prompt: userPrompt.trim() || null,
         tp_pct: tp > 0 ? tp : 0,
         sl_pct: sl > 0 ? sl : 0,
+        max_order_usd: Math.max(maxOrder, 10),
         min_rr_ratio: rr >= 0 ? rr : 1.5,
         trade_cooldown_seconds: parseInt(cooldown) || 1800,
         min_resonance_to_open: parseInt(minResonance) || 3,
@@ -1633,6 +1636,30 @@ function BotSettingsDialog({
                       </AlertDescription>
                     </Alert>
                   )}
+
+                  {/* 仓位控制 */}
+                  {(() => {
+                    const maxOrder = Math.max(parseFloat(maxOrderUsd) || 0, 0)
+                    const firstFill = Math.min(bal * 0.5, maxOrder)
+                    return (
+                      <div className='space-y-1 pt-2 border-t'>
+                        <Label>单笔最大开仓金额 (USD)</Label>
+                        <Input
+                          type='number'
+                          value={maxOrderUsd}
+                          onChange={(e) => setMaxOrderUsd(e.target.value)}
+                          min={10}
+                          step={10}
+                          placeholder='50'
+                        />
+                        <p className='text-[10px] text-muted-foreground'>
+                          每笔开仓 / 补仓金额上限。本金 ${bal.toFixed(0)}，按 1:1 分批策略首仓 50% = ${(bal * 0.5).toFixed(0)}，
+                          实际首仓 = min(50%本金, 上限) = <strong>${firstFill.toFixed(0)}</strong>。
+                          后端最低 10 USD。
+                        </p>
+                      </div>
+                    )
+                  })()}
 
                   {/* 超时控制 */}
                   <div className='space-y-1 pt-2 border-t'>
