@@ -15,11 +15,11 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
 import {
-  Wallet, RefreshCw, Plus, RotateCcw, ScrollText, Pencil, LineChart,
+  Wallet, RefreshCw, Plus, RotateCcw, ScrollText, Pencil,
 } from 'lucide-react'
 import { hyperliquidApiGet } from '@/lib/hyperliquid-api-client'
 import { useSimExchange, type SimPosition, type SimFill } from '../hooks/use-sim-exchange'
-import { EquityHistoryDialog } from './equity-history-dialog'
+import { EquityHistoryPanel } from './equity-history-dialog'
 
 function fmtPrice(v: number | null | undefined): string {
   if (v == null) return '-'
@@ -31,7 +31,6 @@ export function SimExchangePanel() {
   const [orderDialogOpen, setOrderDialogOpen] = useState(false)
   const [balanceDialogOpen, setBalanceDialogOpen] = useState(false)
   const [fillsDialogOpen, setFillsDialogOpen] = useState(false)
-  const [equityChartOpen, setEquityChartOpen] = useState(false)
   const [newBalance, setNewBalance] = useState('')
 
   // 市价单表单
@@ -84,9 +83,6 @@ export function SimExchangePanel() {
             </Button>
             <Button variant='outline' size='sm' className='h-7 text-xs gap-1 px-2 hidden sm:flex' onClick={() => { setNewBalance(String(account?.balance ?? 20000)); setBalanceDialogOpen(true) }}>
               <Wallet className='h-3 w-3' /> 设置余额
-            </Button>
-            <Button variant='outline' size='sm' className='h-7 text-xs gap-1 px-2 hidden sm:flex' onClick={() => setEquityChartOpen(true)}>
-              <LineChart className='h-3 w-3' /> 净值曲线
             </Button>
             <Button variant='ghost' size='sm' className='h-7 w-7 p-0 text-red-500' onClick={sim.resetAccount}>
               <RotateCcw className='h-3 w-3' />
@@ -360,10 +356,16 @@ export function SimExchangePanel() {
 
       {/* 全部成交记录弹窗 */}
       <FillsDialog open={fillsDialogOpen} onOpenChange={setFillsDialogOpen} />
-
-      {/* 净值曲线弹窗 */}
-      <EquityHistoryDialog open={equityChartOpen} onOpenChange={setEquityChartOpen} />
     </Card>
+  )
+}
+
+export function SimExchangeSection() {
+  return (
+    <div className='space-y-4'>
+      <SimExchangePanel />
+      <EquityHistoryPanel />
+    </div>
   )
 }
 

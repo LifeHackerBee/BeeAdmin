@@ -10,7 +10,7 @@ import { CVDScalperDialog } from './cvd-scalper-dialog'
 import { CVDScalperSection } from './cvd-scalper-section'
 import { WinStatsDialog } from './win-stats-dialog'
 import { BotConfigOverview } from './bot-config-overview'
-import { SimExchangePanel } from './sim-exchange-panel'
+import { SimExchangeSection } from './sim-exchange-panel'
 import { useSimExchange } from '../hooks/use-sim-exchange'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -538,7 +538,7 @@ export function StrategyBotPanel({ mode = 'paper' }: { mode?: BotMode }) {
       {isLive && <LiveStatusBar health={liveStatus.health} loading={liveStatus.loading} onRefresh={liveStatus.checkHealth} />}
 
       {/* 模拟交易所（仅 paper 模式） */}
-      {!isLive && <SimExchangePanel />}
+      {!isLive && <SimExchangeSection />}
 
       {/* 错误提示 */}
       {error && (
