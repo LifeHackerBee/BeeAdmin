@@ -93,7 +93,7 @@ export function useSimExchange(accountId: string = 'default') {
         success: boolean; account: SimAccount; positions: SimPosition[];
         tp_sl_events?: { triggered: string; reason: string; coin: string; pnl: number }[];
       }>(
-        `/api/sim_exchange/account?account_id=${accountId}&window_days=${WIN_RATE_DEFAULT_WINDOW_DAYS}`
+        `/api/sim_exchange/account?account_id=${accountId}`
       )
       if (res.success) {
         setAccount(res.account)
