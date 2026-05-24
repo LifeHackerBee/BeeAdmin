@@ -193,7 +193,7 @@ export function EquityHistoryDialog({ open, onOpenChange, accountId = 'default' 
                   />
                   <Tooltip
                     contentStyle={{ fontSize: 12, borderRadius: 8 }}
-                    formatter={(v: number) => [`$${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, '净值']}
+                    formatter={(v: number | undefined) => [v != null ? `$${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-', '净值']}
                     labelFormatter={l => `日期: ${l}`}
                   />
                   <ReferenceLine y={initialBalance} stroke='#94a3b8' strokeDasharray='4 2' strokeWidth={1} />
