@@ -1,8 +1,35 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
-import { supabase } from '@/lib/supabase'
+import {
+  hyperliquidApiGet,
+  hyperliquidApiPost,
+  hyperliquidApiPatch,
+  hyperliquidApiDelete,
+} from '@/lib/hyperliquid-api-client'
 import { type Wallet } from '../data/schema'
 
 const VISIBILITY_REFETCH_DEBOUNCE_MS = 15_000
+
+interface WalletRow {
+  id: string
+  address: string
+  note: string | null
+  type: string | null
+  volume: number | string | null
+  created_at: string
+  updated_at: string | null
+}
+
+function formatWallet(w: WalletRow): Wallet {
+  return {
+    id: w.id,
+    address: w.address,
+    note: w.note || '',
+    type: (w.type as Wallet['type']) || null,
+    volume: w.volume != null ? Number(w.volume) : null,
+    createdAt: new Date(w.created_at),
+    updatedAt: w.updated_at ? new Date(w.updated_at) : undefined,
+  }
+}
 
 export function useWallets() {
   const [wallets, setWallets] = useState<Wallet[]>([])
@@ -21,27 +48,10 @@ export function useWallets() {
       }
       setError(null)
 
-      const { data, error: fetchError } = await supabase
-        .from('wallets')
-        .select('*')
-        .order('created_at', { ascending: false })
-
-      if (fetchError) {
-        throw fetchError
-      }
-
-      // 转换数据格式以匹配前端 schema
-      const formattedWallets: Wallet[] = (data || []).map((wallet) => ({
-        id: wallet.id,
-        address: wallet.address,
-        note: wallet.note || '',
-        type: wallet.type || null,
-        volume: wallet.volume != null ? Number(wallet.volume) : null,
-        createdAt: new Date(wallet.created_at),
-        updatedAt: wallet.updated_at ? new Date(wallet.updated_at) : undefined,
-      }))
-
-      setWallets(formattedWallets)
+      const res = await hyperliquidApiGet<{ success: boolean; wallets: WalletRow[] }>(
+        '/api/beetrader/wallets'
+      )
+      setWallets((res.wallets || []).map(formatWallet))
     } catch (err) {
       setError(err instanceof Error ? err : new Error('获取钱包列表失败'))
       console.error('Error fetching wallets:', err)
@@ -67,45 +77,24 @@ export function useWallets() {
     return () => document.removeEventListener('visibilitychange', onVisible)
   }, [fetchWallets])
 
-  const createWallet = async (wallet: { address: string; note?: string; type?: Wallet['type']; volume?: number | null }) => {
+  const createWallet = async (wallet: {
+    address: string
+    note?: string
+    type?: Wallet['type']
+    volume?: number | null
+  }) => {
     try {
-      // 先检查地址是否已存在
-      const { data: existingWallet, error: checkError } = await supabase
-        .from('wallets')
-        .select('id, address')
-        .eq('address', wallet.address)
-        .maybeSingle()
-
-      if (checkError && checkError.code !== 'PGRST116') {
-        throw checkError
-      }
-
-      if (existingWallet) {
-        throw new Error(`钱包地址 ${wallet.address} 已存在，无法重复添加`)
-      }
-
-      const { data, error: createError } = await supabase
-        .from('wallets')
-        .insert({
+      const res = await hyperliquidApiPost<{ success: boolean; wallet: WalletRow }>(
+        '/api/beetrader/wallets',
+        {
           address: wallet.address,
           note: wallet.note || null,
           type: wallet.type || null,
           volume: wallet.volume ?? null,
-        })
-        .select()
-        .single()
-
-      if (createError) {
-        // 处理唯一约束冲突
-        if (createError.code === '23505') {
-          throw new Error(`钱包地址 ${wallet.address} 已存在，无法重复添加`)
         }
-        throw createError
-      }
-
-      // 刷新列表（后台刷新，不闪骨架屏）
+      )
       await fetchWallets({ backgroundRefresh: true })
-      return data
+      return res.wallet
     } catch (err) {
       const error = err instanceof Error ? err : new Error('创建钱包失败')
       console.error('Error creating wallet:', err)
@@ -113,21 +102,16 @@ export function useWallets() {
     }
   }
 
-  const updateWallet = async (id: string, updates: Partial<Pick<Wallet, 'note' | 'type' | 'volume'>>) => {
+  const updateWallet = async (
+    id: string,
+    updates: Partial<Pick<Wallet, 'note' | 'type' | 'volume'>>
+  ) => {
     try {
-      const { error: updateError } = await supabase
-        .from('wallets')
-        .update({
-          note: updates.note || null,
-          type: updates.type || null,
-          volume: updates.volume ?? null,
-        })
-        .eq('id', id)
-
-      if (updateError) {
-        throw updateError
-      }
-
+      await hyperliquidApiPatch(`/api/beetrader/wallets/${id}`, {
+        note: updates.note || null,
+        type: updates.type || null,
+        volume: updates.volume ?? null,
+      })
       await fetchWallets({ backgroundRefresh: true })
     } catch (err) {
       const error = err instanceof Error ? err : new Error('更新钱包失败')
@@ -138,15 +122,7 @@ export function useWallets() {
 
   const deleteWallet = async (id: string) => {
     try {
-      const { error: deleteError } = await supabase
-        .from('wallets')
-        .delete()
-        .eq('id', id)
-
-      if (deleteError) {
-        throw deleteError
-      }
-
+      await hyperliquidApiDelete(`/api/beetrader/wallets/${id}`)
       await fetchWallets({ backgroundRefresh: true })
     } catch (err) {
       const error = err instanceof Error ? err : new Error('删除钱包失败')
@@ -157,15 +133,7 @@ export function useWallets() {
 
   const deleteWallets = async (ids: string[]) => {
     try {
-      const { error: deleteError } = await supabase
-        .from('wallets')
-        .delete()
-        .in('id', ids)
-
-      if (deleteError) {
-        throw deleteError
-      }
-
+      await hyperliquidApiPost('/api/beetrader/wallets/batch-delete', { ids })
       await fetchWallets({ backgroundRefresh: true })
     } catch (err) {
       const error = err instanceof Error ? err : new Error('批量删除钱包失败')
@@ -186,4 +154,3 @@ export function useWallets() {
     deleteWallets,
   }
 }
-

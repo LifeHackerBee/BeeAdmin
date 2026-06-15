@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { hyperliquidApiGet } from '@/lib/hyperliquid-api-client'
 import { type AnalyzeResponse } from './use-analyzer'
 
 export interface TraderAnalysisRecord {
@@ -40,18 +40,13 @@ export function useHistory() {
       setLoading(true)
       setError(null)
 
-      const { data, error: fetchError } = await supabase
-        .from('trader_analysis')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(100)
-
-      if (fetchError) {
-        throw fetchError
-      }
+      const res = await hyperliquidApiGet<{ success: boolean; records: TraderAnalysisRecord[] }>(
+        '/api/beetrader/trader-analysis/history?limit=100'
+      )
+      const data = res.records || []
 
       // 转换数据格式
-      const formattedRecords: TraderAnalysisRecord[] = (data || []).map((record) => ({
+      const formattedRecords: TraderAnalysisRecord[] = data.map((record) => ({
         id: record.id,
         wallet_address: record.wallet_address,
         analysis_days: record.analysis_days,

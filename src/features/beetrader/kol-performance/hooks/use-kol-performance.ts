@@ -1,9 +1,20 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import {
+  hyperliquidApiGet,
+  hyperliquidApiPost,
+  hyperliquidApiDelete,
+} from '@/lib/hyperliquid-api-client'
 import type { KolMvpInsert, KolMvpRecord } from '../types'
 
 const QUERY_KEY = 'kol-mvp-log'
-const PAGE_SIZE = 1000
+
+async function currentUserId(): Promise<string> {
+  // 登录/会话仍由 Supabase Auth 负责，这里取 user_id 传给后端
+  const { data: sessionData } = await supabase.auth.getSession()
+  if (!sessionData.session?.user) throw new Error('未登录')
+  return sessionData.session.user.id
+}
 
 export function useKolMvpLog(params?: { from?: string; to?: string }) {
   const queryClient = useQueryClient()
@@ -11,81 +22,50 @@ export function useKolMvpLog(params?: { from?: string; to?: string }) {
   const list = useQuery<KolMvpRecord[]>({
     queryKey: [QUERY_KEY, params],
     queryFn: async () => {
-      const all: KolMvpRecord[] = []
-      for (let from = 0; ; from += PAGE_SIZE) {
-        let q = supabase
-          .from('kol_mvp_log')
-          .select('*')
-          .order('date', { ascending: false })
-          .order('id', { ascending: false })
-          .range(from, from + PAGE_SIZE - 1)
-        if (params?.from) q = q.gte('date', params.from)
-        if (params?.to) q = q.lte('date', params.to)
-        const { data, error } = await q
-        if (error) throw error
-        const rows = (data ?? []) as KolMvpRecord[]
-        all.push(...rows)
-        if (rows.length < PAGE_SIZE) break
-      }
-      return all
+      const qs = new URLSearchParams()
+      if (params?.from) qs.set('from', params.from)
+      if (params?.to) qs.set('to', params.to)
+      const suffix = qs.toString() ? `?${qs.toString()}` : ''
+      const res = await hyperliquidApiGet<{ success: boolean; records: KolMvpRecord[] }>(
+        `/api/beetrader/kol${suffix}`
+      )
+      return res.records ?? []
     },
   })
 
   const importMany = useMutation({
     mutationFn: async (inputs: KolMvpInsert[]) => {
       if (!inputs.length) return { inserted: 0 }
-      const { data: sessionData } = await supabase.auth.getSession()
-      if (!sessionData.session?.user) throw new Error('未登录')
-      const uid = sessionData.session.user.id
-
-      const payload = inputs.map((i) => ({ ...i, user_id: uid }))
-      let inserted = 0
-      const CHUNK = 500
-      for (let i = 0; i < payload.length; i += CHUNK) {
-        const chunk = payload.slice(i, i + CHUNK)
-        const { data, error } = await supabase
-          .from('kol_mvp_log')
-          .upsert(chunk, {
-            onConflict: 'user_id,date,kol_name,line_hash',
-            ignoreDuplicates: true,
-          })
-          .select('id')
-        if (error) throw error
-        inserted += data?.length ?? 0
-      }
-      return { inserted }
+      const uid = await currentUserId()
+      const res = await hyperliquidApiPost<{ success: boolean; inserted: number }>(
+        '/api/beetrader/kol/import',
+        { user_id: uid, records: inputs }
+      )
+      return { inserted: res.inserted ?? 0 }
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: [QUERY_KEY] }),
   })
 
   const removeOne = useMutation({
     mutationFn: async (id: number) => {
-      const { error } = await supabase.from('kol_mvp_log').delete().eq('id', id)
-      if (error) throw error
+      await hyperliquidApiDelete(`/api/beetrader/kol/${id}`)
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: [QUERY_KEY] }),
   })
 
   const removeBatch = useMutation({
     mutationFn: async (sourceBatch: string) => {
-      const { error } = await supabase
-        .from('kol_mvp_log')
-        .delete()
-        .eq('source_batch', sourceBatch)
-      if (error) throw error
+      await hyperliquidApiPost('/api/beetrader/kol/delete-batch', {
+        source_batch: sourceBatch,
+      })
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: [QUERY_KEY] }),
   })
 
   const removeAll = useMutation({
     mutationFn: async () => {
-      const { data: sessionData } = await supabase.auth.getSession()
-      if (!sessionData.session?.user) throw new Error('未登录')
-      const { error } = await supabase
-        .from('kol_mvp_log')
-        .delete()
-        .eq('user_id', sessionData.session.user.id)
-      if (error) throw error
+      const uid = await currentUserId()
+      await hyperliquidApiPost('/api/beetrader/kol/delete-all', { user_id: uid })
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: [QUERY_KEY] }),
   })

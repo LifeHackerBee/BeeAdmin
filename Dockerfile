@@ -6,8 +6,9 @@ WORKDIR /app
 # 复制 package 文件
 COPY package.json pnpm-lock.yaml ./
 
-# 安装 pnpm
-RUN npm install -g pnpm
+# 安装 pnpm（锁定 v9，与 pnpm-lock.yaml lockfileVersion 9.0 匹配；
+# pnpm v10 会因 ERR_PNPM_IGNORED_BUILDS 直接报错中断安装）
+RUN npm install -g pnpm@9
 
 # 安装依赖
 # 使用 --no-frozen-lockfile 允许在 lockfile 不同步时自动更新

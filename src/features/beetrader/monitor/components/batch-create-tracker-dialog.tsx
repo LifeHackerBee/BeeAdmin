@@ -13,11 +13,10 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Slider } from '@/components/ui/slider'
 import { toast } from 'sonner'
 import { useWallets } from './tasks-provider'
-import { supabase } from '@/lib/supabase'
 import { Loader2 } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { AlertCircle, CheckCircle2, XCircle } from 'lucide-react'
-import { hyperliquidApiPost } from '@/lib/hyperliquid-api-client'
+import { hyperliquidApiGet, hyperliquidApiPost } from '@/lib/hyperliquid-api-client'
 
 interface BatchCreateResult {
   wallet_address: string
@@ -59,18 +58,19 @@ export function BatchCreateTrackerDialog() {
 
   const loadWallets = async () => {
     try {
-      const { data, error } = await supabase
-        .from('wallets')
-        .select('id, address, note')
-        .order('created_at', { ascending: false })
+      const res = await hyperliquidApiGet<{
+        success: boolean
+        wallets: Array<{ id: string; address: string; note?: string | null }>
+      }>('/api/beetrader/wallets')
+      const data = (res.wallets || []).map((w) => ({
+        id: w.id,
+        address: w.address,
+        note: w.note ?? undefined,
+      }))
 
-      if (error) {
-        throw error
-      }
-
-      setWallets(data || [])
+      setWallets(data)
       // 默认全选
-      setSelectedWallets(new Set((data || []).map((w) => w.id)))
+      setSelectedWallets(new Set(data.map((w) => w.id)))
     } catch (err) {
       toast.error('加载失败', {
         description: err instanceof Error ? err.message : '无法加载钱包列表',
