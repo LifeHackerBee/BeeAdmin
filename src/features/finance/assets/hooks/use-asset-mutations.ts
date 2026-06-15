@@ -1,10 +1,14 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { supabase } from '@/lib/supabase'
+import {
+  hyperliquidApiPost,
+  hyperliquidApiPatch,
+  hyperliquidApiDelete,
+} from '@/lib/hyperliquid-api-client'
+import { useAuthStore } from '@/stores/auth-store'
 import type { Asset } from '../data/schema'
 import { toast } from 'sonner'
 
 type CreateAssetInput = Omit<Asset, 'id' | 'created_at' | 'updated_at' | 'user_id'>
-
 type UpdateAssetInput = Partial<CreateAssetInput> & { id: number }
 
 export function useAssetMutations() {
@@ -12,17 +16,8 @@ export function useAssetMutations() {
 
   const createMutation = useMutation({
     mutationFn: async (input: CreateAssetInput) => {
-      const { data, error } = await supabase
-        .from('assets')
-        .insert([input])
-        .select()
-        .single()
-
-      if (error) {
-        throw error
-      }
-
-      return data
+      const userId = useAuthStore.getState().user?.id
+      return hyperliquidApiPost('/api/finance/assets', { ...input, user_id: userId })
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['assets'] })
@@ -36,18 +31,7 @@ export function useAssetMutations() {
   const updateMutation = useMutation({
     mutationFn: async (input: UpdateAssetInput) => {
       const { id, ...updateData } = input
-      const { data, error } = await supabase
-        .from('assets')
-        .update(updateData)
-        .eq('id', id)
-        .select()
-        .single()
-
-      if (error) {
-        throw error
-      }
-
-      return data
+      return hyperliquidApiPatch(`/api/finance/assets/${id}`, updateData)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['assets'] })
@@ -60,11 +44,7 @@ export function useAssetMutations() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
-      const { error } = await supabase.from('assets').delete().eq('id', id)
-
-      if (error) {
-        throw error
-      }
+      await hyperliquidApiDelete(`/api/finance/assets/${id}`)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['assets'] })

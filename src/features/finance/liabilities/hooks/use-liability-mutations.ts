@@ -1,5 +1,10 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { supabase } from '@/lib/supabase'
+import {
+  hyperliquidApiPost,
+  hyperliquidApiPatch,
+  hyperliquidApiDelete,
+} from '@/lib/hyperliquid-api-client'
+import { useAuthStore } from '@/stores/auth-store'
 import type { Liability } from '../data/schema'
 import { toast } from 'sonner'
 
@@ -26,17 +31,8 @@ export function useLiabilityMutations() {
 
   const createMutation = useMutation({
     mutationFn: async (input: CreateLiabilityInput) => {
-      const { data, error } = await supabase
-        .from('liabilities')
-        .insert([input])
-        .select()
-        .single()
-
-      if (error) {
-        throw error
-      }
-
-      return data
+      const userId = useAuthStore.getState().user?.id
+      return hyperliquidApiPost('/api/finance/liabilities', { ...input, user_id: userId })
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['liabilities'] })
@@ -50,18 +46,7 @@ export function useLiabilityMutations() {
   const updateMutation = useMutation({
     mutationFn: async (input: UpdateLiabilityInput) => {
       const { id, ...updateData } = input
-      const { data, error } = await supabase
-        .from('liabilities')
-        .update(updateData)
-        .eq('id', id)
-        .select()
-        .single()
-
-      if (error) {
-        throw error
-      }
-
-      return data
+      return hyperliquidApiPatch(`/api/finance/liabilities/${id}`, updateData)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['liabilities'] })
@@ -74,11 +59,7 @@ export function useLiabilityMutations() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
-      const { error } = await supabase.from('liabilities').delete().eq('id', id)
-
-      if (error) {
-        throw error
-      }
+      await hyperliquidApiDelete(`/api/finance/liabilities/${id}`)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['liabilities'] })

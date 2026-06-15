@@ -1,32 +1,34 @@
 import { useQuery } from '@tanstack/react-query'
-import { supabase } from '@/lib/supabase'
+import { hyperliquidApiGet } from '@/lib/hyperliquid-api-client'
 import { useAuthStore } from '@/stores/auth-store'
 import { type Expense, expenseSchema } from '../data/schema'
+
+type ExpenseRow = {
+  id: number
+  created_at?: string | null
+  device_name: string | null
+  spending_time: string
+  category: string
+  amount: number | string | null
+  currency: string | null
+  note: string | null
+}
 
 export function useExpenses() {
   const user = useAuthStore((state) => state.user)
   const loading = useAuthStore((state) => state.loading)
-  
+
   return useQuery({
     queryKey: ['expenses'],
     enabled: !loading && !!user, // 只有在已登录且不在加载状态时才执行查询
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('expenses')
-        .select('*')
-        .order('spending_time', { ascending: false })
-
-      if (error) {
-        throw error
-      }
+      const data = await hyperliquidApiGet<ExpenseRow[]>('/api/finance/expenses')
 
       // 转换数据格式，确保类型正确
       const expenses: Expense[] = (data || []).map((row) => {
-        // 处理 amount：可能是 string (numeric) 或 number
         let amount: number | null = null
         if (row.amount !== null && row.amount !== undefined) {
           const amountValue = typeof row.amount === 'string' ? parseFloat(row.amount) : row.amount
-          // 如果解析失败，设为 null
           if (!isNaN(amountValue)) {
             amount = amountValue
           }
@@ -44,15 +46,12 @@ export function useExpenses() {
         }
       })
 
-      // 验证数据（使用 safeParse 避免抛出错误）
       return expenses.map((expense) => {
         const result = expenseSchema.safeParse(expense)
         if (result.success) {
           return result.data
         } else {
-          // 如果验证失败，记录错误但返回原始数据（或提供默认值）
           console.warn('Expense validation failed:', result.error, expense)
-          // 返回带默认值的数据
           return {
             id: expense.id,
             created_at: expense.created_at,
@@ -68,4 +67,3 @@ export function useExpenses() {
     },
   })
 }
-

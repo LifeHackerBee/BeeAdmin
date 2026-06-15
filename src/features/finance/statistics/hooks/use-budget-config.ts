@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { supabase } from '@/lib/supabase'
 import { format } from 'date-fns'
+import { hyperliquidApiGet, hyperliquidApiPut } from '@/lib/hyperliquid-api-client'
+import { useAuthStore } from '@/stores/auth-store'
 
 export type BudgetConfig = {
   id: number
@@ -18,37 +19,19 @@ export function useBudgetConfig(month?: string) {
   const currentMonth = month || format(new Date(), 'yyyy-MM')
   const queryClient = useQueryClient()
 
-  // 获取当前用户的预算配置
   const { data, isLoading, error } = useQuery({
     queryKey: ['budget-config', currentMonth],
     queryFn: async () => {
-      const { data: sessionData } = await supabase.auth.getSession()
-      if (!sessionData.session?.user) {
-        throw new Error('未登录')
-      }
-
-      const { data: configData, error: fetchError } = await supabase
-        .from('budget_config')
-        .select('*')
-        .eq('month', currentMonth)
-        .single()
-
-      if (fetchError) {
-        // 如果没有找到配置，返回 null（不是错误）
-        if (fetchError.code === 'PGRST116') {
-          return null
-        }
-        throw fetchError
-      }
-
-      return {
-        ...configData,
-        category_budgets: configData.category_budgets || {},
-      } as BudgetConfig
+      const userId = useAuthStore.getState().user?.id
+      if (!userId) throw new Error('未登录')
+      const configData = await hyperliquidApiGet<BudgetConfig | null>(
+        `/api/finance/budget-config?user_id=${encodeURIComponent(userId)}&month=${currentMonth}`
+      )
+      if (!configData) return null
+      return { ...configData, category_budgets: configData.category_budgets || {} } as BudgetConfig
     },
   })
 
-  // 更新或创建预算配置
   const updateMutation = useMutation({
     mutationFn: async ({
       totalBudget,
@@ -57,55 +40,14 @@ export function useBudgetConfig(month?: string) {
       totalBudget?: number | null
       categoryBudgets?: Record<string, number>
     }) => {
-      const { data: sessionData } = await supabase.auth.getSession()
-      if (!sessionData.session?.user) {
-        throw new Error('未登录')
-      }
-
-      const updateData: Partial<BudgetConfig> = {
-        month: currentMonth,
-        user_id: sessionData.session.user.id,
-      }
-
-      if (totalBudget !== undefined) {
-        updateData.total_budget = totalBudget
-      }
-      if (categoryBudgets !== undefined) {
-        updateData.category_budgets = categoryBudgets
-      }
-
-      // 先尝试更新
-      const { data: existing } = await supabase
-        .from('budget_config')
-        .select('id')
-        .eq('month', currentMonth)
-        .single()
-
-      if (existing) {
-        // 更新现有配置
-        const { data: updatedData, error: updateError } = await supabase
-          .from('budget_config')
-          .update(updateData)
-          .eq('id', existing.id)
-          .select()
-          .single()
-
-        if (updateError) throw updateError
-        return updatedData as BudgetConfig
-      } else {
-        // 创建新配置
-        const { data: newData, error: insertError } = await supabase
-          .from('budget_config')
-          .insert(updateData)
-          .select()
-          .single()
-
-        if (insertError) throw insertError
-        return newData as BudgetConfig
-      }
+      const userId = useAuthStore.getState().user?.id
+      if (!userId) throw new Error('未登录')
+      const payload: Record<string, unknown> = { user_id: userId, month: currentMonth }
+      if (totalBudget !== undefined) payload.total_budget = totalBudget
+      if (categoryBudgets !== undefined) payload.category_budgets = categoryBudgets
+      return hyperliquidApiPut<BudgetConfig>('/api/finance/budget-config', payload)
     },
     onSuccess: () => {
-      // 刷新查询
       queryClient.invalidateQueries({ queryKey: ['budget-config', currentMonth] })
     },
   })
@@ -118,4 +60,3 @@ export function useBudgetConfig(month?: string) {
     isUpdating: updateMutation.isPending,
   }
 }
-
