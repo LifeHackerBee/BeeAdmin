@@ -1,11 +1,11 @@
 /**
  * 用户权限管理 Hook
- * 提供用户权限的 CRUD 操作
+ *
+ * 注意：认证已迁移到 Auth0，用户/角色管理改由 Auth0 控制台负责。
+ * 这里保留接口形状以兼容 /users 页面，但不再连 Supabase；列表为空、写操作禁用。
  */
 
 import { useState, useCallback } from 'react'
-import { supabase } from '@/lib/supabase'
-import { useAuthStore } from '@/stores/auth-store'
 
 export interface UserProfile {
   id: string
@@ -24,148 +24,35 @@ export interface UserProfile {
   last_login_at: string | null
 }
 
+const DISABLED_MSG = '用户管理已迁移到 Auth0 控制台，此处不再可用'
+
 export function useUserProfiles() {
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<Error | null>(null)
+  const [loading] = useState(false)
+  const [error] = useState<Error | null>(null)
 
-  /**
-   * 获取所有用户的 profiles
-   */
   const fetchProfiles = useCallback(async (): Promise<UserProfile[]> => {
-    try {
-      setLoading(true)
-      setError(null)
-
-      const { data: profiles, error: profilesError } = await supabase
-        .from('profiles')
-        .select('*')
-        .order('created_at', { ascending: false })
-
-      if (profilesError) throw profilesError
-
-      // 获取对应的 email
-      const { data: users, error: usersError } = await supabase.auth.admin.listUsers()
-      
-      if (usersError) throw usersError
-
-      // 合并 email 信息
-      const profilesWithEmail = profiles.map((profile) => {
-        const user = users.users.find((u) => u.id === profile.id)
-        return {
-          ...profile,
-          email: user?.email || '',
-        }
-      })
-
-      return profilesWithEmail as UserProfile[]
-    } catch (err) {
-      const error = err instanceof Error ? err : new Error('获取用户列表失败')
-      setError(error)
-      throw error
-    } finally {
-      setLoading(false)
-    }
+    // Auth0 模式下不再从 Supabase profiles 拉取用户列表
+    return []
   }, [])
 
-  /**
-   * 更新用户角色（管理员操作）
-   */
-  const updateUserRoles = useCallback(async (userId: string, roles: string[]) => {
-    try {
-      setLoading(true)
-      setError(null)
-
-      const { error } = await supabase.rpc('admin_update_user_roles', {
-        target_user_id: userId,
-        new_roles: roles,
-      })
-
-      if (error) throw error
-      const currentUserId = useAuthStore.getState().user?.id
-      if (currentUserId === userId) await useAuthStore.getState().refreshProfile()
-    } catch (err) {
-      const error = err instanceof Error ? err : new Error('更新用户角色失败')
-      setError(error)
-      throw error
-    } finally {
-      setLoading(false)
-    }
+  const updateUserRoles = useCallback(async (_userId: string, _roles: string[]) => {
+    throw new Error(DISABLED_MSG)
   }, [])
 
-  /**
-   * 更新用户模块权限（管理员操作）
-   */
-  const updateUserModules = useCallback(async (userId: string, modules: string[]) => {
-    try {
-      setLoading(true)
-      setError(null)
-
-      const { error } = await supabase.rpc('admin_update_user_modules', {
-        target_user_id: userId,
-        new_modules: modules,
-      })
-
-      if (error) throw error
-      const currentUserId = useAuthStore.getState().user?.id
-      if (currentUserId === userId) await useAuthStore.getState().refreshProfile()
-    } catch (err) {
-      const error = err instanceof Error ? err : new Error('更新用户模块权限失败')
-      setError(error)
-      throw error
-    } finally {
-      setLoading(false)
-    }
+  const updateUserModules = useCallback(async (_userId: string, _modules: string[]) => {
+    throw new Error(DISABLED_MSG)
   }, [])
 
-  /**
-   * 激活/禁用用户
-   */
-  const toggleUserActive = useCallback(async (userId: string, isActive: boolean) => {
-    try {
-      setLoading(true)
-      setError(null)
-
-      const { error } = await supabase
-        .from('profiles')
-        .update({ is_active: isActive })
-        .eq('id', userId)
-
-      if (error) throw error
-      const currentUserId = useAuthStore.getState().user?.id
-      if (currentUserId === userId) await useAuthStore.getState().refreshProfile()
-    } catch (err) {
-      const error = err instanceof Error ? err : new Error('更新用户状态失败')
-      setError(error)
-      throw error
-    } finally {
-      setLoading(false)
-    }
+  const toggleUserActive = useCallback(async (_userId: string, _isActive: boolean) => {
+    throw new Error(DISABLED_MSG)
   }, [])
 
-  /**
-   * 更新用户基本信息
-   */
   const updateUserProfile = useCallback(
-    async (userId: string, updates: Partial<Pick<UserProfile, 'full_name' | 'bio' | 'avatar_url'>>) => {
-      try {
-        setLoading(true)
-        setError(null)
-
-        const { error } = await supabase
-          .from('profiles')
-          .update(updates)
-          .eq('id', userId)
-
-        if (error) throw error
-        const currentUserId = useAuthStore.getState().user?.id
-        if (currentUserId === userId) await useAuthStore.getState().refreshProfile()
-      } catch (err) {
-        const error = err instanceof Error ? err : new Error('更新用户信息失败')
-        setError(error)
-        throw error
-      } finally {
-        setLoading(false)
-      }
+    async (
+      _userId: string,
+      _updates: Partial<Pick<UserProfile, 'full_name' | 'bio' | 'avatar_url'>>
+    ) => {
+      throw new Error(DISABLED_MSG)
     },
     []
   )
