@@ -65,6 +65,24 @@ function getHeaders(requireAuth: boolean = true): HeadersInit {
 }
 
 /**
+ * 统一错误处理：优先取后端 FastAPI 的 detail 字段，给出干净的错误信息
+ */
+async function throwIfNotOk(response: Response): Promise<void> {
+  if (response.ok) return
+  const errorText = await response.text()
+  let message = errorText
+  try {
+    const parsed = JSON.parse(errorText)
+    if (parsed?.detail) {
+      message = typeof parsed.detail === 'string' ? parsed.detail : JSON.stringify(parsed.detail)
+    }
+  } catch {
+    // 非 JSON，保留原文
+  }
+  throw new Error(message || `API 请求失败: ${response.status}`)
+}
+
+/**
  * 统一的 API 请求函数
  */
 export async function hyperliquidApiFetch(
@@ -108,10 +126,7 @@ export async function hyperliquidApiGet<T = unknown>(
     method: 'GET',
   })
 
-  if (!response.ok) {
-    const errorText = await response.text()
-    throw new Error(`API 请求失败: ${response.status} - ${errorText}`)
-  }
+  await throwIfNotOk(response)
 
   return response.json()
 }
@@ -130,10 +145,7 @@ export async function hyperliquidApiPost<T = unknown>(
     body: body ? JSON.stringify(body) : undefined,
   })
 
-  if (!response.ok) {
-    const errorText = await response.text()
-    throw new Error(`API 请求失败: ${response.status} - ${errorText}`)
-  }
+  await throwIfNotOk(response)
 
   return response.json()
 }
@@ -152,10 +164,7 @@ export async function hyperliquidApiPut<T = unknown>(
     body: body ? JSON.stringify(body) : undefined,
   })
 
-  if (!response.ok) {
-    const errorText = await response.text()
-    throw new Error(`API 请求失败: ${response.status} - ${errorText}`)
-  }
+  await throwIfNotOk(response)
 
   return response.json()
 }
@@ -174,10 +183,7 @@ export async function hyperliquidApiPatch<T = unknown>(
     body: body ? JSON.stringify(body) : undefined,
   })
 
-  if (!response.ok) {
-    const errorText = await response.text()
-    throw new Error(`API 请求失败: ${response.status} - ${errorText}`)
-  }
+  await throwIfNotOk(response)
 
   return response.json()
 }
@@ -194,10 +200,7 @@ export async function hyperliquidApiDelete<T = unknown>(
     method: 'DELETE',
   })
 
-  if (!response.ok) {
-    const errorText = await response.text()
-    throw new Error(`API 请求失败: ${response.status} - ${errorText}`)
-  }
+  await throwIfNotOk(response)
 
   // DELETE 请求可能没有响应体
   if (response.status === 204 || response.headers.get('content-length') === '0') {
