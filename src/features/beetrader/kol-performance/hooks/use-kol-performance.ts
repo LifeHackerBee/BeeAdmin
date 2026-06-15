@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { supabase } from '@/lib/supabase'
+import { useAuthStore } from '@/stores/auth-store'
 import {
   hyperliquidApiGet,
   hyperliquidApiPost,
@@ -9,11 +9,11 @@ import type { KolMvpInsert, KolMvpRecord } from '../types'
 
 const QUERY_KEY = 'kol-mvp-log'
 
-async function currentUserId(): Promise<string> {
-  // 登录/会话仍由 Supabase Auth 负责，这里取 user_id 传给后端
-  const { data: sessionData } = await supabase.auth.getSession()
-  if (!sessionData.session?.user) throw new Error('未登录')
-  return sessionData.session.user.id
+function currentUserId(): string {
+  // 登录改为 Auth0，user_id 取自 auth-store（由 Auth0Bridge 填充）
+  const user = useAuthStore.getState().user
+  if (!user) throw new Error('未登录')
+  return user.id
 }
 
 export function useKolMvpLog(params?: { from?: string; to?: string }) {
