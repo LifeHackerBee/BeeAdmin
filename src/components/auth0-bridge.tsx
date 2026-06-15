@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { useAuth0 } from '@auth0/auth0-react'
 import { useAuthStore } from '@/stores/auth-store'
-import { AUTH0_ROLES_CLAIM } from '@/lib/auth0'
+import { AUTH0_ROLES_CLAIM, AUTH0_UID_CLAIM } from '@/lib/auth0'
 
 /**
  * 把 Auth0 的认证状态同步进既有的 auth-store。
@@ -26,7 +26,8 @@ export function Auth0Bridge() {
     if (isAuthenticated && user) {
       const claimRoles = user[AUTH0_ROLES_CLAIM]
       const role = Array.isArray(claimRoles) && claimRoles.length > 0 ? claimRoles : ['admin']
-      const id = user.sub ?? ''
+      // 优先用映射到原 Supabase UUID 的自定义 claim，回退到 Auth0 sub
+      const id = (user[AUTH0_UID_CLAIM] as string | undefined) ?? user.sub ?? ''
       store.setUser({
         id,
         email: user.email ?? '',

@@ -31,3 +31,19 @@ export const isAuth0Configured = Boolean(auth0Config.domain && auth0Config.clien
  * 默认 namespace claim，按需改成你 Auth0 Action 实际写入的键。
  */
 export const AUTH0_ROLES_CLAIM = 'https://hackerbee.life/roles'
+
+/**
+ * 规范用户 ID 的自定义 claim：用于把 Auth0 用户映射到原 Supabase 用户 UUID，
+ * 使按 user_id 归属的数据（如 kol_mvp_log）对得上。
+ *
+ * 在 Auth0 把用户的 app_metadata.uid 设为原 Supabase UUID，并加一个 Post-Login Action：
+ *   exports.onExecutePostLogin = async (event, api) => {
+ *     const uid = event.user.app_metadata?.uid
+ *     if (uid) {
+ *       api.idToken.setCustomClaim('https://hackerbee.life/uid', uid)
+ *       api.accessToken.setCustomClaim('https://hackerbee.life/uid', uid)
+ *     }
+ *   }
+ * 未设置时回退到 Auth0 的 sub。
+ */
+export const AUTH0_UID_CLAIM = 'https://hackerbee.life/uid'
