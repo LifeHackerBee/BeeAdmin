@@ -1,5 +1,6 @@
-import { useAuth0 } from '@auth0/auth0-react'
+import { useNavigate } from '@tanstack/react-router'
 import { useAuthStore } from '@/stores/auth-store'
+import { setToken } from '@/components/auth-bridge'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 
 interface SignOutDialogProps {
@@ -8,19 +9,16 @@ interface SignOutDialogProps {
 }
 
 export function SignOutDialog({ open, onOpenChange }: SignOutDialogProps) {
-  const { logout } = useAuth0()
   const signOut = useAuthStore((state) => state.signOut)
+  const navigate = useNavigate()
 
   const handleSignOut = () => {
-    // 清本地状态，再走 Auth0 跳转式登出（会重定向到 Auth0 再回到站点 origin）
+    // 清 token 与本地状态，回登录页（本地账号无第三方跳转登出）
+    setToken(null)
     signOut().catch((error: unknown) => {
       console.error('Sign out error:', error)
     })
-    void logout({
-      logoutParams: {
-        returnTo: typeof window !== 'undefined' ? window.location.origin : undefined,
-      },
-    })
+    void navigate({ to: '/sign-in' })
   }
 
   return (

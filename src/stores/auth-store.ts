@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 
-// 认证已迁移到 Auth0（SPA SDK）。auth-store 仍是全应用的状态来源，
-// 由 Auth0Bridge（读 useAuth0）填充。这里不再依赖 Supabase。
+// 认证为本地账号 + JWT（2026-11-12 从 Auth0 迁移）。auth-store 仍是全应用的状态来源，
+// 由 AuthBridgeSync（/api/auth/me 会话恢复）与登录页（/api/auth/login）填充。
 interface AuthUser {
   id: string
   email: string
@@ -28,11 +28,11 @@ interface AuthState {
   setUser: (user: AuthUser | null) => void
   setSession: (session: AppSession | null) => void
   setLoading: (loading: boolean) => void
-  /** 兼容旧调用（main.tsx / 路由守卫）。Auth0Bridge 负责真正的状态同步，这里仅占位。 */
+  /** 兼容旧调用（main.tsx / 路由守卫）。AuthBridgeSync 负责真正的状态同步，这里仅占位。 */
   initialize: () => Promise<void>
-  /** 兼容旧调用（权限刷新）。Auth0 模式下为空操作。 */
+  /** 兼容旧调用（权限刷新）。本地账号模式下为空操作。 */
   refreshProfile: () => Promise<void>
-  /** 清除本地状态。真正的 Auth0 logout 在 SignOutDialog 里调用。 */
+  /** 清除本地状态。token 清理由 SignOutDialog 完成。 */
   signOut: () => Promise<void>
   reset: () => void
 }
@@ -46,12 +46,12 @@ export const useAuthStore = create<AuthState>()((set) => ({
   setSession: (session) => set({ session }),
   setLoading: (loading) => set({ loading }),
 
-  // Auth0Bridge 已经在应用挂载时同步状态，这里保持兼容、不做事
+  // AuthBridgeSync 已经在应用挂载时同步状态，这里保持兼容、不做事
   initialize: async () => {},
   refreshProfile: async () => {},
 
   signOut: async () => {
-    // 仅清本地状态；浏览器跳转式登出由 SignOutDialog 调 Auth0 logout 完成
+    // 仅清本地状态；token 清理由 SignOutDialog 完成
     set({ user: null, session: null })
   },
 

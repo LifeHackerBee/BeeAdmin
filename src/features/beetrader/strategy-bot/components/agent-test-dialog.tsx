@@ -16,6 +16,7 @@ import {
 import { Bot, Send, RotateCcw, Star, Loader2, Wrench, User, AlertCircle, ChevronDown, ChevronRight } from 'lucide-react'
 import type { AgentPrompt } from '../hooks/use-agent-prompts'
 import { AGENT_TOOLS } from './agent-config-dialog'
+import { hyperliquidApiFetch } from '@/lib/hyperliquid-api-client'
 
 const ALL_TOOL_NAMES = AGENT_TOOLS.map((t) => t.name)
 
@@ -123,11 +124,6 @@ export function AgentTestDialog({ open, onOpenChange, prompts, defaultCoin = 'BT
     setLoading(true)
 
     try {
-      const baseUrl = import.meta.env.VITE_HYPERLIQUID_TRADER_API_URL || 'http://localhost:8000'
-      const apiKey = import.meta.env.VITE_HYPERLIQUID_TRADER_API_KEY
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-      if (apiKey) headers['X-API-Key'] = apiKey
-
       const systemText = currentPrompt?.system_prompt || ''
       const minRr = currentPrompt?.min_rr_ratio ?? 1.5
 
@@ -137,9 +133,8 @@ export function AgentTestDialog({ open, onOpenChange, prompts, defaultCoin = 'BT
         .slice(-10)
         .map((m) => ({ role: m.role, content: m.content }))
 
-      const res = await fetch(`${baseUrl}/api/strategy_bot/agent/chat`, {
+      const res = await hyperliquidApiFetch('/api/strategy_bot/agent/chat', {
         method: 'POST',
-        headers,
         body: JSON.stringify({
           message: text,
           coin,

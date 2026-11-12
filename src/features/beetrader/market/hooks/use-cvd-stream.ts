@@ -165,7 +165,19 @@ function getWsBase(): string {
   return url.replace(/^http/, 'ws')
 }
 const WS_BASE = getWsBase()
-const API_KEY = import.meta.env.VITE_HYPERLIQUID_TRADER_API_KEY as string | undefined
+
+/**
+ * 用登录令牌换一次性 WS ticket（后端 POST /api/cvd/ws-ticket）。
+ * WebSocket 不能自定义 Authorization 头，改用 60 秒一次性 ticket。
+ */
+async function getWsTicket(): Promise<string | null> {
+  try {
+    const res = await hyperliquidApiPost<{ success: boolean; ticket: string }>('/api/cvd/ws-ticket', {})
+    return res.success ? res.ticket : null
+  } catch {
+    return null
+  }
+}
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
@@ -343,12 +355,14 @@ export function useCvdStream(): UseCvdStreamReturn {
     setStatus('loading')
     setError(null)
 
-    Promise.all([loadHistory(coin), fetchMonitorStatus(coin)]).finally(() => {
+    Promise.all([loadHistory(coin), fetchMonitorStatus(coin)]).finally(async () => {
       if (coinRef.current !== coin) return
 
       setStatus('connecting')
-      const url = API_KEY
-        ? `${WS_BASE}/ws/cvd/${coin}?api_key=${API_KEY}`
+      const ticket = await getWsTicket()
+      if (coinRef.current !== coin) return
+      const url = ticket
+        ? `${WS_BASE}/ws/cvd/${coin}?ticket=${encodeURIComponent(ticket)}`
         : `${WS_BASE}/ws/cvd/${coin}`
 
       const ws = new WebSocket(url)

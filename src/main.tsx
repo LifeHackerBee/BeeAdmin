@@ -1,7 +1,6 @@
 import { StrictMode } from 'react'
 import ReactDOM from 'react-dom/client'
 import { AxiosError } from 'axios'
-import { Auth0Provider } from '@auth0/auth0-react'
 import {
   QueryCache,
   QueryClient,
@@ -10,8 +9,7 @@ import {
 import { RouterProvider, createRouter } from '@tanstack/react-router'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
-import { auth0Config } from '@/lib/auth0'
-import { Auth0Bridge } from '@/components/auth0-bridge'
+import { AuthBridgeSync } from '@/components/auth-bridge'
 import { handleServerError } from '@/lib/handle-server-error'
 import { DirectionProvider } from './context/direction-provider'
 import { FontProvider } from './context/font-provider'
@@ -104,13 +102,7 @@ declare module '@tanstack/react-router' {
   }
 }
 
-// Auth0 处理重定向回调后，把 URL 还原到登录前的目标路径
-function onRedirectCallback(appState?: { returnTo?: string }) {
-  const returnTo = appState?.returnTo || window.location.pathname
-  window.history.replaceState({}, document.title, returnTo)
-}
-
-// 等 Auth0Bridge 同步完认证状态（store.loading=false）再渲染 Router，
+// 等认证状态恢复完（store.loading=false）再渲染 Router，
 // 避免权限相关页面首次加载时 user/loading 未就绪导致数据请求被 enabled:false 拦截
 function App() {
   const loading = useAuthStore((state) => state.loading)
@@ -136,25 +128,16 @@ if (!rootElement.innerHTML) {
   root.render(
     <StrictMode>
       <QueryClientProvider client={queryClient}>
-        <Auth0Provider
-          domain={auth0Config.domain}
-          clientId={auth0Config.clientId}
-          authorizationParams={auth0Config.authorizationParams}
-          onRedirectCallback={onRedirectCallback}
-          cacheLocation="localstorage"
-          useRefreshTokens
-        >
-          <Auth0Bridge />
-          <LanguageProvider>
-            <ThemeProvider>
-              <FontProvider>
-                <DirectionProvider>
-                  <App />
-                </DirectionProvider>
-              </FontProvider>
-            </ThemeProvider>
-          </LanguageProvider>
-        </Auth0Provider>
+        <AuthBridgeSync />
+        <LanguageProvider>
+          <ThemeProvider>
+            <FontProvider>
+              <DirectionProvider>
+                <App />
+              </DirectionProvider>
+            </FontProvider>
+          </ThemeProvider>
+        </LanguageProvider>
       </QueryClientProvider>
     </StrictMode>
   )

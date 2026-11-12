@@ -10,7 +10,6 @@ import {
   Wrench,
   UserCog,
   Users,
-  Sparkles,
   TrendingUp,
   Eye,
   BarChart3,
@@ -51,21 +50,11 @@ export const sidebarData: SidebarData = {
               icon: Package,
             },
             {
-              title: 'Crawl4AI 爬虫',
-              url: '/apps/crawler',
-              icon: ScanLine,
-            },
-            {
               title: 'Subconvertor 转换',
               url: '/apps/subconvertor',
               icon: Link2,
             },
           ],
-        },
-        {
-          title: 'BeeAI',
-          url: '/beeai',
-          icon: Sparkles,
         },
         {
           title: 'Users',
@@ -155,11 +144,6 @@ export const sidebarData: SidebarData = {
             {
               title: '资产管理',
               url: '/finance/assets',
-              icon: DollarSign,
-            },
-            {
-              title: '投资账户',
-              url: '/finance/investment',
               icon: DollarSign,
             },
           ],

@@ -1,8 +1,11 @@
 /**
  * Hyperliquid Trader API 客户端
- * 统一处理 API 请求，自动添加 API Key 认证（仅在登录后）
+ *
+ * 认证模型（2026-11-12 本地账号 + JWT，前端零上游密钥）：
+ *   - 登录后 JWT 存 localStorage；请求带 Authorization: Bearer <JWT>
+ *   - 服务器内部/CLI 仍可用 X-API-Key（只存在后端 .env）
  */
-import { useAuthStore } from '@/stores/auth-store'
+import { getToken } from '@/components/auth-bridge'
 
 // 动态读取环境变量，确保在运行时也能正确获取
 function getApiBaseUrl(): string {
@@ -14,19 +17,17 @@ function getApiBaseUrl(): string {
   return url
 }
 
-function getApiKey(): string | undefined {
-  return import.meta.env.VITE_HYPERLIQUID_TRADER_API_KEY
-}
-
 const API_BASE_URL = getApiBaseUrl()
-const API_KEY = getApiKey()
 
-// 开发环境下输出配置信息
-if (import.meta.env.DEV) {
-  console.log('[Hyperliquid API Client] 配置:', {
-    API_BASE_URL,
-    API_KEY: API_KEY ? `${API_KEY.substring(0, 10)}...` : '未设置',
-  })
+/**
+ * 获取 access token（带 Authorization: Bearer 头用）
+ */
+async function getAccessToken(): Promise<string | null> {
+  try {
+    return getToken()
+  } catch {
+    return null
+  }
 }
 
 interface FetchOptions extends RequestInit {
@@ -34,30 +35,19 @@ interface FetchOptions extends RequestInit {
 }
 
 /**
- * 获取请求头，自动添加 API Key（仅在登录后）
+ * 获取请求头，登录后自动附加 Bearer token
  */
-function getHeaders(requireAuth: boolean = true): HeadersInit {
-  const headers: HeadersInit = {
+async function getHeaders(requireAuth: boolean = true): Promise<HeadersInit> {
+  const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   }
 
-  // 只在登录后且需要认证时添加 API Key
-  if (requireAuth && API_KEY) {
-    const { user, session } = useAuthStore.getState()
-    // 检查用户是否已登录（检查 user 或 session）
-    if (user || session?.user) {
-      headers['X-API-Key'] = API_KEY
-      if (import.meta.env.DEV) {
-        console.log('[Hyperliquid API Client] 已添加 API Key 到请求头')
-      }
-    } else {
-      if (import.meta.env.DEV) {
-        console.warn('[Hyperliquid API Client] 用户未登录，未添加 API Key', {
-          hasUser: !!user,
-          hasSession: !!session,
-          hasSessionUser: !!session?.user,
-        })
-      }
+  if (requireAuth) {
+    const token = await getAccessToken()
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
+    } else if (import.meta.env.DEV) {
+      console.warn('[Hyperliquid API Client] 未获取到 access token，请求将无认证头')
     }
   }
 
@@ -93,17 +83,8 @@ export async function hyperliquidApiFetch(
 
   const url = endpoint.startsWith('http') ? endpoint : `${API_BASE_URL}${endpoint}`
   const headers = {
-    ...getHeaders(requireAuth),
+    ...(await getHeaders(requireAuth)),
     ...(fetchOptions.headers || {}),
-  }
-
-  // 调试：检查是否包含 API Key
-  if (import.meta.env.DEV) {
-    const hasApiKey = 'X-API-Key' in headers
-    console.log(`[Hyperliquid API Client] 请求 ${url}`, {
-      hasApiKey,
-      method: fetchOptions.method || 'GET',
-    })
   }
 
   const response = await fetch(url, {
@@ -112,6 +93,16 @@ export async function hyperliquidApiFetch(
   })
 
   return response
+}
+
+/** 导出 base URL（WebSocket 等场景用） */
+export function getHyperliquidApiBaseUrl(): string {
+  return API_BASE_URL
+}
+
+/** 获取当前用户的 access token（WebSocket ticket 等场景用） */
+export async function getHyperliquidAccessToken(): Promise<string | null> {
+  return getAccessToken()
 }
 
 /**

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { hyperliquidApiGet } from '@/lib/hyperliquid-api-client'
+import { hyperliquidApiGet, hyperliquidApiFetch } from '@/lib/hyperliquid-api-client'
 
 export interface SkillStep {
   label: string
@@ -28,19 +28,8 @@ export interface AgentSkill {
   created_at: string
 }
 
-const baseUrl = () => import.meta.env.VITE_HYPERLIQUID_TRADER_API_URL || 'http://localhost:8000'
-const apiKey = () => import.meta.env.VITE_HYPERLIQUID_TRADER_API_KEY
-
 async function apiFetch<T>(path: string, opts: RequestInit = {}): Promise<T> {
-  const key = apiKey()
-  const res = await fetch(`${baseUrl()}${path}`, {
-    ...opts,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(key ? { 'X-API-Key': key } : {}),
-      ...opts.headers,
-    },
-  })
+  const res = await hyperliquidApiFetch(path, opts)
   return res.json()
 }
 

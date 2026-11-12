@@ -10,7 +10,7 @@ import type { KolMvpInsert, KolMvpRecord } from '../types'
 const QUERY_KEY = 'kol-mvp-log'
 
 function currentUserId(): string {
-  // 登录改为 Auth0，user_id 取自 auth-store（由 Auth0Bridge 填充）
+  // 登录为本地账号（JWT），user_id 取自 auth-store（由 AuthBridgeSync 填充）
   const user = useAuthStore.getState().user
   if (!user) throw new Error('未登录')
   return user.id

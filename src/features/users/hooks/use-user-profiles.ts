@@ -1,7 +1,7 @@
 /**
  * 用户权限管理 Hook
  *
- * 注意：认证已迁移到 Auth0，用户/角色管理改由 Auth0 控制台负责。
+ * 注意：认证为本地账号（2026-11-12 从 Auth0 迁移），用户由后端 PG local_users 表管理。
  * 这里保留接口形状以兼容 /users 页面，但不再连 Supabase；列表为空、写操作禁用。
  */
 
@@ -24,14 +24,14 @@ export interface UserProfile {
   last_login_at: string | null
 }
 
-const DISABLED_MSG = '用户管理已迁移到 Auth0 控制台，此处不再可用'
+const DISABLED_MSG = '用户管理请直接操作后端 local_users 表'
 
 export function useUserProfiles() {
   const [loading] = useState(false)
   const [error] = useState<Error | null>(null)
 
   const fetchProfiles = useCallback(async (): Promise<UserProfile[]> => {
-    // Auth0 模式下不再从 Supabase profiles 拉取用户列表
+    // 本地账号模式下用户列表暂不从前端拉取
     return []
   }, [])
 

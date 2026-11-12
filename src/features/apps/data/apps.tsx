@@ -1,4 +1,4 @@
-import { ScanLine, Link2 } from 'lucide-react'
+import { Link2 } from 'lucide-react'
 
 export type AppCategory = 'tool' | 'all'
 
@@ -14,16 +14,6 @@ export interface App {
 }
 
 export const apps: App[] = [
-  {
-    name: 'Crawl4AI 爬虫',
-    logo: <ScanLine className="h-6 w-6" />,
-    connected: true,
-    desc: '基于 Crawl4AI API 的智能爬取工具，支持 Markdown 清洗与 LLM 内容抽取',
-    category: 'tool',
-    rating: 4.9,
-    users: '1万+',
-    route: '/apps/crawler',
-  },
   {
     name: 'Subconvertor 转换',
     logo: <Link2 className="h-6 w-6" />,

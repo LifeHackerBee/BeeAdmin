@@ -9,7 +9,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
 import { Timer, Play, Loader2, CheckCircle, XCircle, Clock } from 'lucide-react'
-import { hyperliquidApiGet } from '@/lib/hyperliquid-api-client'
+import { hyperliquidApiGet, hyperliquidApiPatch, hyperliquidApiPost } from '@/lib/hyperliquid-api-client'
 
 interface ScheduledConfig {
   id: number
@@ -38,24 +38,11 @@ const INTERVAL_OPTIONS = [
 ]
 
 async function apiPatch<T>(path: string, body: unknown): Promise<T> {
-  const baseUrl = import.meta.env.VITE_HYPERLIQUID_TRADER_API_URL || 'http://localhost:8000'
-  const apiKey = import.meta.env.VITE_HYPERLIQUID_TRADER_API_KEY
-  const res = await fetch(`${baseUrl}${path}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', ...(apiKey ? { 'X-API-Key': apiKey } : {}) },
-    body: JSON.stringify(body),
-  })
-  return res.json()
+  return hyperliquidApiPatch<T>(path, body)
 }
 
 async function apiPost<T>(path: string): Promise<T> {
-  const baseUrl = import.meta.env.VITE_HYPERLIQUID_TRADER_API_URL || 'http://localhost:8000'
-  const apiKey = import.meta.env.VITE_HYPERLIQUID_TRADER_API_KEY
-  const res = await fetch(`${baseUrl}${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...(apiKey ? { 'X-API-Key': apiKey } : {}) },
-  })
-  return res.json()
+  return hyperliquidApiPost<T>(path)
 }
 
 export function ScheduledAnalysisTab() {

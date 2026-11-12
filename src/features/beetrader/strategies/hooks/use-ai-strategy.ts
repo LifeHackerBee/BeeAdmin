@@ -1,6 +1,5 @@
 import { useState, useCallback } from 'react'
-import { ChatOpenAI } from '@langchain/openai'
-import { HumanMessage, SystemMessage } from '@langchain/core/messages'
+import { hyperliquidApiPost } from '@/lib/hyperliquid-api-client'
 import type { BeeTraderStrategyData } from '../types'
 
 // ── 默认 System Prompt (用户可通过策略模板覆盖) ──
@@ -239,34 +238,22 @@ export function useAiStrategy() {
       setLoading(true)
       setError(null)
 
-      const apiKey = import.meta.env.VITE_OPENAI_API_KEY
-      const rawBaseURL = import.meta.env.VITE_OPENAI_BASE_URL
-      const modelName = import.meta.env.VITE_OPENAI_MODEL || 'gpt-4o'
-
-      if (!apiKey) {
-        throw new Error('未配置 VITE_OPENAI_API_KEY 环境变量')
-      }
-
-      const baseURL = rawBaseURL?.startsWith('/')
-        ? `${window.location.origin}${rawBaseURL}`
-        : rawBaseURL
-
-      const model = new ChatOpenAI({
-        apiKey,
-        model: modelName,
-        configuration: { baseURL, dangerouslyAllowBrowser: true },
-        temperature: 0.3,
-      })
-
       const systemPrompt = customSystemPrompt || DEFAULT_AI_SYSTEM_PROMPT
       const dataText = buildDataPrompt(data, srTactical)
 
-      // 直接构建 messages，避免 ChatPromptTemplate 解析 JSON 中的 {} 报错
-      const response = await model.invoke([
-        new SystemMessage(systemPrompt),
-        new HumanMessage(`请分析以下 ${data.coin} 的技术指标数据：\n\n${dataText}`),
-      ])
-      const rawContent = typeof response.content === 'string' ? response.content : JSON.stringify(response.content)
+      // 经后端代理调 LLM（/api/proxy/llm/chat/completions），密钥只存在后端
+      const res = await hyperliquidApiPost<{
+        choices: { message: { content: string } }[]
+      }>('/api/proxy/llm/chat/completions', {
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: `请分析以下 ${data.coin} 的技术指标数据：\n\n${dataText}` },
+        ],
+        temperature: 0.3,
+      })
+
+      const rawContent = res.choices?.[0]?.message?.content
+      if (!rawContent) throw new Error('LLM 返回内容为空')
 
       // 尝试解析 JSON
       let structured: AiStrategyResult | undefined

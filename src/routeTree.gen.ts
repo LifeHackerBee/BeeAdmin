@@ -16,11 +16,7 @@ import { Route as errors500RouteImport } from './routes/(errors)/500'
 import { Route as errors404RouteImport } from './routes/(errors)/404'
 import { Route as errors403RouteImport } from './routes/(errors)/403'
 import { Route as errors401RouteImport } from './routes/(errors)/401'
-import { Route as authSignUpRouteImport } from './routes/(auth)/sign-up'
-import { Route as authSignIn2RouteImport } from './routes/(auth)/sign-in-2'
 import { Route as authSignInRouteImport } from './routes/(auth)/sign-in'
-import { Route as authOtpRouteImport } from './routes/(auth)/otp'
-import { Route as authForgotPasswordRouteImport } from './routes/(auth)/forgot-password'
 import { Route as AuthenticatedSettingsRouteRouteImport } from './routes/_authenticated/settings/route'
 import { Route as AuthenticatedFireRouteRouteImport } from './routes/_authenticated/fire/route'
 import { Route as AuthenticatedFinanceRouteRouteImport } from './routes/_authenticated/finance/route'
@@ -31,7 +27,6 @@ import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authen
 import { Route as AuthenticatedHelpCenterIndexRouteImport } from './routes/_authenticated/help-center/index'
 import { Route as AuthenticatedFireIndexRouteImport } from './routes/_authenticated/fire/index'
 import { Route as AuthenticatedBeetraderIndexRouteImport } from './routes/_authenticated/beetrader/index'
-import { Route as AuthenticatedBeeaiIndexRouteImport } from './routes/_authenticated/beeai/index'
 import { Route as AuthenticatedAppsIndexRouteImport } from './routes/_authenticated/apps/index'
 import { Route as AuthenticatedSettingsNotificationsRouteImport } from './routes/_authenticated/settings/notifications'
 import { Route as AuthenticatedSettingsEmailNotificationRouteImport } from './routes/_authenticated/settings/email-notification'
@@ -45,6 +40,7 @@ import { Route as AuthenticatedBeetraderStrategyBotRouteImport } from './routes/
 import { Route as AuthenticatedBeetraderMonitorObservationRouteImport } from './routes/_authenticated/beetrader/monitor-observation'
 import { Route as AuthenticatedBeetraderMarketRouteImport } from './routes/_authenticated/beetrader/market'
 import { Route as AuthenticatedBeetraderMacroscopicRouteImport } from './routes/_authenticated/beetrader/macroscopic'
+import { Route as AuthenticatedBeetraderKolPerformanceRouteImport } from './routes/_authenticated/beetrader/kol-performance'
 import { Route as AuthenticatedBeetraderEventsRouteImport } from './routes/_authenticated/beetrader/events'
 import { Route as AuthenticatedBeetraderDashboardRouteImport } from './routes/_authenticated/beetrader/dashboard'
 import { Route as AuthenticatedBeetraderCandlesRouteImport } from './routes/_authenticated/beetrader/candles'
@@ -53,14 +49,12 @@ import { Route as AuthenticatedBeetraderSignalsRouteRouteImport } from './routes
 import { Route as AuthenticatedMonitoringTasksIndexRouteImport } from './routes/_authenticated/monitoring/tasks/index'
 import { Route as AuthenticatedFinanceStatisticsIndexRouteImport } from './routes/_authenticated/finance/statistics/index'
 import { Route as AuthenticatedFinanceLiabilitiesIndexRouteImport } from './routes/_authenticated/finance/liabilities/index'
-import { Route as AuthenticatedFinanceInvestmentIndexRouteImport } from './routes/_authenticated/finance/investment/index'
 import { Route as AuthenticatedFinanceExpensesIndexRouteImport } from './routes/_authenticated/finance/expenses/index'
 import { Route as AuthenticatedFinanceExchangeRateIndexRouteImport } from './routes/_authenticated/finance/exchange-rate/index'
 import { Route as AuthenticatedFinanceCategoriesIndexRouteImport } from './routes/_authenticated/finance/categories/index'
 import { Route as AuthenticatedFinanceAssetsIndexRouteImport } from './routes/_authenticated/finance/assets/index'
 import { Route as AuthenticatedBeetraderSignalsIndexRouteImport } from './routes/_authenticated/beetrader/signals/index'
 import { Route as AuthenticatedAppsSubconvertorIndexRouteImport } from './routes/_authenticated/apps/subconvertor/index'
-import { Route as AuthenticatedAppsCrawlerIndexRouteImport } from './routes/_authenticated/apps/crawler/index'
 import { Route as AuthenticatedBeetraderSignalsScheduledRouteImport } from './routes/_authenticated/beetrader/signals/scheduled'
 import { Route as AuthenticatedBeetraderSignalsRealtimeRouteImport } from './routes/_authenticated/beetrader/signals/realtime'
 import { Route as AuthenticatedBeetraderSignalsHistoryRouteImport } from './routes/_authenticated/beetrader/signals/history'
@@ -99,29 +93,9 @@ const errors401Route = errors401RouteImport.update({
   path: '/401',
   getParentRoute: () => rootRouteImport,
 } as any)
-const authSignUpRoute = authSignUpRouteImport.update({
-  id: '/(auth)/sign-up',
-  path: '/sign-up',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const authSignIn2Route = authSignIn2RouteImport.update({
-  id: '/(auth)/sign-in-2',
-  path: '/sign-in-2',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const authSignInRoute = authSignInRouteImport.update({
   id: '/(auth)/sign-in',
   path: '/sign-in',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const authOtpRoute = authOtpRouteImport.update({
-  id: '/(auth)/otp',
-  path: '/otp',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const authForgotPasswordRoute = authForgotPasswordRouteImport.update({
-  id: '/(auth)/forgot-password',
-  path: '/forgot-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedSettingsRouteRoute =
@@ -180,11 +154,6 @@ const AuthenticatedBeetraderIndexRoute =
     path: '/',
     getParentRoute: () => AuthenticatedBeetraderRouteRoute,
   } as any)
-const AuthenticatedBeeaiIndexRoute = AuthenticatedBeeaiIndexRouteImport.update({
-  id: '/beeai/',
-  path: '/beeai/',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
 const AuthenticatedAppsIndexRoute = AuthenticatedAppsIndexRouteImport.update({
   id: '/apps/',
   path: '/apps/',
@@ -262,6 +231,12 @@ const AuthenticatedBeetraderMacroscopicRoute =
     path: '/macroscopic',
     getParentRoute: () => AuthenticatedBeetraderRouteRoute,
   } as any)
+const AuthenticatedBeetraderKolPerformanceRoute =
+  AuthenticatedBeetraderKolPerformanceRouteImport.update({
+    id: '/kol-performance',
+    path: '/kol-performance',
+    getParentRoute: () => AuthenticatedBeetraderRouteRoute,
+  } as any)
 const AuthenticatedBeetraderEventsRoute =
   AuthenticatedBeetraderEventsRouteImport.update({
     id: '/events',
@@ -310,12 +285,6 @@ const AuthenticatedFinanceLiabilitiesIndexRoute =
     path: '/liabilities/',
     getParentRoute: () => AuthenticatedFinanceRouteRoute,
   } as any)
-const AuthenticatedFinanceInvestmentIndexRoute =
-  AuthenticatedFinanceInvestmentIndexRouteImport.update({
-    id: '/investment/',
-    path: '/investment/',
-    getParentRoute: () => AuthenticatedFinanceRouteRoute,
-  } as any)
 const AuthenticatedFinanceExpensesIndexRoute =
   AuthenticatedFinanceExpensesIndexRouteImport.update({
     id: '/expenses/',
@@ -352,12 +321,6 @@ const AuthenticatedAppsSubconvertorIndexRoute =
     path: '/apps/subconvertor/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
-const AuthenticatedAppsCrawlerIndexRoute =
-  AuthenticatedAppsCrawlerIndexRouteImport.update({
-    id: '/apps/crawler/',
-    path: '/apps/crawler/',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
 const AuthenticatedBeetraderSignalsScheduledRoute =
   AuthenticatedBeetraderSignalsScheduledRouteImport.update({
     id: '/scheduled',
@@ -378,78 +341,23 @@ const AuthenticatedBeetraderSignalsHistoryRoute =
   } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof AuthenticatedIndexRoute
   '/beetrader': typeof AuthenticatedBeetraderRouteRouteWithChildren
   '/finance': typeof AuthenticatedFinanceRouteRouteWithChildren
   '/fire': typeof AuthenticatedFireRouteRouteWithChildren
   '/settings': typeof AuthenticatedSettingsRouteRouteWithChildren
-  '/forgot-password': typeof authForgotPasswordRoute
-  '/otp': typeof authOtpRoute
   '/sign-in': typeof authSignInRoute
-  '/sign-in-2': typeof authSignIn2Route
-  '/sign-up': typeof authSignUpRoute
   '/401': typeof errors401Route
   '/403': typeof errors403Route
   '/404': typeof errors404Route
   '/500': typeof errors500Route
   '/503': typeof errors503Route
+  '/': typeof AuthenticatedIndexRoute
   '/beetrader/signals': typeof AuthenticatedBeetraderSignalsRouteRouteWithChildren
   '/beetrader/analyzer': typeof AuthenticatedBeetraderAnalyzerRoute
   '/beetrader/candles': typeof AuthenticatedBeetraderCandlesRoute
   '/beetrader/dashboard': typeof AuthenticatedBeetraderDashboardRoute
   '/beetrader/events': typeof AuthenticatedBeetraderEventsRoute
-  '/beetrader/macroscopic': typeof AuthenticatedBeetraderMacroscopicRoute
-  '/beetrader/market': typeof AuthenticatedBeetraderMarketRoute
-  '/beetrader/monitor-observation': typeof AuthenticatedBeetraderMonitorObservationRoute
-  '/beetrader/strategy-bot': typeof AuthenticatedBeetraderStrategyBotRoute
-  '/beetrader/tracker': typeof AuthenticatedBeetraderTrackerRoute
-  '/beetrader/whale-wallet-manage': typeof AuthenticatedBeetraderWhaleWalletManageRoute
-  '/errors/$error': typeof AuthenticatedErrorsErrorRoute
-  '/settings/account': typeof AuthenticatedSettingsAccountRoute
-  '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
-  '/settings/display': typeof AuthenticatedSettingsDisplayRoute
-  '/settings/email-notification': typeof AuthenticatedSettingsEmailNotificationRoute
-  '/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
-  '/apps/': typeof AuthenticatedAppsIndexRoute
-  '/beeai/': typeof AuthenticatedBeeaiIndexRoute
-  '/beetrader/': typeof AuthenticatedBeetraderIndexRoute
-  '/fire/': typeof AuthenticatedFireIndexRoute
-  '/help-center/': typeof AuthenticatedHelpCenterIndexRoute
-  '/settings/': typeof AuthenticatedSettingsIndexRoute
-  '/tasks/': typeof AuthenticatedTasksIndexRoute
-  '/users/': typeof AuthenticatedUsersIndexRoute
-  '/beetrader/signals/history': typeof AuthenticatedBeetraderSignalsHistoryRoute
-  '/beetrader/signals/realtime': typeof AuthenticatedBeetraderSignalsRealtimeRoute
-  '/beetrader/signals/scheduled': typeof AuthenticatedBeetraderSignalsScheduledRoute
-  '/apps/crawler/': typeof AuthenticatedAppsCrawlerIndexRoute
-  '/apps/subconvertor/': typeof AuthenticatedAppsSubconvertorIndexRoute
-  '/beetrader/signals/': typeof AuthenticatedBeetraderSignalsIndexRoute
-  '/finance/assets/': typeof AuthenticatedFinanceAssetsIndexRoute
-  '/finance/categories/': typeof AuthenticatedFinanceCategoriesIndexRoute
-  '/finance/exchange-rate/': typeof AuthenticatedFinanceExchangeRateIndexRoute
-  '/finance/expenses/': typeof AuthenticatedFinanceExpensesIndexRoute
-  '/finance/investment/': typeof AuthenticatedFinanceInvestmentIndexRoute
-  '/finance/liabilities/': typeof AuthenticatedFinanceLiabilitiesIndexRoute
-  '/finance/statistics/': typeof AuthenticatedFinanceStatisticsIndexRoute
-  '/monitoring/tasks/': typeof AuthenticatedMonitoringTasksIndexRoute
-}
-export interface FileRoutesByTo {
-  '/finance': typeof AuthenticatedFinanceRouteRouteWithChildren
-  '/forgot-password': typeof authForgotPasswordRoute
-  '/otp': typeof authOtpRoute
-  '/sign-in': typeof authSignInRoute
-  '/sign-in-2': typeof authSignIn2Route
-  '/sign-up': typeof authSignUpRoute
-  '/401': typeof errors401Route
-  '/403': typeof errors403Route
-  '/404': typeof errors404Route
-  '/500': typeof errors500Route
-  '/503': typeof errors503Route
-  '/': typeof AuthenticatedIndexRoute
-  '/beetrader/analyzer': typeof AuthenticatedBeetraderAnalyzerRoute
-  '/beetrader/candles': typeof AuthenticatedBeetraderCandlesRoute
-  '/beetrader/dashboard': typeof AuthenticatedBeetraderDashboardRoute
-  '/beetrader/events': typeof AuthenticatedBeetraderEventsRoute
+  '/beetrader/kol-performance': typeof AuthenticatedBeetraderKolPerformanceRoute
   '/beetrader/macroscopic': typeof AuthenticatedBeetraderMacroscopicRoute
   '/beetrader/market': typeof AuthenticatedBeetraderMarketRoute
   '/beetrader/monitor-observation': typeof AuthenticatedBeetraderMonitorObservationRoute
@@ -463,7 +371,52 @@ export interface FileRoutesByTo {
   '/settings/email-notification': typeof AuthenticatedSettingsEmailNotificationRoute
   '/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
   '/apps': typeof AuthenticatedAppsIndexRoute
-  '/beeai': typeof AuthenticatedBeeaiIndexRoute
+  '/beetrader/': typeof AuthenticatedBeetraderIndexRoute
+  '/fire/': typeof AuthenticatedFireIndexRoute
+  '/help-center': typeof AuthenticatedHelpCenterIndexRoute
+  '/settings/': typeof AuthenticatedSettingsIndexRoute
+  '/tasks': typeof AuthenticatedTasksIndexRoute
+  '/users': typeof AuthenticatedUsersIndexRoute
+  '/beetrader/signals/history': typeof AuthenticatedBeetraderSignalsHistoryRoute
+  '/beetrader/signals/realtime': typeof AuthenticatedBeetraderSignalsRealtimeRoute
+  '/beetrader/signals/scheduled': typeof AuthenticatedBeetraderSignalsScheduledRoute
+  '/apps/subconvertor': typeof AuthenticatedAppsSubconvertorIndexRoute
+  '/beetrader/signals/': typeof AuthenticatedBeetraderSignalsIndexRoute
+  '/finance/assets': typeof AuthenticatedFinanceAssetsIndexRoute
+  '/finance/categories': typeof AuthenticatedFinanceCategoriesIndexRoute
+  '/finance/exchange-rate': typeof AuthenticatedFinanceExchangeRateIndexRoute
+  '/finance/expenses': typeof AuthenticatedFinanceExpensesIndexRoute
+  '/finance/liabilities': typeof AuthenticatedFinanceLiabilitiesIndexRoute
+  '/finance/statistics': typeof AuthenticatedFinanceStatisticsIndexRoute
+  '/monitoring/tasks': typeof AuthenticatedMonitoringTasksIndexRoute
+}
+export interface FileRoutesByTo {
+  '/finance': typeof AuthenticatedFinanceRouteRouteWithChildren
+  '/sign-in': typeof authSignInRoute
+  '/401': typeof errors401Route
+  '/403': typeof errors403Route
+  '/404': typeof errors404Route
+  '/500': typeof errors500Route
+  '/503': typeof errors503Route
+  '/': typeof AuthenticatedIndexRoute
+  '/beetrader/analyzer': typeof AuthenticatedBeetraderAnalyzerRoute
+  '/beetrader/candles': typeof AuthenticatedBeetraderCandlesRoute
+  '/beetrader/dashboard': typeof AuthenticatedBeetraderDashboardRoute
+  '/beetrader/events': typeof AuthenticatedBeetraderEventsRoute
+  '/beetrader/kol-performance': typeof AuthenticatedBeetraderKolPerformanceRoute
+  '/beetrader/macroscopic': typeof AuthenticatedBeetraderMacroscopicRoute
+  '/beetrader/market': typeof AuthenticatedBeetraderMarketRoute
+  '/beetrader/monitor-observation': typeof AuthenticatedBeetraderMonitorObservationRoute
+  '/beetrader/strategy-bot': typeof AuthenticatedBeetraderStrategyBotRoute
+  '/beetrader/tracker': typeof AuthenticatedBeetraderTrackerRoute
+  '/beetrader/whale-wallet-manage': typeof AuthenticatedBeetraderWhaleWalletManageRoute
+  '/errors/$error': typeof AuthenticatedErrorsErrorRoute
+  '/settings/account': typeof AuthenticatedSettingsAccountRoute
+  '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
+  '/settings/display': typeof AuthenticatedSettingsDisplayRoute
+  '/settings/email-notification': typeof AuthenticatedSettingsEmailNotificationRoute
+  '/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
+  '/apps': typeof AuthenticatedAppsIndexRoute
   '/beetrader': typeof AuthenticatedBeetraderIndexRoute
   '/fire': typeof AuthenticatedFireIndexRoute
   '/help-center': typeof AuthenticatedHelpCenterIndexRoute
@@ -473,14 +426,12 @@ export interface FileRoutesByTo {
   '/beetrader/signals/history': typeof AuthenticatedBeetraderSignalsHistoryRoute
   '/beetrader/signals/realtime': typeof AuthenticatedBeetraderSignalsRealtimeRoute
   '/beetrader/signals/scheduled': typeof AuthenticatedBeetraderSignalsScheduledRoute
-  '/apps/crawler': typeof AuthenticatedAppsCrawlerIndexRoute
   '/apps/subconvertor': typeof AuthenticatedAppsSubconvertorIndexRoute
   '/beetrader/signals': typeof AuthenticatedBeetraderSignalsIndexRoute
   '/finance/assets': typeof AuthenticatedFinanceAssetsIndexRoute
   '/finance/categories': typeof AuthenticatedFinanceCategoriesIndexRoute
   '/finance/exchange-rate': typeof AuthenticatedFinanceExchangeRateIndexRoute
   '/finance/expenses': typeof AuthenticatedFinanceExpensesIndexRoute
-  '/finance/investment': typeof AuthenticatedFinanceInvestmentIndexRoute
   '/finance/liabilities': typeof AuthenticatedFinanceLiabilitiesIndexRoute
   '/finance/statistics': typeof AuthenticatedFinanceStatisticsIndexRoute
   '/monitoring/tasks': typeof AuthenticatedMonitoringTasksIndexRoute
@@ -492,11 +443,7 @@ export interface FileRoutesById {
   '/_authenticated/finance': typeof AuthenticatedFinanceRouteRouteWithChildren
   '/_authenticated/fire': typeof AuthenticatedFireRouteRouteWithChildren
   '/_authenticated/settings': typeof AuthenticatedSettingsRouteRouteWithChildren
-  '/(auth)/forgot-password': typeof authForgotPasswordRoute
-  '/(auth)/otp': typeof authOtpRoute
   '/(auth)/sign-in': typeof authSignInRoute
-  '/(auth)/sign-in-2': typeof authSignIn2Route
-  '/(auth)/sign-up': typeof authSignUpRoute
   '/(errors)/401': typeof errors401Route
   '/(errors)/403': typeof errors403Route
   '/(errors)/404': typeof errors404Route
@@ -508,6 +455,7 @@ export interface FileRoutesById {
   '/_authenticated/beetrader/candles': typeof AuthenticatedBeetraderCandlesRoute
   '/_authenticated/beetrader/dashboard': typeof AuthenticatedBeetraderDashboardRoute
   '/_authenticated/beetrader/events': typeof AuthenticatedBeetraderEventsRoute
+  '/_authenticated/beetrader/kol-performance': typeof AuthenticatedBeetraderKolPerformanceRoute
   '/_authenticated/beetrader/macroscopic': typeof AuthenticatedBeetraderMacroscopicRoute
   '/_authenticated/beetrader/market': typeof AuthenticatedBeetraderMarketRoute
   '/_authenticated/beetrader/monitor-observation': typeof AuthenticatedBeetraderMonitorObservationRoute
@@ -521,7 +469,6 @@ export interface FileRoutesById {
   '/_authenticated/settings/email-notification': typeof AuthenticatedSettingsEmailNotificationRoute
   '/_authenticated/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
   '/_authenticated/apps/': typeof AuthenticatedAppsIndexRoute
-  '/_authenticated/beeai/': typeof AuthenticatedBeeaiIndexRoute
   '/_authenticated/beetrader/': typeof AuthenticatedBeetraderIndexRoute
   '/_authenticated/fire/': typeof AuthenticatedFireIndexRoute
   '/_authenticated/help-center/': typeof AuthenticatedHelpCenterIndexRoute
@@ -531,14 +478,12 @@ export interface FileRoutesById {
   '/_authenticated/beetrader/signals/history': typeof AuthenticatedBeetraderSignalsHistoryRoute
   '/_authenticated/beetrader/signals/realtime': typeof AuthenticatedBeetraderSignalsRealtimeRoute
   '/_authenticated/beetrader/signals/scheduled': typeof AuthenticatedBeetraderSignalsScheduledRoute
-  '/_authenticated/apps/crawler/': typeof AuthenticatedAppsCrawlerIndexRoute
   '/_authenticated/apps/subconvertor/': typeof AuthenticatedAppsSubconvertorIndexRoute
   '/_authenticated/beetrader/signals/': typeof AuthenticatedBeetraderSignalsIndexRoute
   '/_authenticated/finance/assets/': typeof AuthenticatedFinanceAssetsIndexRoute
   '/_authenticated/finance/categories/': typeof AuthenticatedFinanceCategoriesIndexRoute
   '/_authenticated/finance/exchange-rate/': typeof AuthenticatedFinanceExchangeRateIndexRoute
   '/_authenticated/finance/expenses/': typeof AuthenticatedFinanceExpensesIndexRoute
-  '/_authenticated/finance/investment/': typeof AuthenticatedFinanceInvestmentIndexRoute
   '/_authenticated/finance/liabilities/': typeof AuthenticatedFinanceLiabilitiesIndexRoute
   '/_authenticated/finance/statistics/': typeof AuthenticatedFinanceStatisticsIndexRoute
   '/_authenticated/monitoring/tasks/': typeof AuthenticatedMonitoringTasksIndexRoute
@@ -546,78 +491,23 @@ export interface FileRoutesById {
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    | '/'
     | '/beetrader'
     | '/finance'
     | '/fire'
     | '/settings'
-    | '/forgot-password'
-    | '/otp'
     | '/sign-in'
-    | '/sign-in-2'
-    | '/sign-up'
     | '/401'
     | '/403'
     | '/404'
     | '/500'
     | '/503'
+    | '/'
     | '/beetrader/signals'
     | '/beetrader/analyzer'
     | '/beetrader/candles'
     | '/beetrader/dashboard'
     | '/beetrader/events'
-    | '/beetrader/macroscopic'
-    | '/beetrader/market'
-    | '/beetrader/monitor-observation'
-    | '/beetrader/strategy-bot'
-    | '/beetrader/tracker'
-    | '/beetrader/whale-wallet-manage'
-    | '/errors/$error'
-    | '/settings/account'
-    | '/settings/appearance'
-    | '/settings/display'
-    | '/settings/email-notification'
-    | '/settings/notifications'
-    | '/apps/'
-    | '/beeai/'
-    | '/beetrader/'
-    | '/fire/'
-    | '/help-center/'
-    | '/settings/'
-    | '/tasks/'
-    | '/users/'
-    | '/beetrader/signals/history'
-    | '/beetrader/signals/realtime'
-    | '/beetrader/signals/scheduled'
-    | '/apps/crawler/'
-    | '/apps/subconvertor/'
-    | '/beetrader/signals/'
-    | '/finance/assets/'
-    | '/finance/categories/'
-    | '/finance/exchange-rate/'
-    | '/finance/expenses/'
-    | '/finance/investment/'
-    | '/finance/liabilities/'
-    | '/finance/statistics/'
-    | '/monitoring/tasks/'
-  fileRoutesByTo: FileRoutesByTo
-  to:
-    | '/finance'
-    | '/forgot-password'
-    | '/otp'
-    | '/sign-in'
-    | '/sign-in-2'
-    | '/sign-up'
-    | '/401'
-    | '/403'
-    | '/404'
-    | '/500'
-    | '/503'
-    | '/'
-    | '/beetrader/analyzer'
-    | '/beetrader/candles'
-    | '/beetrader/dashboard'
-    | '/beetrader/events'
+    | '/beetrader/kol-performance'
     | '/beetrader/macroscopic'
     | '/beetrader/market'
     | '/beetrader/monitor-observation'
@@ -631,7 +521,52 @@ export interface FileRouteTypes {
     | '/settings/email-notification'
     | '/settings/notifications'
     | '/apps'
-    | '/beeai'
+    | '/beetrader/'
+    | '/fire/'
+    | '/help-center'
+    | '/settings/'
+    | '/tasks'
+    | '/users'
+    | '/beetrader/signals/history'
+    | '/beetrader/signals/realtime'
+    | '/beetrader/signals/scheduled'
+    | '/apps/subconvertor'
+    | '/beetrader/signals/'
+    | '/finance/assets'
+    | '/finance/categories'
+    | '/finance/exchange-rate'
+    | '/finance/expenses'
+    | '/finance/liabilities'
+    | '/finance/statistics'
+    | '/monitoring/tasks'
+  fileRoutesByTo: FileRoutesByTo
+  to:
+    | '/finance'
+    | '/sign-in'
+    | '/401'
+    | '/403'
+    | '/404'
+    | '/500'
+    | '/503'
+    | '/'
+    | '/beetrader/analyzer'
+    | '/beetrader/candles'
+    | '/beetrader/dashboard'
+    | '/beetrader/events'
+    | '/beetrader/kol-performance'
+    | '/beetrader/macroscopic'
+    | '/beetrader/market'
+    | '/beetrader/monitor-observation'
+    | '/beetrader/strategy-bot'
+    | '/beetrader/tracker'
+    | '/beetrader/whale-wallet-manage'
+    | '/errors/$error'
+    | '/settings/account'
+    | '/settings/appearance'
+    | '/settings/display'
+    | '/settings/email-notification'
+    | '/settings/notifications'
+    | '/apps'
     | '/beetrader'
     | '/fire'
     | '/help-center'
@@ -641,14 +576,12 @@ export interface FileRouteTypes {
     | '/beetrader/signals/history'
     | '/beetrader/signals/realtime'
     | '/beetrader/signals/scheduled'
-    | '/apps/crawler'
     | '/apps/subconvertor'
     | '/beetrader/signals'
     | '/finance/assets'
     | '/finance/categories'
     | '/finance/exchange-rate'
     | '/finance/expenses'
-    | '/finance/investment'
     | '/finance/liabilities'
     | '/finance/statistics'
     | '/monitoring/tasks'
@@ -659,11 +592,7 @@ export interface FileRouteTypes {
     | '/_authenticated/finance'
     | '/_authenticated/fire'
     | '/_authenticated/settings'
-    | '/(auth)/forgot-password'
-    | '/(auth)/otp'
     | '/(auth)/sign-in'
-    | '/(auth)/sign-in-2'
-    | '/(auth)/sign-up'
     | '/(errors)/401'
     | '/(errors)/403'
     | '/(errors)/404'
@@ -675,6 +604,7 @@ export interface FileRouteTypes {
     | '/_authenticated/beetrader/candles'
     | '/_authenticated/beetrader/dashboard'
     | '/_authenticated/beetrader/events'
+    | '/_authenticated/beetrader/kol-performance'
     | '/_authenticated/beetrader/macroscopic'
     | '/_authenticated/beetrader/market'
     | '/_authenticated/beetrader/monitor-observation'
@@ -688,7 +618,6 @@ export interface FileRouteTypes {
     | '/_authenticated/settings/email-notification'
     | '/_authenticated/settings/notifications'
     | '/_authenticated/apps/'
-    | '/_authenticated/beeai/'
     | '/_authenticated/beetrader/'
     | '/_authenticated/fire/'
     | '/_authenticated/help-center/'
@@ -698,14 +627,12 @@ export interface FileRouteTypes {
     | '/_authenticated/beetrader/signals/history'
     | '/_authenticated/beetrader/signals/realtime'
     | '/_authenticated/beetrader/signals/scheduled'
-    | '/_authenticated/apps/crawler/'
     | '/_authenticated/apps/subconvertor/'
     | '/_authenticated/beetrader/signals/'
     | '/_authenticated/finance/assets/'
     | '/_authenticated/finance/categories/'
     | '/_authenticated/finance/exchange-rate/'
     | '/_authenticated/finance/expenses/'
-    | '/_authenticated/finance/investment/'
     | '/_authenticated/finance/liabilities/'
     | '/_authenticated/finance/statistics/'
     | '/_authenticated/monitoring/tasks/'
@@ -713,11 +640,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
-  authForgotPasswordRoute: typeof authForgotPasswordRoute
-  authOtpRoute: typeof authOtpRoute
   authSignInRoute: typeof authSignInRoute
-  authSignIn2Route: typeof authSignIn2Route
-  authSignUpRoute: typeof authSignUpRoute
   errors401Route: typeof errors401Route
   errors403Route: typeof errors403Route
   errors404Route: typeof errors404Route
@@ -730,7 +653,7 @@ declare module '@tanstack/react-router' {
     '/_authenticated': {
       id: '/_authenticated'
       path: ''
-      fullPath: '/'
+      fullPath: ''
       preLoaderRoute: typeof AuthenticatedRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
@@ -776,39 +699,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof errors401RouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/(auth)/sign-up': {
-      id: '/(auth)/sign-up'
-      path: '/sign-up'
-      fullPath: '/sign-up'
-      preLoaderRoute: typeof authSignUpRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/(auth)/sign-in-2': {
-      id: '/(auth)/sign-in-2'
-      path: '/sign-in-2'
-      fullPath: '/sign-in-2'
-      preLoaderRoute: typeof authSignIn2RouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/(auth)/sign-in': {
       id: '/(auth)/sign-in'
       path: '/sign-in'
       fullPath: '/sign-in'
       preLoaderRoute: typeof authSignInRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/(auth)/otp': {
-      id: '/(auth)/otp'
-      path: '/otp'
-      fullPath: '/otp'
-      preLoaderRoute: typeof authOtpRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/(auth)/forgot-password': {
-      id: '/(auth)/forgot-password'
-      path: '/forgot-password'
-      fullPath: '/forgot-password'
-      preLoaderRoute: typeof authForgotPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/settings': {
@@ -842,14 +737,14 @@ declare module '@tanstack/react-router' {
     '/_authenticated/users/': {
       id: '/_authenticated/users/'
       path: '/users'
-      fullPath: '/users/'
+      fullPath: '/users'
       preLoaderRoute: typeof AuthenticatedUsersIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/tasks/': {
       id: '/_authenticated/tasks/'
       path: '/tasks'
-      fullPath: '/tasks/'
+      fullPath: '/tasks'
       preLoaderRoute: typeof AuthenticatedTasksIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
@@ -863,7 +758,7 @@ declare module '@tanstack/react-router' {
     '/_authenticated/help-center/': {
       id: '/_authenticated/help-center/'
       path: '/help-center'
-      fullPath: '/help-center/'
+      fullPath: '/help-center'
       preLoaderRoute: typeof AuthenticatedHelpCenterIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
@@ -881,17 +776,10 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedBeetraderIndexRouteImport
       parentRoute: typeof AuthenticatedBeetraderRouteRoute
     }
-    '/_authenticated/beeai/': {
-      id: '/_authenticated/beeai/'
-      path: '/beeai'
-      fullPath: '/beeai/'
-      preLoaderRoute: typeof AuthenticatedBeeaiIndexRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
     '/_authenticated/apps/': {
       id: '/_authenticated/apps/'
       path: '/apps'
-      fullPath: '/apps/'
+      fullPath: '/apps'
       preLoaderRoute: typeof AuthenticatedAppsIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
@@ -979,6 +867,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedBeetraderMacroscopicRouteImport
       parentRoute: typeof AuthenticatedBeetraderRouteRoute
     }
+    '/_authenticated/beetrader/kol-performance': {
+      id: '/_authenticated/beetrader/kol-performance'
+      path: '/kol-performance'
+      fullPath: '/beetrader/kol-performance'
+      preLoaderRoute: typeof AuthenticatedBeetraderKolPerformanceRouteImport
+      parentRoute: typeof AuthenticatedBeetraderRouteRoute
+    }
     '/_authenticated/beetrader/events': {
       id: '/_authenticated/beetrader/events'
       path: '/events'
@@ -1017,56 +912,49 @@ declare module '@tanstack/react-router' {
     '/_authenticated/monitoring/tasks/': {
       id: '/_authenticated/monitoring/tasks/'
       path: '/monitoring/tasks'
-      fullPath: '/monitoring/tasks/'
+      fullPath: '/monitoring/tasks'
       preLoaderRoute: typeof AuthenticatedMonitoringTasksIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/finance/statistics/': {
       id: '/_authenticated/finance/statistics/'
       path: '/statistics'
-      fullPath: '/finance/statistics/'
+      fullPath: '/finance/statistics'
       preLoaderRoute: typeof AuthenticatedFinanceStatisticsIndexRouteImport
       parentRoute: typeof AuthenticatedFinanceRouteRoute
     }
     '/_authenticated/finance/liabilities/': {
       id: '/_authenticated/finance/liabilities/'
       path: '/liabilities'
-      fullPath: '/finance/liabilities/'
+      fullPath: '/finance/liabilities'
       preLoaderRoute: typeof AuthenticatedFinanceLiabilitiesIndexRouteImport
-      parentRoute: typeof AuthenticatedFinanceRouteRoute
-    }
-    '/_authenticated/finance/investment/': {
-      id: '/_authenticated/finance/investment/'
-      path: '/investment'
-      fullPath: '/finance/investment/'
-      preLoaderRoute: typeof AuthenticatedFinanceInvestmentIndexRouteImport
       parentRoute: typeof AuthenticatedFinanceRouteRoute
     }
     '/_authenticated/finance/expenses/': {
       id: '/_authenticated/finance/expenses/'
       path: '/expenses'
-      fullPath: '/finance/expenses/'
+      fullPath: '/finance/expenses'
       preLoaderRoute: typeof AuthenticatedFinanceExpensesIndexRouteImport
       parentRoute: typeof AuthenticatedFinanceRouteRoute
     }
     '/_authenticated/finance/exchange-rate/': {
       id: '/_authenticated/finance/exchange-rate/'
       path: '/exchange-rate'
-      fullPath: '/finance/exchange-rate/'
+      fullPath: '/finance/exchange-rate'
       preLoaderRoute: typeof AuthenticatedFinanceExchangeRateIndexRouteImport
       parentRoute: typeof AuthenticatedFinanceRouteRoute
     }
     '/_authenticated/finance/categories/': {
       id: '/_authenticated/finance/categories/'
       path: '/categories'
-      fullPath: '/finance/categories/'
+      fullPath: '/finance/categories'
       preLoaderRoute: typeof AuthenticatedFinanceCategoriesIndexRouteImport
       parentRoute: typeof AuthenticatedFinanceRouteRoute
     }
     '/_authenticated/finance/assets/': {
       id: '/_authenticated/finance/assets/'
       path: '/assets'
-      fullPath: '/finance/assets/'
+      fullPath: '/finance/assets'
       preLoaderRoute: typeof AuthenticatedFinanceAssetsIndexRouteImport
       parentRoute: typeof AuthenticatedFinanceRouteRoute
     }
@@ -1080,15 +968,8 @@ declare module '@tanstack/react-router' {
     '/_authenticated/apps/subconvertor/': {
       id: '/_authenticated/apps/subconvertor/'
       path: '/apps/subconvertor'
-      fullPath: '/apps/subconvertor/'
+      fullPath: '/apps/subconvertor'
       preLoaderRoute: typeof AuthenticatedAppsSubconvertorIndexRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/apps/crawler/': {
-      id: '/_authenticated/apps/crawler/'
-      path: '/apps/crawler'
-      fullPath: '/apps/crawler/'
-      preLoaderRoute: typeof AuthenticatedAppsCrawlerIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/beetrader/signals/scheduled': {
@@ -1145,6 +1026,7 @@ interface AuthenticatedBeetraderRouteRouteChildren {
   AuthenticatedBeetraderCandlesRoute: typeof AuthenticatedBeetraderCandlesRoute
   AuthenticatedBeetraderDashboardRoute: typeof AuthenticatedBeetraderDashboardRoute
   AuthenticatedBeetraderEventsRoute: typeof AuthenticatedBeetraderEventsRoute
+  AuthenticatedBeetraderKolPerformanceRoute: typeof AuthenticatedBeetraderKolPerformanceRoute
   AuthenticatedBeetraderMacroscopicRoute: typeof AuthenticatedBeetraderMacroscopicRoute
   AuthenticatedBeetraderMarketRoute: typeof AuthenticatedBeetraderMarketRoute
   AuthenticatedBeetraderMonitorObservationRoute: typeof AuthenticatedBeetraderMonitorObservationRoute
@@ -1162,6 +1044,8 @@ const AuthenticatedBeetraderRouteRouteChildren: AuthenticatedBeetraderRouteRoute
     AuthenticatedBeetraderCandlesRoute: AuthenticatedBeetraderCandlesRoute,
     AuthenticatedBeetraderDashboardRoute: AuthenticatedBeetraderDashboardRoute,
     AuthenticatedBeetraderEventsRoute: AuthenticatedBeetraderEventsRoute,
+    AuthenticatedBeetraderKolPerformanceRoute:
+      AuthenticatedBeetraderKolPerformanceRoute,
     AuthenticatedBeetraderMacroscopicRoute:
       AuthenticatedBeetraderMacroscopicRoute,
     AuthenticatedBeetraderMarketRoute: AuthenticatedBeetraderMarketRoute,
@@ -1185,7 +1069,6 @@ interface AuthenticatedFinanceRouteRouteChildren {
   AuthenticatedFinanceCategoriesIndexRoute: typeof AuthenticatedFinanceCategoriesIndexRoute
   AuthenticatedFinanceExchangeRateIndexRoute: typeof AuthenticatedFinanceExchangeRateIndexRoute
   AuthenticatedFinanceExpensesIndexRoute: typeof AuthenticatedFinanceExpensesIndexRoute
-  AuthenticatedFinanceInvestmentIndexRoute: typeof AuthenticatedFinanceInvestmentIndexRoute
   AuthenticatedFinanceLiabilitiesIndexRoute: typeof AuthenticatedFinanceLiabilitiesIndexRoute
   AuthenticatedFinanceStatisticsIndexRoute: typeof AuthenticatedFinanceStatisticsIndexRoute
 }
@@ -1199,8 +1082,6 @@ const AuthenticatedFinanceRouteRouteChildren: AuthenticatedFinanceRouteRouteChil
       AuthenticatedFinanceExchangeRateIndexRoute,
     AuthenticatedFinanceExpensesIndexRoute:
       AuthenticatedFinanceExpensesIndexRoute,
-    AuthenticatedFinanceInvestmentIndexRoute:
-      AuthenticatedFinanceInvestmentIndexRoute,
     AuthenticatedFinanceLiabilitiesIndexRoute:
       AuthenticatedFinanceLiabilitiesIndexRoute,
     AuthenticatedFinanceStatisticsIndexRoute:
@@ -1260,11 +1141,9 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedErrorsErrorRoute: typeof AuthenticatedErrorsErrorRoute
   AuthenticatedAppsIndexRoute: typeof AuthenticatedAppsIndexRoute
-  AuthenticatedBeeaiIndexRoute: typeof AuthenticatedBeeaiIndexRoute
   AuthenticatedHelpCenterIndexRoute: typeof AuthenticatedHelpCenterIndexRoute
   AuthenticatedTasksIndexRoute: typeof AuthenticatedTasksIndexRoute
   AuthenticatedUsersIndexRoute: typeof AuthenticatedUsersIndexRoute
-  AuthenticatedAppsCrawlerIndexRoute: typeof AuthenticatedAppsCrawlerIndexRoute
   AuthenticatedAppsSubconvertorIndexRoute: typeof AuthenticatedAppsSubconvertorIndexRoute
   AuthenticatedMonitoringTasksIndexRoute: typeof AuthenticatedMonitoringTasksIndexRoute
 }
@@ -1278,11 +1157,9 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
   AuthenticatedErrorsErrorRoute: AuthenticatedErrorsErrorRoute,
   AuthenticatedAppsIndexRoute: AuthenticatedAppsIndexRoute,
-  AuthenticatedBeeaiIndexRoute: AuthenticatedBeeaiIndexRoute,
   AuthenticatedHelpCenterIndexRoute: AuthenticatedHelpCenterIndexRoute,
   AuthenticatedTasksIndexRoute: AuthenticatedTasksIndexRoute,
   AuthenticatedUsersIndexRoute: AuthenticatedUsersIndexRoute,
-  AuthenticatedAppsCrawlerIndexRoute: AuthenticatedAppsCrawlerIndexRoute,
   AuthenticatedAppsSubconvertorIndexRoute:
     AuthenticatedAppsSubconvertorIndexRoute,
   AuthenticatedMonitoringTasksIndexRoute:
@@ -1294,11 +1171,7 @@ const AuthenticatedRouteRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
-  authForgotPasswordRoute: authForgotPasswordRoute,
-  authOtpRoute: authOtpRoute,
   authSignInRoute: authSignInRoute,
-  authSignIn2Route: authSignIn2Route,
-  authSignUpRoute: authSignUpRoute,
   errors401Route: errors401Route,
   errors403Route: errors403Route,
   errors404Route: errors404Route,

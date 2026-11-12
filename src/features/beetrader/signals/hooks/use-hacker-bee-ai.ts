@@ -1,8 +1,7 @@
 import { useState, useCallback } from 'react'
-import { ChatOpenAI } from '@langchain/openai'
-import { ChatPromptTemplate } from '@langchain/core/prompts'
 import type { AiStrategyOutput } from '../../strategies/hooks/use-ai-strategy'
 import type { OrderRadarData } from './use-order-radar'
+import { hyperliquidApiPost } from '@/lib/hyperliquid-api-client'
 
 // ── System Prompt ──
 
@@ -62,105 +61,57 @@ export function useHackerBeeAI() {
       setLoading(true)
       setError(null)
 
-      const apiKey = import.meta.env.VITE_OPENAI_API_KEY
-      const rawBaseURL = import.meta.env.VITE_OPENAI_BASE_URL
-      const modelName = import.meta.env.VITE_OPENAI_MODEL || 'gpt-4o'
-
-      if (!apiKey) {
-        throw new Error('未配置 VITE_OPENAI_API_KEY 环境变量')
-      }
-
-      const baseURL = rawBaseURL?.startsWith('/')
-        ? `${window.location.origin}${rawBaseURL}`
-        : rawBaseURL
-
-      const model = new ChatOpenAI({
-        apiKey,
-        model: modelName,
-        configuration: { baseURL, dangerouslyAllowBrowser: true },
-        temperature: 0.3,
-      })
-
-      const prompt = ChatPromptTemplate.fromMessages([
-        ['system', SYSTEM_PROMPT],
-        ['human', `请分析以下 {coin} 的订单流数据并生成交易策略：
-
-当前价格: {current_price}
-
-## S/R 支撑压力位
-短期: {sr_short}
-中期: {sr_mid}
-长期: {sr_long}
-
-## 订单块
-{order_blocks}
-
-## CVD 累计量差
-趋势: {cvd_trend}, CVD值: {cvd_value}
-底背离: {cvd_bull_div}, 顶背离: {cvd_bear_div}
-
-## OI & 资金费率
-OI: {oi}, 费率: {funding_rate}
-费率趋势: {funding_trend}
-
-## 趋势过滤
-VWAP: {vwap}, 偏离: {vwap_dist}
-EMA12: {ema12}, 斜率: {ema_slope}, 价格{ema_pos}EMA
-
-## 布林带
-1H: {bb_1h_lower} – {bb_1h_upper}, 位置: {bb_pct}%
-4H: {bb_4h_lower} – {bb_4h_upper}
-
-## MACD 4H
-MACD: {macd_val}, 信号线: {macd_signal}, 柱状: {macd_hist}
-交叉: {macd_cross}, 柱状趋势: {macd_hist_trend}`],
-      ])
-
       const { entry_trigger, trend_filter, tp_sl_reference } = data
       const { sr_levels, order_blocks, cvd, oi } = entry_trigger
       const { vwap, ema } = trend_filter
       const { bollinger, macd } = tp_sl_reference
 
-      const chain = prompt.pipe(model)
-      const response = await chain.invoke({
-        coin: data.coin,
-        current_price: data.current_price,
-        // S/R
-        sr_short: fmtSrTier(sr_levels.short_term),
-        sr_mid: fmtSrTier(sr_levels.medium_term),
-        sr_long: fmtSrTier(sr_levels.long_term),
-        // 订单块
-        order_blocks: fmtOrderBlocks(order_blocks),
-        // CVD
-        cvd_trend: cvd.trend,
-        cvd_value: cvd.value.toFixed(1),
-        cvd_bull_div: cvd.bull_divergence ? '是' : '否',
-        cvd_bear_div: cvd.bear_divergence ? '是' : '否',
-        // OI
-        oi: oi.open_interest != null ? oi.open_interest.toLocaleString() : '未知',
-        funding_rate: oi.funding_rate != null ? `${(oi.funding_rate * 100).toFixed(4)}%` : '未知',
-        funding_trend: oi.funding_trend === 'positive' ? '正向(多头付费)' : oi.funding_trend === 'negative' ? '负向(空头付费)' : '中性',
-        // 趋势过滤
-        vwap: vwap.value != null ? vwap.value.toFixed(2) : '未知',
-        vwap_dist: vwap.dist_pct != null ? `${vwap.dist_pct > 0 ? '+' : ''}${vwap.dist_pct.toFixed(2)}%` : '未知',
-        ema12: ema.ema12.toFixed(2),
-        ema_slope: ema.slope === 'up' ? '上升' : ema.slope === 'down' ? '下降' : '平坦',
-        ema_pos: ema.price_vs_ema === 'above' ? '在上方' : '在下方',
-        // 布林带
-        bb_1h_lower: bollinger.lower.toFixed(2),
-        bb_1h_upper: bollinger.upper.toFixed(2),
-        bb_pct: bollinger.pct != null ? bollinger.pct.toString() : '未知',
-        bb_4h_lower: bollinger.lower_4h != null ? bollinger.lower_4h.toFixed(2) : '未知',
-        bb_4h_upper: bollinger.upper_4h != null ? bollinger.upper_4h.toFixed(2) : '未知',
-        // MACD
-        macd_val: macd.macd.toFixed(2),
-        macd_signal: macd.signal.toFixed(2),
-        macd_hist: macd.histogram.toFixed(2),
-        macd_cross: macd.cross === 'golden' ? '金叉' : macd.cross === 'death' ? '死叉' : '无交叉',
-        macd_hist_trend: macd.histogram_trend === 'expanding' ? '扩张' : '收缩',
+      const userPrompt = `请分析以下 ${data.coin} 的订单流数据并生成交易策略：
+
+当前价格: ${data.current_price}
+
+## S/R 支撑压力位
+短期: ${fmtSrTier(sr_levels.short_term)}
+中期: ${fmtSrTier(sr_levels.medium_term)}
+长期: ${fmtSrTier(sr_levels.long_term)}
+
+## 订单块
+${fmtOrderBlocks(order_blocks)}
+
+## CVD 累计量差
+趋势: ${cvd.trend}, CVD值: ${cvd.value.toFixed(1)}
+底背离: ${cvd.bull_divergence ? '是' : '否'}, 顶背离: ${cvd.bear_divergence ? '是' : '否'}
+
+## OI & 资金费率
+OI: ${oi.open_interest != null ? oi.open_interest.toLocaleString() : '未知'}, 费率: ${oi.funding_rate != null ? `${(oi.funding_rate * 100).toFixed(4)}%` : '未知'}
+费率趋势: ${oi.funding_trend === 'positive' ? '正向(多头付费)' : oi.funding_trend === 'negative' ? '负向(空头付费)' : '中性'}
+
+## 趋势过滤
+VWAP: ${vwap.value != null ? vwap.value.toFixed(2) : '未知'}, 偏离: ${vwap.dist_pct != null ? `${vwap.dist_pct > 0 ? '+' : ''}${vwap.dist_pct.toFixed(2)}%` : '未知'}
+EMA12: ${ema.ema12.toFixed(2)}, 斜率: ${ema.slope === 'up' ? '上升' : ema.slope === 'down' ? '下降' : '平坦'}, 价格${ema.price_vs_ema === 'above' ? '在上方' : '在下方'}
+
+## 布林带
+1H: ${bollinger.lower.toFixed(2)} – ${bollinger.upper.toFixed(2)}, 位置: ${bollinger.pct != null ? bollinger.pct.toString() : '未知'}%
+4H: ${bollinger.lower_4h != null ? bollinger.lower_4h.toFixed(2) : '未知'} – ${bollinger.upper_4h != null ? bollinger.upper_4h.toFixed(2) : '未知'}
+
+## MACD 4H
+MACD: ${macd.macd.toFixed(2)}, 信号线: ${macd.signal.toFixed(2)}, 柱状: ${macd.histogram.toFixed(2)}
+交叉: ${macd.cross === 'golden' ? '金叉' : macd.cross === 'death' ? '死叉' : '无交叉'}, 柱状趋势: ${macd.histogram_trend === 'expanding' ? '扩张' : '收缩'}`
+
+      // 经后端代理调 LLM（/api/proxy/llm/chat/completions），密钥只存在后端
+      const res = await hyperliquidApiPost<{
+        choices: { message: { content: string } }[]
+      }>('/api/proxy/llm/chat/completions', {
+        messages: [
+          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'user', content: userPrompt },
+        ],
+        temperature: 0.3,
       })
 
-      const content = typeof response.content === 'string' ? response.content : JSON.stringify(response.content)
+      const content = res.choices?.[0]?.message?.content
+      if (!content) throw new Error('LLM 返回内容为空')
+
       const output: AiStrategyOutput = { content }
       setResult(output)
       return output

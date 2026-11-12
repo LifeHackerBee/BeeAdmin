@@ -39,7 +39,6 @@ const AVAILABLE_MODULES = [
   { value: BeeAdminModules.BEETRADER_BACKTEST, label: '┗ Backtest', description: '回测系统' },
   { value: BeeAdminModules.BEETRADER_ANALYZER, label: '┗ Analyzer', description: '分析器' },
   { value: BeeAdminModules.BEETRADER_EVENTS, label: '┗ Events', description: '事件管理' },
-  { value: BeeAdminModules.BEEAI, label: 'BeeAI', description: '智能助手' },
   { value: BeeAdminModules.FINANCE, label: 'Finance', description: '财务管理（包含所有子模块）' },
   { value: BeeAdminModules.FINANCE_EXPENSES, label: '┗ Expenses', description: '支出管理' },
   { value: BeeAdminModules.FINANCE_ASSETS, label: '┗ Assets', description: '资产管理' },
@@ -48,7 +47,6 @@ const AVAILABLE_MODULES = [
   { value: BeeAdminModules.MONITORING, label: 'Monitoring', description: '监控模块' },
   { value: BeeAdminModules.TASKS, label: 'Tasks', description: '任务管理' },
   { value: BeeAdminModules.APPS, label: 'Apps', description: '应用中心' },
-  { value: BeeAdminModules.CRAWLER, label: 'Crawler', description: '爬虫模块' },
   { value: BeeAdminModules.SUBCONVERTOR, label: 'Subconvertor', description: '订阅链接转换' },
   { value: BeeAdminModules.USERS, label: 'Users', description: '用户管理' },
 ]

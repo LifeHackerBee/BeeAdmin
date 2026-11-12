@@ -1,4 +1,4 @@
-import { useSearch, Link } from '@tanstack/react-router'
+import { useSearch } from '@tanstack/react-router'
 import {
   Card,
   CardContent,
@@ -12,7 +12,6 @@ import { AlertCircle } from 'lucide-react'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { AuthLayout } from '../auth-layout'
 import { UserAuthForm } from './components/user-auth-form'
-import { authConfig } from '@/config/auth'
 
 export function SignIn() {
   const search = useSearch({ from: '/(auth)/sign-in' })
@@ -49,18 +48,6 @@ export function SignIn() {
           <UserAuthForm redirectTo={redirectTo} />
         </CardContent>
         <CardFooter className='flex flex-col gap-2'>
-          {authConfig.allowSignUp && (
-            <p className='px-8 text-center text-sm text-muted-foreground'>
-              {t('auth.dontHaveAccount')}{' '}
-              <Link
-                to='/sign-up'
-                className='underline underline-offset-4 hover:text-primary'
-              >
-                {t('common.signUp')}
-              </Link>
-              .
-            </p>
-          )}
           <p className='px-8 text-center text-sm text-muted-foreground'>
             {t('auth.agreeTerms')}{' '}
             <a
